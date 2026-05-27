@@ -44,7 +44,12 @@ If a request conflicts with `AGENTS.md`, `CONVENTIONS.md`, or `SPEC.md`, say so.
 
 ## Quick Reference
 
-- Stack: TypeScript strict, Bun, no DB (filesystem `~/.bode/`), MCP Atlassian for Jira, child_process for AI CLIs
-- Run dev: `bun run dev <subcommand>`
-- Validate: `bun run check && bun run lint && bun run test && bun run build`
-- Never: `any`, direct Jira REST, direct git CLI outside `adapters/vcs/`, direct token reads outside keychain code
+- Stack: TypeScript strict, Node.js + esbuild, no DB (filesystem `~/.bode/`), MCP Atlassian for Jira, child_process for AI CLIs
+- Runtime: Node.js >=18, CJS bundle via esbuild
+- Run dev: `npm run dev -- <subcommand>`
+- Validate: `npm run check; npm run lint; npm run build`
+- Install globally: `npm run build && npm pack && npm i -g bode-*.tgz`
+- Never: `any`, direct Jira REST, direct git CLI outside `adapters/vcs/`
+- ASCII art: `src/assets/bode.art` → embedded via esbuild `define` as `__GOAT_ART__`
+- Models registry: `src/adapters/cli/models.ts` — update when new models launch
+- Adapter registry: `src/adapters/cli/registry.ts` — update when adding new CLI

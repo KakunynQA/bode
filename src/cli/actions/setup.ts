@@ -74,7 +74,7 @@ function cliDescription(name: string): string {
 
 export async function setupAction(): Promise<void> {
   console.log(__GOAT_ART__);
-  console.log(pc.bold(pc.cyan('  Bode Setup Wizard v0.3.0\n')));
+  console.log(pc.bold(pc.cyan('  Bode Setup Wizard v0.4.0\n')));
 
   const globalDir = getGlobalDir();
   await ensureDir(globalDir);
