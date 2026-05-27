@@ -2,12 +2,13 @@ import { loadConfig } from '~/config/loader.ts';
 import { createJiraAdapter } from '~/adapters/jira/factory.ts';
 import { advancePhase } from '~/orchestrator/engine.ts';
 import { resolveProject } from '~/config/project-resolver.ts';
-import { printPermissionWarning } from '~/utils/permission-warning.ts';
+import { planDangerousMode } from '~/cli/dangerous-check.ts';
+import { handleMissingArtifact } from '~/cli/missing-artifact.ts';
 import pc from 'picocolors';
 
 export async function continueAction(
 	taskKey: string,
-	options: { project?: string }
+	options: { project?: string; approveAllDangerous?: boolean }
 ): Promise<void> {
 	const configResult = await loadConfig();
 	if (!configResult.ok) {
@@ -26,11 +27,23 @@ export async function continueAction(
 	const { config, projectConfig } = projectResult.value;
 	const jira = createJiraAdapter(config.jira);
 
+	let dangerousBypass = false;
+	if (options.approveAllDangerous) {
+		const plan = await planDangerousMode(config);
+		if (!plan.approved) {
+			console.log(pc.dim('Aborted by user.'));
+			process.exit(0);
+		}
+		dangerousBypass = true;
+	}
+
 	const result = await advancePhase(taskKey, config, jira, {
 		projectRoot: projectConfig.workdir,
 		signal: undefined,
 		autopilot: undefined,
 		projectConfig,
+		interactive: true,
+		dangerousBypass,
 	});
 	if (!result.ok) {
 		console.error(pc.red(`Error: ${result.error.message}`));
@@ -56,9 +69,6 @@ export async function continueAction(
 		const { meta, phaseResult } = advanceVal;
 
 		if (phaseResult.kind === 'success') {
-			if (phaseResult.permissionIssue) {
-				printPermissionWarning(phaseResult.permissionIssue);
-			}
 			console.log(pc.green(`\nPhase complete. Status: ${meta.status}`));
 
 			if (meta.status === 'reviewed') {
@@ -66,6 +76,9 @@ export async function continueAction(
 			} else {
 				console.log(pc.dim(`Run "bode continue ${taskKey}" to advance.`));
 			}
+		} else if (phaseResult.kind === 'missing-artifact') {
+			const decision = await handleMissingArtifact('phase', taskKey);
+			if (decision === 'abort') process.exit(1);
 		} else {
 			console.error(
 				pc.red(

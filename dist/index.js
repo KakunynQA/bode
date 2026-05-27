@@ -31759,21 +31759,84 @@ var init_base2 = __esm({
     MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
     TRUNCATION_NOTICE = "\n\n...[truncated: output exceeded 5MB]";
     BaseCliAdapter = class {
-      spawnCli(command, args, options) {
-        if (isWindows) {
-          return (0, import_node_child_process.spawn)("cmd.exe", ["/c", command, ...args], { stdio: options.stdio });
-        }
-        return (0, import_node_child_process.spawn)(command, args, { stdio: options.stdio });
+      /**
+       * Returns the CLI-specific flag(s) that disable approval prompts and sandboxing
+       * when bode is invoked with `--approve-all-dangerous`. Returns null when the
+       * underlying CLI has no equivalent — callers should warn the user upfront so
+       * they understand they may need to approve actions interactively.
+       */
+      dangerousFlags() {
+        return null;
       }
-      async invoke(prompt, config2, signal) {
+      /**
+       * Whether this adapter supports interactive mode (stdio inherit, user drives
+       * the AI session in their terminal). Default true — override to false only
+       * if the CLI cannot be used interactively at all.
+       */
+      supportsInteractive() {
+        return true;
+      }
+      spawnCli(command, args, stdio) {
+        if (isWindows) {
+          return (0, import_node_child_process.spawn)("cmd.exe", ["/c", command, ...args], { stdio });
+        }
+        return (0, import_node_child_process.spawn)(command, args, { stdio });
+      }
+      async invoke(prompt, config2, options = {}) {
+        const interactive = options.interactive ?? false;
+        if (interactive) {
+          return this.invokeInteractive(prompt, config2, options);
+        }
+        return this.invokeHeadless(prompt, config2, options);
+      }
+      async invokeInteractive(prompt, config2, options) {
         const start = Date.now();
-        const args = this.buildArgs(prompt, config2);
+        const args = this.buildArgs(prompt, config2, options);
         const command = this.getCommand();
+        const { signal } = options;
         try {
           const result = await new Promise((resolve, reject) => {
-            const proc = this.spawnCli(command, args, {
-              stdio: ["pipe", "pipe", "pipe"]
+            const proc = this.spawnCli(command, args, ["inherit", "inherit", "inherit"]);
+            const timeoutMs = config2.timeout_minutes * 60 * 1e3;
+            const timer = setTimeout(() => {
+              proc.kill("SIGTERM");
+              reject(new Error(`CLI timeout after ${config2.timeout_minutes} minutes`));
+            }, timeoutMs);
+            const onAbort = () => {
+              clearTimeout(timer);
+              proc.kill("SIGTERM");
+              reject(new Error("Aborted by user"));
+            };
+            signal?.addEventListener("abort", onAbort);
+            proc.on("close", (code) => {
+              clearTimeout(timer);
+              signal?.removeEventListener("abort", onAbort);
+              resolve({
+                stdout: "",
+                stderr: "",
+                exitCode: code ?? 0,
+                durationMs: Date.now() - start
+              });
             });
+            proc.on("error", (err) => {
+              clearTimeout(timer);
+              signal?.removeEventListener("abort", onAbort);
+              reject(err);
+            });
+          });
+          return { ok: true, value: result };
+        } catch (error52) {
+          return { ok: false, error: error52 };
+        }
+      }
+      async invokeHeadless(prompt, config2, options) {
+        const start = Date.now();
+        const args = this.buildArgs(prompt, config2, options);
+        const command = this.getCommand();
+        const { signal } = options;
+        try {
+          const result = await new Promise((resolve, reject) => {
+            const proc = this.spawnCli(command, args, ["pipe", "pipe", "pipe"]);
             let stdout = "";
             let stderr = "";
             let stdoutBytes = 0;
@@ -31829,16 +31892,13 @@ var init_base2 = __esm({
           });
           return { ok: true, value: result };
         } catch (error52) {
-          return {
-            ok: false,
-            error: error52
-          };
+          return { ok: false, error: error52 };
         }
       }
       async isAvailable() {
         try {
           const command = this.getCommand();
-          const proc = this.spawnCli(command, ["--version"], { stdio: ["ignore", "ignore", "ignore"] });
+          const proc = this.spawnCli(command, ["--version"], ["ignore", "ignore", "ignore"]);
           return await new Promise((resolve) => {
             proc.on("close", (code) => resolve(code === 0));
             proc.on("error", () => resolve(false));
@@ -31862,8 +31922,20 @@ var init_claude_code = __esm({
       getCommand() {
         return "claude";
       }
-      buildArgs(_prompt, config2) {
-        return ["--print", "--model", config2.model];
+      buildArgs(prompt, config2, options) {
+        const args = ["--model", config2.model];
+        if (options.dangerousBypass) {
+          args.push("--dangerously-skip-permissions");
+        }
+        if (!options.interactive) {
+          args.push("--print");
+        } else {
+          args.push(prompt);
+        }
+        return args;
+      }
+      dangerousFlags() {
+        return ["--dangerously-skip-permissions"];
       }
     };
   }
@@ -31880,8 +31952,20 @@ var init_opencode = __esm({
       getCommand() {
         return "opencode";
       }
-      buildArgs(_prompt, config2) {
-        return ["run", "--model", config2.model, "--prompt-file", "/dev/stdin"];
+      buildArgs(prompt, config2, options) {
+        const args = [];
+        if (!options.interactive) {
+          args.push("run", "--model", config2.model, "--prompt-file", "/dev/stdin");
+        } else {
+          args.push("--model", config2.model, prompt);
+        }
+        return args;
+      }
+      // OpenCode does not expose a single equivalent flag for full bypass.
+      // Returning null causes bode to warn the user upfront when --approve-all-dangerous
+      // is used with this adapter.
+      dangerousFlags() {
+        return null;
       }
     };
   }
@@ -31898,8 +31982,25 @@ var init_codex = __esm({
       getCommand() {
         return "codex";
       }
-      buildArgs(_prompt, config2) {
-        return ["exec", "--model", config2.model, "--prompt-file", "/dev/stdin"];
+      buildArgs(prompt, config2, options) {
+        const args = [];
+        if (!options.interactive) {
+          args.push("exec", "--model", config2.model);
+          if (options.dangerousBypass) {
+            args.push("--dangerously-bypass-approvals-and-sandbox");
+          }
+          args.push("--prompt-file", "/dev/stdin");
+        } else {
+          args.push("--model", config2.model);
+          if (options.dangerousBypass) {
+            args.push("--dangerously-bypass-approvals-and-sandbox");
+          }
+          args.push(prompt);
+        }
+        return args;
+      }
+      dangerousFlags() {
+        return ["--dangerously-bypass-approvals-and-sandbox"];
       }
     };
   }
@@ -31916,8 +32017,19 @@ var init_zai = __esm({
       getCommand() {
         return "zai-coding";
       }
-      buildArgs(_prompt, config2) {
-        return ["--model", config2.model, "--prompt-file", "/dev/stdin"];
+      buildArgs(prompt, config2, options) {
+        const args = [];
+        if (!options.interactive) {
+          args.push("--model", config2.model, "--prompt-file", "/dev/stdin");
+        } else {
+          args.push("--model", config2.model, prompt);
+        }
+        return args;
+      }
+      // Z.AI has no documented bypass flag — warn the user upfront when
+      // --approve-all-dangerous is used with this adapter.
+      dangerousFlags() {
+        return null;
       }
     };
   }
@@ -32474,8 +32586,8 @@ var init_rest = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.12.0") {
-    return "0.12.0";
+  if ("0.13.0") {
+    return "0.13.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -33501,6 +33613,22 @@ ${context.priorArtifact}
     );
     parts.push(lines.join("\n"));
   }
+  if (context.artifactPath) {
+    parts.push(
+      [
+        "\n<bode-handoff>",
+        "IMPORTANT \u2014 when you are finished with this phase, you MUST:",
+        `  1. Write your final markdown artifact to exactly this path:`,
+        `     ${context.artifactPath}`,
+        "     Overwrite if it already exists. Write only the artifact content \u2014 no commentary outside it.",
+        "  2. Then exit the session (type /exit, or quit normally).",
+        "",
+        "Bode reads that file after you exit to know the phase succeeded.",
+        "If the file is missing or empty when you exit, bode will ask the user what happened.",
+        "</bode-handoff>"
+      ].join("\n")
+    );
+  }
   return parts.join("\n");
 }
 var init_prompt_builder = __esm({
@@ -33674,39 +33802,6 @@ var init_preflight = __esm({
   }
 });
 
-// src/utils/output-scan.ts
-function detectPermissionIssue(output) {
-  if (!output) return null;
-  for (const { name, re } of PERMISSION_PATTERNS) {
-    const match = output.match(re);
-    if (!match) continue;
-    const idx = match.index ?? 0;
-    const start = Math.max(0, idx - 120);
-    const end = Math.min(output.length, idx + 240);
-    const snippet = output.slice(start, end).trim();
-    const pathMatches = snippet.match(PATH_RE) ?? [];
-    const suggestedPaths = Array.from(new Set(pathMatches));
-    return { pattern: name, snippet, suggestedPaths };
-  }
-  return null;
-}
-var PERMISSION_PATTERNS, PATH_RE;
-var init_output_scan = __esm({
-  "src/utils/output-scan.ts"() {
-    "use strict";
-    PERMISSION_PATTERNS = [
-      { name: "permission-denied", re: /\bpermission denied\b/i },
-      { name: "eacces", re: /\bEACCES\b/ },
-      { name: "no-read-access", re: /(?:do not|don'?t|need to)\s+have\s+(?:read\s+)?access/i },
-      { name: "need-access", re: /need\s+(?:read\s+)?access\s+to/i },
-      { name: "grant-permission", re: /(?:could you|please)\s+grant\s+(?:permission|access)/i },
-      { name: "sandbox-blocked", re: /sandbox.*(?:blocked|refused|denied|restrict)/i },
-      { name: "not-allowed", re: /not\s+allowed\s+to\s+(?:read|access)/i }
-    ];
-    PATH_RE = /(?:[A-Z]:[\\/][^\s`'"]+|\/[^\s`'"]+)/g;
-  }
-});
-
 // src/orchestrator/phase-runner.ts
 async function runPhase(taskKey, status, config2, jira, options) {
   const phaseName = getPhaseNameForStatus(status);
@@ -33747,18 +33842,19 @@ async function runPhase(taskKey, status, config2, jira, options) {
     if (r.name) entry.name = r.name;
     return entry;
   });
+  const runDir = getRunDir(taskKey);
+  const logPath = (0, import_node_path11.join)(runDir, `${phaseName}.log`);
+  const artifactPath = (0, import_node_path11.join)(runDir, `${phaseName}.md`);
   const prompt = buildPrompt(skillResult.value, {
     jiraIssue: issue2,
     projectAgentsMd,
     repoFileTree,
     priorArtifact,
+    artifactPath,
     ...repos ? { repos } : {},
     ...options.projectConfig?.branch_tool ? { branchTool: options.projectConfig.branch_tool } : {},
     ...options.projectRoot ? { mainWorkdir: options.projectRoot } : {}
   });
-  const runDir = getRunDir(taskKey);
-  const logPath = (0, import_node_path11.join)(runDir, `${phaseName}.log`);
-  const artifactPath = (0, import_node_path11.join)(runDir, `${phaseName}.md`);
   const cliConfig = {
     cli: phaseConfig.cli,
     model: phaseConfig.model,
@@ -33769,7 +33865,12 @@ async function runPhase(taskKey, status, config2, jira, options) {
   if (labels && currentLabelKey) {
     await jira.addLabel(taskKey, labels[currentLabelKey]);
   }
-  const invokeResult = await adapterResult.value.invoke(prompt, cliConfig, options.signal);
+  const invocationOpts = {
+    signal: options.signal,
+    interactive: options.interactive ?? true,
+    dangerousBypass: options.dangerousBypass ?? false
+  };
+  const invokeResult = await adapterResult.value.invoke(prompt, cliConfig, invocationOpts);
   if (!invokeResult.ok) {
     const failLog = `Phase ${phaseName} failed: ${invokeResult.error.message}`;
     await writeText(logPath, failLog);
@@ -33787,9 +33888,29 @@ async function runPhase(taskKey, status, config2, jira, options) {
     };
   }
   const invocation = invokeResult.value;
-  await writeText(logPath, invocation.stdout);
-  await writeText(artifactPath, invocation.stdout);
-  const permissionIssue = detectPermissionIssue(invocation.stdout) ?? detectPermissionIssue(invocation.stderr) ?? void 0;
+  if (invocation.stdout || invocation.stderr) {
+    const logBody = `STDOUT:
+${invocation.stdout}
+
+STDERR:
+${invocation.stderr}`;
+    await writeText(logPath, logBody);
+  } else {
+    await writeText(
+      logPath,
+      `Interactive session \u2014 output not captured. Exit code: ${invocation.exitCode}. Duration: ${invocation.durationMs}ms.`
+    );
+  }
+  const artifact = await readArtifact(artifactPath, invocation.stdout);
+  if (!artifact) {
+    return {
+      ok: true,
+      value: { kind: "missing-artifact", logPath, durationMs: invocation.durationMs }
+    };
+  }
+  if (!(0, import_node_fs9.existsSync)(artifactPath)) {
+    await writeText(artifactPath, artifact);
+  }
   const labelsConfig = config2.jira_labels;
   if (labelsConfig) {
     if (currentLabelKey) {
@@ -33811,12 +33932,25 @@ async function runPhase(taskKey, status, config2, jira, options) {
     ok: true,
     value: {
       kind: "success",
-      artifact: invocation.stdout,
+      artifact,
       logPath,
-      durationMs: invocation.durationMs,
-      ...permissionIssue ? { permissionIssue } : {}
+      durationMs: invocation.durationMs
     }
   };
+}
+async function readArtifact(artifactPath, headlessStdout) {
+  if ((0, import_node_fs9.existsSync)(artifactPath)) {
+    try {
+      const s = await (0, import_promises8.stat)(artifactPath);
+      if (s.size > 0) {
+        const content = await readText(artifactPath);
+        if (content && content.trim().length > 0) return content;
+      }
+    } catch {
+    }
+  }
+  if (headlessStdout && headlessStdout.trim().length > 0) return headlessStdout;
+  return null;
 }
 function getPriorPhaseFile(phase) {
   switch (phase) {
@@ -33854,7 +33988,7 @@ function getNextLabelKey(phase) {
       return null;
   }
 }
-var import_node_path11;
+var import_node_path11, import_node_fs9, import_promises8;
 var init_phase_runner = __esm({
   "src/orchestrator/phase-runner.ts"() {
     "use strict";
@@ -33867,8 +34001,9 @@ var init_phase_runner = __esm({
     init_fs();
     init_context();
     init_preflight();
-    init_output_scan();
     import_node_path11 = require("node:path");
+    import_node_fs9 = require("node:fs");
+    import_promises8 = require("node:fs/promises");
   }
 });
 
@@ -34290,14 +34425,17 @@ async function advancePhase(taskKey, config2, jira, options) {
   if (!transitionResult.ok) {
     console.warn(`[bode] Jira transition failed: ${transitionResult.error.message}`);
   }
-  const spinner = ora(`Running ${getPhaseStatusLabel(executingStatus)} phase...`).start();
+  const interactive = options.interactive ?? true;
+  const spinner = interactive ? null : ora(`Running ${getPhaseStatusLabel(executingStatus)} phase...`).start();
   const phaseResult = await runPhase(taskKey, executingStatus, config2, jira, {
     projectRoot: options.projectRoot,
     signal: options.signal,
-    projectConfig: options.projectConfig
+    projectConfig: options.projectConfig,
+    interactive,
+    dangerousBypass: options.dangerousBypass ?? false
   });
   if (!phaseResult.ok) {
-    spinner.fail(`Phase failed: ${phaseResult.error.message}`);
+    spinner?.fail(`Phase failed: ${phaseResult.error.message}`);
     await postJiraComment(
       taskKey,
       jira,
@@ -34309,26 +34447,23 @@ ${phaseResult.error.message}`
   }
   const result = phaseResult.value;
   if (result.kind === "success") {
-    if (result.permissionIssue) {
-      spinner.warn(
-        `${getPhaseStatusLabel(nextStatus)} finished but the CLI flagged a permission issue (${formatDuration(result.durationMs)})`
-      );
-    } else {
-      spinner.succeed(
-        `${getPhaseStatusLabel(nextStatus)} complete (${formatDuration(result.durationMs)})`
-      );
-    }
+    spinner?.succeed(
+      `${getPhaseStatusLabel(nextStatus)} complete (${formatDuration(result.durationMs)})`
+    );
     await postPhaseSummary(
       taskKey,
       executingStatus,
       result.artifact,
       result.durationMs,
       config2,
-      jira,
-      result.permissionIssue
+      jira
+    );
+  } else if (result.kind === "missing-artifact") {
+    spinner?.warn(
+      `${getPhaseStatusLabel(executingStatus)} session ended without writing the artifact.`
     );
   } else if (result.kind === "failed") {
-    spinner.fail(`Phase failed: ${result.reason}`);
+    spinner?.fail(`Phase failed: ${result.reason}`);
     await postJiraComment(
       taskKey,
       jira,
@@ -34337,7 +34472,7 @@ ${phaseResult.error.message}`
 ${result.reason}`
     );
   } else {
-    spinner.warn("Phase timed out");
+    spinner?.warn("Phase timed out");
     await postJiraComment(
       taskKey,
       jira,
@@ -34433,28 +34568,19 @@ async function transitionJiraForStatus(taskKey, status, jira) {
   }
   return { ok: true, value: void 0 };
 }
-async function postPhaseSummary(taskKey, phaseStatus, artifact, durationMs, config2, jira, permissionIssue) {
+async function postPhaseSummary(taskKey, phaseStatus, artifact, durationMs, config2, jira) {
   const phaseLabel = getPhaseStatusLabel(phaseStatus);
   const maxChars = config2.comment_format?.plan_inline_max_chars ?? 3e3;
   const useEmoji = config2.comment_format?.use_emoji ?? true;
   const prefix = useEmoji ? "\u{1F916} " : "";
   const summary = extractSummary(artifact, maxChars);
   const duration3 = formatDuration(durationMs);
-  const attentionBlock = permissionIssue ? `
-
----
-**\u26A0 Attention required \u2014 CLI flagged "${permissionIssue.pattern}"**
-` + (permissionIssue.suggestedPaths.length > 0 ? `Paths mentioned: ${permissionIssue.suggestedPaths.map((p) => `\`${p}\``).join(", ")}
-
-` : "\n") + `Snippet:
-
-> ${permissionIssue.snippet.replace(/\n/g, "\n> ")}` : "";
   await postJiraComment(
     taskKey,
     jira,
     `**${prefix}[Bode ${phaseLabel}]** Completed in ${duration3}.
 
-${summary}${attentionBlock}`
+${summary}`
   );
 }
 function extractSummary(artifact, maxChars) {
@@ -34560,32 +34686,114 @@ var init_abort = __esm({
   }
 });
 
-// src/utils/permission-warning.ts
-function printPermissionWarning(hit) {
+// src/cli/dangerous-check.ts
+async function planDangerousMode(config2) {
   console.log("");
-  console.log(import_picocolors4.default.yellow(`\u26A0 CLI output mentions a permission/access issue (${hit.pattern}).`));
-  if (hit.suggestedPaths.length > 0) {
-    console.log(import_picocolors4.default.dim("  Paths referenced:"));
-    for (const p of hit.suggestedPaths) {
-      console.log(import_picocolors4.default.dim(`    - ${p}`));
+  console.log(
+    import_picocolors4.default.yellow("\u26A0 --approve-all-dangerous: bode will pass each AI CLI its bypass-approvals flag.")
+  );
+  console.log(import_picocolors4.default.yellow("  This disables sandbox prompts. Use only on code you trust."));
+  console.log("");
+  const phaseCliNames = Array.from(
+    /* @__PURE__ */ new Set([
+      config2.phases.planning.cli,
+      config2.phases.implementation.cli,
+      config2.phases.review.cli
+    ])
+  );
+  const unsupported = [];
+  for (const cliName of phaseCliNames) {
+    const adapter = getAdapter(cliName);
+    if (!adapter.ok) continue;
+    if (adapter.value.dangerousFlags() === null) {
+      unsupported.push(cliName);
     }
   }
-  console.log(import_picocolors4.default.dim("  Snippet:"));
-  for (const line of hit.snippet.split("\n")) {
-    console.log(import_picocolors4.default.dim(`    > ${line}`));
+  if (unsupported.length > 0) {
+    console.log(
+      import_picocolors4.default.yellow(
+        `The following configured CLI(s) do NOT support an auto-bypass flag: ${unsupported.join(", ")}.`
+      )
+    );
+    console.log(
+      import_picocolors4.default.dim(
+        "  During those phases you will need to approve actions interactively in the terminal."
+      )
+    );
+    console.log("");
+    try {
+      const choice = await dist_default6({
+        message: "Proceed anyway?",
+        choices: [
+          { name: "Yes \u2014 I will approve interactively when prompted", value: "yes" },
+          { name: "No \u2014 abort and let me reconfigure those phases", value: "no" }
+        ]
+      });
+      if (choice !== "yes") {
+        return { approved: false, unsupported };
+      }
+    } catch (err) {
+      handlePromptError(err);
+      return { approved: false, unsupported };
+    }
   }
-  console.log("");
-  console.log(import_picocolors4.default.dim("  Options:"));
-  console.log(import_picocolors4.default.dim("    - Grant access to the listed paths and rerun the phase"));
-  console.log(import_picocolors4.default.dim("    - Remove the unreachable path from your project config"));
-  console.log(import_picocolors4.default.dim('    - Run "bode show <phase> <KEY>" to inspect the full artifact'));
-  console.log("");
+  return { approved: true, unsupported };
 }
 var import_picocolors4;
-var init_permission_warning = __esm({
-  "src/utils/permission-warning.ts"() {
+var init_dangerous_check = __esm({
+  "src/cli/dangerous-check.ts"() {
     "use strict";
+    init_dist9();
     import_picocolors4 = __toESM(require_picocolors());
+    init_registry();
+    init_prompt();
+  }
+});
+
+// src/cli/missing-artifact.ts
+async function handleMissingArtifact(context, taskKey) {
+  console.log("");
+  console.log(
+    import_picocolors5.default.yellow(`\u26A0 The AI session for ${context} exited without writing the phase artifact.`)
+  );
+  console.log(
+    import_picocolors5.default.dim(
+      "  The AI may have hit a permission/approval block, ran out of context, or just quit early."
+    )
+  );
+  console.log(import_picocolors5.default.dim("  Inspect the log with: ") + import_picocolors5.default.bold(`bode log ${taskKey}`));
+  console.log("");
+  try {
+    const choice = await dist_default6({
+      message: "What do you want to do?",
+      choices: [
+        {
+          name: "Retry \u2014 re-run this phase from scratch",
+          value: "retry"
+        },
+        {
+          name: "Continue \u2014 treat as success and advance anyway",
+          value: "continue"
+        },
+        {
+          name: "Abort \u2014 stop here, fix manually, and rerun later",
+          value: "abort"
+        }
+      ]
+    });
+    return choice;
+  } catch (err) {
+    handlePromptError(err);
+    return "abort";
+  }
+}
+var import_picocolors5;
+var init_missing_artifact = __esm({
+  "src/cli/missing-artifact.ts"() {
+    "use strict";
+    init_dist9();
+    import_picocolors5 = __toESM(require_picocolors());
+    init_prompt();
   }
 });
 
@@ -34597,18 +34805,27 @@ __export(start_exports, {
 async function startAction(taskKey, options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors5.default.red(`Configuration error: ${configResult.error.message}`));
-    console.error(import_picocolors5.default.dim('Run "bode setup" to configure.'));
+    console.error(import_picocolors6.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors6.default.dim('Run "bode setup" to configure.'));
     process.exit(1);
   }
   const baseConfig = configResult.value;
   const projectResult = await resolveProject(baseConfig, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors5.default.red(projectResult.error.message));
+    console.error(import_picocolors6.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
   const jira = createJiraAdapter(config2.jira);
+  let dangerousBypass = false;
+  if (options.approveAllDangerous) {
+    const plan = await planDangerousMode(config2);
+    if (!plan.approved) {
+      console.log(import_picocolors6.default.dim("Aborted by user."));
+      process.exit(0);
+    }
+    dangerousBypass = true;
+  }
   const spinner = ora(`Fetching ${taskKey}...`).start();
   const issueResult = await jira.getIssue(taskKey);
   if (!issueResult.ok) {
@@ -34619,14 +34836,14 @@ async function startAction(taskKey, options) {
   spinner.succeed(`Found: ${issue2.summary} [${issue2.issueType}]`);
   const transitionsResult = await jira.getTransitions(taskKey);
   if (!transitionsResult.ok) {
-    console.log(import_picocolors5.default.yellow(`\u26A0 Cannot check Jira transitions: ${transitionsResult.error.message}`));
+    console.log(import_picocolors6.default.yellow(`\u26A0 Cannot check Jira transitions: ${transitionsResult.error.message}`));
     console.log(
-      import_picocolors5.default.dim('  Jira card moves and comments will not work. Run "bode setup" to configure Jira.')
+      import_picocolors6.default.dim('  Jira card moves and comments will not work. Run "bode setup" to configure Jira.')
     );
   } else if (transitionsResult.value.length === 0) {
-    console.log(import_picocolors5.default.yellow("\u26A0 No available Jira transitions for this issue."));
+    console.log(import_picocolors6.default.yellow("\u26A0 No available Jira transitions for this issue."));
     console.log(
-      import_picocolors5.default.dim(
+      import_picocolors6.default.dim(
         "  Card may not move automatically. Check that transitions are configured in your workflow."
       )
     );
@@ -34635,12 +34852,12 @@ async function startAction(taskKey, options) {
       const label = t.toStatusName ?? t.name;
       return t.name !== label ? `${t.name} \u2192 ${label}` : t.name;
     });
-    console.log(import_picocolors5.default.dim(`  Jira: available \u2014 ${names.join(", ")}`));
+    console.log(import_picocolors6.default.dim(`  Jira: available \u2014 ${names.join(", ")}`));
   }
   let isContinuing = false;
   const existing = await loadRunMeta(taskKey);
   if (existing.ok && existing.value) {
-    console.log(import_picocolors5.default.yellow(`Task ${taskKey} already has a run (status: ${existing.value.status})`));
+    console.log(import_picocolors6.default.yellow(`Task ${taskKey} already has a run (status: ${existing.value.status})`));
     try {
       const action = await dist_default6({
         message: "What to do?",
@@ -34662,10 +34879,10 @@ async function startAction(taskKey, options) {
       if (action === "restart") {
         const abortResult = await abortRun(taskKey);
         if (!abortResult.ok) {
-          console.error(import_picocolors5.default.red(`Abort failed: ${abortResult.error.message}`));
+          console.error(import_picocolors6.default.red(`Abort failed: ${abortResult.error.message}`));
           process.exit(1);
         }
-        console.log(import_picocolors5.default.green("Previous run aborted. Starting fresh..."));
+        console.log(import_picocolors6.default.green("Previous run aborted. Starting fresh..."));
       }
       if (action === "continue") {
         isContinuing = true;
@@ -34678,7 +34895,7 @@ async function startAction(taskKey, options) {
   if (!isContinuing) {
     const cleanResult = await isClean(projectConfig.workdir);
     if (cleanResult.ok && !cleanResult.value) {
-      console.log(import_picocolors5.default.yellow("Working directory has uncommitted changes."));
+      console.log(import_picocolors6.default.yellow("Working directory has uncommitted changes."));
       try {
         const action = await dist_default6({
           message: "What to do?",
@@ -34690,16 +34907,16 @@ async function startAction(taskKey, options) {
         });
         if (action === "abort") process.exit(0);
         if (action === "retry") {
-          console.log(import_picocolors5.default.dim("Clean up manually and run the command again."));
+          console.log(import_picocolors6.default.dim("Clean up manually and run the command again."));
           process.exit(0);
         }
         if (action === "stash") {
           const stashResult = await stash(projectConfig.workdir, `bode:auto-stash:${taskKey}`);
           if (!stashResult.ok) {
-            console.error(import_picocolors5.default.red(`Stash failed: ${stashResult.error.message}`));
+            console.error(import_picocolors6.default.red(`Stash failed: ${stashResult.error.message}`));
             process.exit(1);
           }
-          console.log(import_picocolors5.default.green("Changes stashed. Proceeding..."));
+          console.log(import_picocolors6.default.green("Changes stashed. Proceeding..."));
         }
       } catch (err) {
         handlePromptError(err);
@@ -34709,7 +34926,7 @@ async function startAction(taskKey, options) {
   }
   const baseBranch = options.fromBranch ?? projectConfig.default_branch ?? "main";
   if (!isContinuing) {
-    console.log(import_picocolors5.default.dim(`Creating branch from ${baseBranch}...`));
+    console.log(import_picocolors6.default.dim(`Creating branch from ${baseBranch}...`));
     const branchResult = await startBranch(
       projectConfig.workdir,
       taskKey,
@@ -34717,11 +34934,11 @@ async function startAction(taskKey, options) {
       baseBranch
     );
     if (!branchResult.ok) {
-      console.error(import_picocolors5.default.red(`Branch error: ${branchResult.error.message}`));
+      console.error(import_picocolors6.default.red(`Branch error: ${branchResult.error.message}`));
       process.exit(1);
     }
     const branch = branchResult.value;
-    console.log(import_picocolors5.default.green(`Branch created: ${branch} (from ${baseBranch})`));
+    console.log(import_picocolors6.default.green(`Branch created: ${branch} (from ${baseBranch})`));
     await createRun(taskKey, issue2.summary, {
       branch,
       baseBranch,
@@ -34729,30 +34946,33 @@ async function startAction(taskKey, options) {
       workdir: projectConfig.workdir
     });
   }
+  const isAuto = options.auto ?? false;
+  const isDangerous = options.autoAndMergeDangerously ?? false;
+  const interactive = !isAuto && !isDangerous;
   const engineOpts = {
     projectRoot: projectConfig.workdir,
     signal: void 0,
     autopilot: void 0,
-    projectConfig
+    projectConfig,
+    interactive,
+    dangerousBypass
   };
-  const isAuto = options.auto ?? false;
-  const isDangerous = options.autoAndMergeDangerously ?? false;
-  if (!isAuto && !isDangerous) {
+  if (interactive) {
     const result = await advancePhase(taskKey, config2, jira, engineOpts);
     if (!result.ok) {
-      console.error(import_picocolors5.default.red(`Planning failed: ${result.error.message}`));
+      console.error(import_picocolors6.default.red(`Planning failed: ${result.error.message}`));
       process.exit(1);
     }
     const advanceVal = result.value;
     if (advanceVal.kind === "phase" && advanceVal.phaseResult.kind === "success") {
-      if (advanceVal.phaseResult.permissionIssue) {
-        printPermissionWarning(advanceVal.phaseResult.permissionIssue);
-      }
-      console.log(import_picocolors5.default.green(`
-Plan ready. Run ${import_picocolors5.default.bold(`bode continue ${taskKey}`)} to advance.`));
+      console.log(import_picocolors6.default.green(`
+Plan ready. Run ${import_picocolors6.default.bold(`bode continue ${taskKey}`)} to advance.`));
+    } else if (advanceVal.kind === "phase" && advanceVal.phaseResult.kind === "missing-artifact") {
+      const decision = await handleMissingArtifact("planning", taskKey);
+      if (decision === "abort") process.exit(1);
     } else if (advanceVal.kind === "phase") {
       console.error(
-        import_picocolors5.default.red(
+        import_picocolors6.default.red(
           `
 Planning failed: ${advanceVal.phaseResult.kind === "failed" ? advanceVal.phaseResult.reason : "timed out"}`
         )
@@ -34763,83 +34983,82 @@ Planning failed: ${advanceVal.phaseResult.kind === "failed" ? advanceVal.phaseRe
   }
   if (isDangerous) {
     console.log(
-      import_picocolors5.default.yellow("\n\u26A0 --auto-and-merge-dangerously: This will run all phases AND auto-merge the PR.")
+      import_picocolors6.default.yellow("\n\u26A0 --auto-and-merge-dangerously: This will run all phases AND auto-merge the PR.")
     );
-    console.log(import_picocolors5.default.yellow("  Automated review may miss issues. Verify before deploying.\n"));
+    console.log(import_picocolors6.default.yellow("  Automated review may miss issues. Verify before deploying.\n"));
   }
-  console.log(import_picocolors5.default.cyan("Auto mode: running all phases...\n"));
+  console.log(import_picocolors6.default.cyan("Auto mode: running all phases...\n"));
   let loopCount = 0;
   const maxLoops = 10;
   while (loopCount < maxLoops) {
     loopCount++;
     const result = await advancePhase(taskKey, config2, jira, engineOpts);
     if (!result.ok) {
-      console.error(import_picocolors5.default.red(`Error in phase ${loopCount}: ${result.error.message}`));
+      console.error(import_picocolors6.default.red(`Error in phase ${loopCount}: ${result.error.message}`));
       process.exit(1);
     }
     const advanceVal = result.value;
     if (advanceVal.kind === "conflict") {
-      console.error(import_picocolors5.default.yellow("\nConflicts detected! Stopping auto mode."));
-      console.error(import_picocolors5.default.dim('Resolve conflicts manually, then run "bode continue".'));
+      console.error(import_picocolors6.default.yellow("\nConflicts detected! Stopping auto mode."));
+      console.error(import_picocolors6.default.dim('Resolve conflicts manually, then run "bode continue".'));
       process.exit(1);
     }
     if (advanceVal.kind === "pr-created") {
-      console.log(import_picocolors5.default.green(`
-PR created: ${import_picocolors5.default.bold(advanceVal.prUrl)}`));
+      console.log(import_picocolors6.default.green(`
+PR created: ${import_picocolors6.default.bold(advanceVal.prUrl)}`));
       if (isDangerous && advanceVal.meta.prNumber) {
-        console.log(import_picocolors5.default.dim("Auto-merging PR..."));
+        console.log(import_picocolors6.default.dim("Auto-merging PR..."));
         const provider = resolveVcsProvider(config2, projectConfig);
         const mergeResult = await mergePR(advanceVal.meta.prNumber, provider);
         if (!mergeResult.ok) {
-          console.error(import_picocolors5.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
-          console.error(import_picocolors5.default.dim("Merge manually: " + (advanceVal.meta.prUrl ?? "")));
+          console.error(import_picocolors6.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
+          console.error(import_picocolors6.default.dim("Merge manually: " + (advanceVal.meta.prUrl ?? "")));
           process.exit(1);
         }
-        console.log(import_picocolors5.default.green(`PR #${advanceVal.meta.prNumber} merged and branch deleted.`));
+        console.log(import_picocolors6.default.green(`PR #${advanceVal.meta.prNumber} merged and branch deleted.`));
         if (advanceVal.meta.baseBranch) {
           const switchResult = await switchToBase(
             projectConfig.workdir,
             advanceVal.meta.baseBranch
           );
           if (switchResult.ok) {
-            console.log(import_picocolors5.default.dim(`Switched to ${advanceVal.meta.baseBranch}`));
+            console.log(import_picocolors6.default.dim(`Switched to ${advanceVal.meta.baseBranch}`));
           }
         }
         await saveRunMeta({ ...advanceVal.meta, status: "done" });
         await jira.transitionStatus(taskKey, "Done");
-        console.log(import_picocolors5.default.green(`
+        console.log(import_picocolors6.default.green(`
 \u2713 Task ${taskKey} complete.`));
-        console.log(import_picocolors5.default.yellow("\u26A0 Automated review was used \u2014 verify before deploying."));
+        console.log(import_picocolors6.default.yellow("\u26A0 Automated review was used \u2014 verify before deploying."));
       } else {
-        console.log(import_picocolors5.default.dim('Review the PR manually. Run "bode done" when ready.'));
+        console.log(import_picocolors6.default.dim('Review the PR manually. Run "bode done" when ready.'));
       }
       return;
     }
-    if (advanceVal.kind === "phase" && advanceVal.phaseResult.kind !== "success") {
+    if (advanceVal.kind === "phase" && advanceVal.phaseResult.kind === "missing-artifact") {
+      const decision = await handleMissingArtifact("phase", taskKey);
+      if (decision === "abort") process.exit(1);
+      if (decision === "retry") {
+        loopCount--;
+        continue;
+      }
+    }
+    if (advanceVal.kind === "phase" && advanceVal.phaseResult.kind !== "success" && advanceVal.phaseResult.kind !== "missing-artifact") {
       console.error(
-        import_picocolors5.default.red(
+        import_picocolors6.default.red(
           `
 Phase ${loopCount} failed: ${advanceVal.phaseResult.kind === "failed" ? advanceVal.phaseResult.reason : "timed out"}`
         )
       );
       process.exit(1);
     }
-    if (advanceVal.kind === "phase" && advanceVal.phaseResult.kind === "success" && advanceVal.phaseResult.permissionIssue) {
-      printPermissionWarning(advanceVal.phaseResult.permissionIssue);
-      console.error(
-        import_picocolors5.default.yellow(
-          'Auto mode stopping: grant access (or remove the path) and rerun "bode continue".'
-        )
-      );
-      process.exit(1);
-    }
-    console.log(import_picocolors5.default.dim(`  Phase ${loopCount} done, advancing...
+    console.log(import_picocolors6.default.dim(`  Phase ${loopCount} done, advancing...
 `));
   }
-  console.error(import_picocolors5.default.red(`Exceeded max phase iterations (${maxLoops}). Stopping.`));
+  console.error(import_picocolors6.default.red(`Exceeded max phase iterations (${maxLoops}). Stopping.`));
   process.exit(1);
 }
-var import_picocolors5;
+var import_picocolors6;
 var init_start = __esm({
   "src/cli/actions/start.ts"() {
     "use strict";
@@ -34852,9 +35071,10 @@ var init_start = __esm({
     init_git();
     init_abort();
     init_prompt();
-    init_permission_warning();
+    init_dangerous_check();
+    init_missing_artifact();
     init_dist9();
-    import_picocolors5 = __toESM(require_picocolors());
+    import_picocolors6 = __toESM(require_picocolors());
     init_ora();
   }
 });
@@ -34867,56 +35087,67 @@ __export(continue_exports, {
 async function continueAction(taskKey, options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors6.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors7.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const baseConfig = configResult.value;
   const projectResult = await resolveProject(baseConfig, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors6.default.red(projectResult.error.message));
+    console.error(import_picocolors7.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
   const jira = createJiraAdapter(config2.jira);
+  let dangerousBypass = false;
+  if (options.approveAllDangerous) {
+    const plan = await planDangerousMode(config2);
+    if (!plan.approved) {
+      console.log(import_picocolors7.default.dim("Aborted by user."));
+      process.exit(0);
+    }
+    dangerousBypass = true;
+  }
   const result = await advancePhase(taskKey, config2, jira, {
     projectRoot: projectConfig.workdir,
     signal: void 0,
     autopilot: void 0,
-    projectConfig
+    projectConfig,
+    interactive: true,
+    dangerousBypass
   });
   if (!result.ok) {
-    console.error(import_picocolors6.default.red(`Error: ${result.error.message}`));
+    console.error(import_picocolors7.default.red(`Error: ${result.error.message}`));
     process.exit(1);
   }
   const advanceVal = result.value;
   if (advanceVal.kind === "conflict") {
-    console.error(import_picocolors6.default.yellow("\nConflicts detected with base branch!"));
-    console.error(import_picocolors6.default.dim('Resolve conflicts manually, then run "bode continue" again.'));
-    console.error(import_picocolors6.default.dim(`Jira label "bode:conflict" added to ${taskKey}.`));
+    console.error(import_picocolors7.default.yellow("\nConflicts detected with base branch!"));
+    console.error(import_picocolors7.default.dim('Resolve conflicts manually, then run "bode continue" again.'));
+    console.error(import_picocolors7.default.dim(`Jira label "bode:conflict" added to ${taskKey}.`));
     process.exit(1);
   }
   if (advanceVal.kind === "pr-created") {
-    console.log(import_picocolors6.default.green(`
-PR created: ${import_picocolors6.default.bold(advanceVal.prUrl)}`));
-    console.log(import_picocolors6.default.dim('Review the PR manually. Run "bode done" when ready to finalize.'));
+    console.log(import_picocolors7.default.green(`
+PR created: ${import_picocolors7.default.bold(advanceVal.prUrl)}`));
+    console.log(import_picocolors7.default.dim('Review the PR manually. Run "bode done" when ready to finalize.'));
     return;
   }
   if (advanceVal.kind === "phase") {
     const { meta: meta3, phaseResult } = advanceVal;
     if (phaseResult.kind === "success") {
-      if (phaseResult.permissionIssue) {
-        printPermissionWarning(phaseResult.permissionIssue);
-      }
-      console.log(import_picocolors6.default.green(`
+      console.log(import_picocolors7.default.green(`
 Phase complete. Status: ${meta3.status}`));
       if (meta3.status === "reviewed") {
-        console.log(import_picocolors6.default.dim('Run "bode continue" to create PR and move to awaiting-merge.'));
+        console.log(import_picocolors7.default.dim('Run "bode continue" to create PR and move to awaiting-merge.'));
       } else {
-        console.log(import_picocolors6.default.dim(`Run "bode continue ${taskKey}" to advance.`));
+        console.log(import_picocolors7.default.dim(`Run "bode continue ${taskKey}" to advance.`));
       }
+    } else if (phaseResult.kind === "missing-artifact") {
+      const decision = await handleMissingArtifact("phase", taskKey);
+      if (decision === "abort") process.exit(1);
     } else {
       console.error(
-        import_picocolors6.default.red(
+        import_picocolors7.default.red(
           `
 Phase failed: ${phaseResult.kind === "failed" ? phaseResult.reason : "timed out"}`
         )
@@ -34925,7 +35156,7 @@ Phase failed: ${phaseResult.kind === "failed" ? phaseResult.reason : "timed out"
     }
   }
 }
-var import_picocolors6;
+var import_picocolors7;
 var init_continue = __esm({
   "src/cli/actions/continue.ts"() {
     "use strict";
@@ -34933,8 +35164,9 @@ var init_continue = __esm({
     init_factory();
     init_engine();
     init_project_resolver();
-    init_permission_warning();
-    import_picocolors6 = __toESM(require_picocolors());
+    init_dangerous_check();
+    init_missing_artifact();
+    import_picocolors7 = __toESM(require_picocolors());
   }
 });
 
@@ -34946,41 +35178,41 @@ __export(status_exports, {
 async function statusAction(taskKey) {
   const result = await loadRunMeta(taskKey);
   if (!result.ok) {
-    console.error(import_picocolors7.default.red(`Error: ${result.error.message}`));
+    console.error(import_picocolors8.default.red(`Error: ${result.error.message}`));
     process.exit(1);
   }
   if (!result.value) {
-    console.error(import_picocolors7.default.yellow(`No run found for ${taskKey}`));
+    console.error(import_picocolors8.default.yellow(`No run found for ${taskKey}`));
     process.exit(1);
   }
   const meta3 = result.value;
-  console.log(`Task: ${import_picocolors7.default.bold(meta3.taskKey)} - ${meta3.jiraSummary}`);
-  console.log(`Status: ${import_picocolors7.default.cyan(getPhaseStatusLabel(meta3.status))}`);
+  console.log(`Task: ${import_picocolors8.default.bold(meta3.taskKey)} - ${meta3.jiraSummary}`);
+  console.log(`Status: ${import_picocolors8.default.cyan(getPhaseStatusLabel(meta3.status))}`);
   if (meta3.branch) {
-    console.log(`Branch: ${import_picocolors7.default.dim(meta3.branch)} (from ${meta3.baseBranch ?? "unknown"})`);
+    console.log(`Branch: ${import_picocolors8.default.dim(meta3.branch)} (from ${meta3.baseBranch ?? "unknown"})`);
   }
   if (meta3.prUrl) {
-    console.log(`PR: ${import_picocolors7.default.cyan(meta3.prUrl)}`);
+    console.log(`PR: ${import_picocolors8.default.cyan(meta3.prUrl)}`);
   }
   if (meta3.conflict) {
-    console.log(`Conflict: ${import_picocolors7.default.red("YES")}`);
+    console.log(`Conflict: ${import_picocolors8.default.red("YES")}`);
   }
   if (meta3.projectName) {
-    console.log(`Project: ${import_picocolors7.default.dim(meta3.projectName)}`);
+    console.log(`Project: ${import_picocolors8.default.dim(meta3.projectName)}`);
   }
   console.log(`Started: ${new Date(meta3.startedAt).toLocaleString()}`);
   console.log(`Updated: ${new Date(meta3.updatedAt).toLocaleString()}`);
   if (meta3.error) {
-    console.log(`Error: ${import_picocolors7.default.red(meta3.error)}`);
+    console.log(`Error: ${import_picocolors8.default.red(meta3.error)}`);
   }
 }
-var import_picocolors7;
+var import_picocolors8;
 var init_status = __esm({
   "src/cli/actions/status.ts"() {
     "use strict";
     init_run_meta();
     init_phase();
-    import_picocolors7 = __toESM(require_picocolors());
+    import_picocolors8 = __toESM(require_picocolors());
   }
 });
 
@@ -34992,7 +35224,7 @@ __export(show_exports, {
 async function showAction(artifact, taskKey) {
   const normalized = artifact.toLowerCase();
   if (!VALID_ARTIFACTS.includes(normalized)) {
-    console.error(import_picocolors8.default.red(`Invalid artifact: "${artifact}". Valid: ${VALID_ARTIFACTS.join(", ")}`));
+    console.error(import_picocolors9.default.red(`Invalid artifact: "${artifact}". Valid: ${VALID_ARTIFACTS.join(", ")}`));
     process.exit(1);
   }
   let filename;
@@ -35013,18 +35245,18 @@ async function showAction(artifact, taskKey) {
   const path2 = `${getRunDir(taskKey)}/${filename}`;
   const content = await readText(path2);
   if (!content) {
-    console.error(import_picocolors8.default.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
+    console.error(import_picocolors9.default.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
     process.exit(1);
   }
   console.log(content);
 }
-var import_picocolors8, VALID_ARTIFACTS;
+var import_picocolors9, VALID_ARTIFACTS;
 var init_show = __esm({
   "src/cli/actions/show.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_picocolors8 = __toESM(require_picocolors());
+    import_picocolors9 = __toESM(require_picocolors());
     VALID_ARTIFACTS = ["plan", "planning", "implementation", "review"];
   }
 });
@@ -35042,12 +35274,12 @@ async function logAction(taskKey) {
     const files = await readdir4(runDir);
     const logFiles = files.filter((f) => f.endsWith(".log")).sort();
     if (logFiles.length === 0) {
-      console.error(import_picocolors9.default.yellow(`No logs found for ${taskKey}`));
+      console.error(import_picocolors10.default.yellow(`No logs found for ${taskKey}`));
       return;
     }
     const latest = logFiles[logFiles.length - 1];
     if (!latest) {
-      console.error(import_picocolors9.default.yellow("No log file available"));
+      console.error(import_picocolors10.default.yellow("No log file available"));
       return;
     }
     const content = await readText(join10(runDir, latest));
@@ -35055,16 +35287,16 @@ async function logAction(taskKey) {
       console.log(content);
     }
   } catch {
-    console.error(import_picocolors9.default.yellow(`No run directory found for ${taskKey}`));
+    console.error(import_picocolors10.default.yellow(`No run directory found for ${taskKey}`));
   }
 }
-var import_picocolors9;
+var import_picocolors10;
 var init_log = __esm({
   "src/cli/actions/log.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_picocolors9 = __toESM(require_picocolors());
+    import_picocolors10 = __toESM(require_picocolors());
   }
 });
 
@@ -35075,12 +35307,12 @@ __export(done_exports, {
 });
 async function doneAction(taskKey, options) {
   if (!options.yes) {
-    console.log(import_picocolors10.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
+    console.log(import_picocolors11.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
     return;
   }
   const result = await loadRunMeta(taskKey);
   if (!result.ok || !result.value) {
-    console.error(import_picocolors10.default.red(`No run found for ${taskKey}`));
+    console.error(import_picocolors11.default.red(`No run found for ${taskKey}`));
     process.exit(1);
   }
   const meta3 = result.value;
@@ -35104,27 +35336,27 @@ async function doneAction(taskKey, options) {
   }
   if (options.autoApprovePrMerge && meta3.prNumber) {
     console.log(
-      import_picocolors10.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
+      import_picocolors11.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
     );
     const mergeResult = await mergePR(meta3.prNumber, provider);
     if (!mergeResult.ok) {
-      console.error(import_picocolors10.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
-      console.error(import_picocolors10.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
+      console.error(import_picocolors11.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
+      console.error(import_picocolors11.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
     } else {
-      console.log(import_picocolors10.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
+      console.log(import_picocolors11.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
     }
   } else if (meta3.prUrl) {
-    console.log(import_picocolors10.default.dim(`
+    console.log(import_picocolors11.default.dim(`
 PR pending: ${meta3.prUrl} \u2014 merge manually when ready.`));
   }
   const workdir = meta3.workdir ?? process.cwd();
   const switchResult = await switchToBase(workdir, meta3.baseBranch);
   if (!switchResult.ok) {
     console.error(
-      import_picocolors10.default.yellow(`Could not switch to ${meta3.baseBranch}: ${switchResult.error.message}`)
+      import_picocolors11.default.yellow(`Could not switch to ${meta3.baseBranch}: ${switchResult.error.message}`)
     );
   } else {
-    console.log(import_picocolors10.default.dim(`Switched to ${meta3.baseBranch}`));
+    console.log(import_picocolors11.default.dim(`Switched to ${meta3.baseBranch}`));
   }
   await finalize2(taskKey, meta3, config2);
 }
@@ -35140,8 +35372,8 @@ async function finalize2(taskKey, meta3, config2) {
     });
   }
   await saveRunMeta({ ...meta3, status: "done" });
-  console.log(import_picocolors10.default.green(`Task ${taskKey} marked as done.`));
-  console.log(import_picocolors10.default.dim(`Run data at ${getRunDir(taskKey)}`));
+  console.log(import_picocolors11.default.green(`Task ${taskKey} marked as done.`));
+  console.log(import_picocolors11.default.dim(`Run data at ${getRunDir(taskKey)}`));
 }
 async function removeBodeLabels(taskKey, config2) {
   const labels = config2.jira_labels;
@@ -35153,7 +35385,7 @@ async function removeBodeLabels(taskKey, config2) {
     });
   }
 }
-var import_picocolors10;
+var import_picocolors11;
 var init_done = __esm({
   "src/cli/actions/done.ts"() {
     "use strict";
@@ -35162,7 +35394,7 @@ var init_done = __esm({
     init_branch_manager();
     init_loader();
     init_factory();
-    import_picocolors10 = __toESM(require_picocolors());
+    import_picocolors11 = __toESM(require_picocolors());
   }
 });
 
@@ -35174,35 +35406,35 @@ __export(list_exports, {
 async function listAction() {
   const runsDir = getRunsDir();
   try {
-    const entries = await (0, import_promises8.readdir)(runsDir);
+    const entries = await (0, import_promises9.readdir)(runsDir);
     if (entries.length === 0) {
-      console.log(import_picocolors11.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+      console.log(import_picocolors12.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
       return;
     }
     for (const entry of entries) {
       const result = await loadRunMeta(entry);
       if (result.ok && result.value) {
         const meta3 = result.value;
-        const branchInfo = meta3.branch ? import_picocolors11.default.dim(` (${meta3.branch})`) : "";
-        const conflictInfo = meta3.conflict ? import_picocolors11.default.red(" [CONFLICT]") : "";
+        const branchInfo = meta3.branch ? import_picocolors12.default.dim(` (${meta3.branch})`) : "";
+        const conflictInfo = meta3.conflict ? import_picocolors12.default.red(" [CONFLICT]") : "";
         console.log(
-          `${import_picocolors11.default.bold(meta3.taskKey)} ${import_picocolors11.default.dim("-")} ${meta3.jiraSummary} ${import_picocolors11.default.dim("|")} ${getPhaseStatusLabel(meta3.status)}${branchInfo}${conflictInfo}`
+          `${import_picocolors12.default.bold(meta3.taskKey)} ${import_picocolors12.default.dim("-")} ${meta3.jiraSummary} ${import_picocolors12.default.dim("|")} ${getPhaseStatusLabel(meta3.status)}${branchInfo}${conflictInfo}`
         );
       }
     }
   } catch {
-    console.log(import_picocolors11.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+    console.log(import_picocolors12.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
   }
 }
-var import_promises8, import_picocolors11;
+var import_promises9, import_picocolors12;
 var init_list = __esm({
   "src/cli/actions/list.ts"() {
     "use strict";
-    import_promises8 = require("node:fs/promises");
+    import_promises9 = require("node:fs/promises");
     init_defaults();
     init_run_meta();
     init_phase();
-    import_picocolors11 = __toESM(require_picocolors());
+    import_picocolors12 = __toESM(require_picocolors());
   }
 });
 
@@ -35218,18 +35450,18 @@ async function skillsAction(options) {
       globalDir: void 0
     });
     if (result.ok) {
-      console.log(`${import_picocolors12.default.bold(phase)}: ${import_picocolors12.default.cyan(result.value)}`);
+      console.log(`${import_picocolors13.default.bold(phase)}: ${import_picocolors13.default.cyan(result.value)}`);
     } else {
-      console.log(`${import_picocolors12.default.bold(phase)}: ${import_picocolors12.default.yellow("not found")}`);
+      console.log(`${import_picocolors13.default.bold(phase)}: ${import_picocolors13.default.yellow("not found")}`);
     }
   }
 }
-var import_picocolors12, PHASES;
+var import_picocolors13, PHASES;
 var init_skills = __esm({
   "src/cli/actions/skills.ts"() {
     "use strict";
     init_resolver();
-    import_picocolors12 = __toESM(require_picocolors());
+    import_picocolors13 = __toESM(require_picocolors());
     PHASES = ["planning", "implementation", "review"];
   }
 });
@@ -35266,16 +35498,24 @@ function createCommands(program3) {
   program3.command("start <taskKey>").description("Start a task. Creates branch, runs planning phase. Use --auto to run all phases.").option("--project <name>", "Project name from ~/.bode/projects/").option("--from-branch <branch>", "Base branch (default: project default_branch or main)").option("--auto", "Run all phases automatically until PR is created").option(
     "--auto-and-merge-dangerously",
     "Run all phases AND auto-merge the PR (use with caution)"
+  ).option(
+    "--approve-all-dangerous",
+    "Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code."
   ).action(
     async (taskKey, options) => {
       const { startAction: startAction2 } = await Promise.resolve().then(() => (init_start(), start_exports));
       await startAction2(taskKey, options);
     }
   );
-  program3.command("continue <taskKey>").description("Advance to next phase").option("--project <name>", "Project name from ~/.bode/projects/").action(async (taskKey, options) => {
-    const { continueAction: continueAction2 } = await Promise.resolve().then(() => (init_continue(), continue_exports));
-    await continueAction2(taskKey, options);
-  });
+  program3.command("continue <taskKey>").description("Advance to next phase").option("--project <name>", "Project name from ~/.bode/projects/").option(
+    "--approve-all-dangerous",
+    "Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code."
+  ).action(
+    async (taskKey, options) => {
+      const { continueAction: continueAction2 } = await Promise.resolve().then(() => (init_continue(), continue_exports));
+      await continueAction2(taskKey, options);
+    }
+  );
   program3.command("status <taskKey>").description("Show current phase, branch, PR link, and Jira status").action(async (taskKey) => {
     const { statusAction: statusAction2 } = await Promise.resolve().then(() => (init_status(), status_exports));
     await statusAction2(taskKey);

@@ -7,7 +7,8 @@ import { startBranch, mergePR, switchToBase } from '~/orchestrator/branch-manage
 import { isClean, stash } from '~/adapters/vcs/git.ts';
 import { abortRun } from './abort.ts';
 import { handlePromptError } from '~/utils/prompt.ts';
-import { printPermissionWarning } from '~/utils/permission-warning.ts';
+import { planDangerousMode } from '~/cli/dangerous-check.ts';
+import { handleMissingArtifact } from '~/cli/missing-artifact.ts';
 import { select } from '@inquirer/prompts';
 import pc from 'picocolors';
 import ora from 'ora';
@@ -19,6 +20,7 @@ export async function startAction(
 		fromBranch?: string;
 		auto?: boolean;
 		autoAndMergeDangerously?: boolean;
+		approveAllDangerous?: boolean;
 	}
 ): Promise<void> {
 	const configResult = await loadConfig();
@@ -38,6 +40,16 @@ export async function startAction(
 
 	const { config, projectConfig } = projectResult.value;
 	const jira = createJiraAdapter(config.jira);
+
+	let dangerousBypass = false;
+	if (options.approveAllDangerous) {
+		const plan = await planDangerousMode(config);
+		if (!plan.approved) {
+			console.log(pc.dim('Aborted by user.'));
+			process.exit(0);
+		}
+		dangerousBypass = true;
+	}
 
 	const spinner = ora(`Fetching ${taskKey}...`).start();
 
@@ -175,17 +187,20 @@ export async function startAction(
 		});
 	}
 
+	const isAuto = options.auto ?? false;
+	const isDangerous = options.autoAndMergeDangerously ?? false;
+	const interactive = !isAuto && !isDangerous;
+
 	const engineOpts = {
 		projectRoot: projectConfig.workdir,
 		signal: undefined as AbortSignal | undefined,
 		autopilot: undefined as boolean | undefined,
 		projectConfig,
+		interactive,
+		dangerousBypass,
 	};
 
-	const isAuto = options.auto ?? false;
-	const isDangerous = options.autoAndMergeDangerously ?? false;
-
-	if (!isAuto && !isDangerous) {
+	if (interactive) {
 		const result = await advancePhase(taskKey, config, jira, engineOpts);
 		if (!result.ok) {
 			console.error(pc.red(`Planning failed: ${result.error.message}`));
@@ -194,10 +209,10 @@ export async function startAction(
 
 		const advanceVal = result.value;
 		if (advanceVal.kind === 'phase' && advanceVal.phaseResult.kind === 'success') {
-			if (advanceVal.phaseResult.permissionIssue) {
-				printPermissionWarning(advanceVal.phaseResult.permissionIssue);
-			}
 			console.log(pc.green(`\nPlan ready. Run ${pc.bold(`bode continue ${taskKey}`)} to advance.`));
+		} else if (advanceVal.kind === 'phase' && advanceVal.phaseResult.kind === 'missing-artifact') {
+			const decision = await handleMissingArtifact('planning', taskKey);
+			if (decision === 'abort') process.exit(1);
 		} else if (advanceVal.kind === 'phase') {
 			console.error(
 				pc.red(
@@ -275,24 +290,23 @@ export async function startAction(
 			return;
 		}
 
-		if (advanceVal.kind === 'phase' && advanceVal.phaseResult.kind !== 'success') {
-			console.error(
-				pc.red(
-					`\nPhase ${loopCount} failed: ${advanceVal.phaseResult.kind === 'failed' ? advanceVal.phaseResult.reason : 'timed out'}`
-				)
-			);
-			process.exit(1);
+		if (advanceVal.kind === 'phase' && advanceVal.phaseResult.kind === 'missing-artifact') {
+			const decision = await handleMissingArtifact('phase', taskKey);
+			if (decision === 'abort') process.exit(1);
+			if (decision === 'retry') {
+				loopCount--; // re-run same phase
+				continue;
+			}
 		}
 
 		if (
 			advanceVal.kind === 'phase' &&
-			advanceVal.phaseResult.kind === 'success' &&
-			advanceVal.phaseResult.permissionIssue
+			advanceVal.phaseResult.kind !== 'success' &&
+			advanceVal.phaseResult.kind !== 'missing-artifact'
 		) {
-			printPermissionWarning(advanceVal.phaseResult.permissionIssue);
 			console.error(
-				pc.yellow(
-					'Auto mode stopping: grant access (or remove the path) and rerun "bode continue".'
+				pc.red(
+					`\nPhase ${loopCount} failed: ${advanceVal.phaseResult.kind === 'failed' ? advanceVal.phaseResult.reason : 'timed out'}`
 				)
 			);
 			process.exit(1);

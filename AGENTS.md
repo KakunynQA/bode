@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v0.12.0) that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs and syncing progress to Jira. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local CLI (v0.13.0) that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs interactively (terminal handoff) and syncing progress to Jira. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 
@@ -72,8 +72,8 @@ Available models per CLI are defined in `src/adapters/cli/models.ts`.
 | `src/orchestrator/engine.ts` | Phase advancement with spinners |
 | `src/orchestrator/branch-manager.ts` | Branch lifecycle management (create, conflict check, PR) |
 | `src/orchestrator/preflight.ts` | Validates workdir + context_paths + repos[] are readable before invoking the CLI (v0.12.0) |
-| `src/utils/output-scan.ts` | Heuristic detector for permission-refusal patterns in CLI stdout/stderr (v0.12.0) |
-| `src/utils/permission-warning.ts` | Pretty-print helper for permission-issue warnings (v0.12.0) |
+| `src/cli/dangerous-check.ts` | Warns about `--approve-all-dangerous` and detects CLIs without bypass support (v0.13.0) |
+| `src/cli/missing-artifact.ts` | Interactive `[retry/continue/abort]` prompt when an AI session exits without writing the artifact (v0.13.0) |
 | `src/adapters/jira/rest.ts` | Real Jira REST adapter with ADF body + 30s timeout (v0.11.0) |
 | `src/adapters/jira/adf.ts` | Atlassian Document Format helpers (v0.11.0) |
 | `src/config/schema.ts` | Zod config validation schema |

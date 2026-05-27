@@ -69,4 +69,26 @@ describe('buildPrompt', () => {
 		assert.ok(out.includes('<prior-artifact>'));
 		assert.ok(out.includes('PLAN_TEXT'));
 	});
+
+	it('appends bode-handoff block instructing AI where to save the artifact', () => {
+		const out = buildPrompt('S', {
+			jiraIssue: ISSUE,
+			projectAgentsMd: undefined,
+			repoFileTree: undefined,
+			priorArtifact: undefined,
+			artifactPath: '/runs/KD-1/planning.md',
+		});
+		assert.ok(out.includes('<bode-handoff>'));
+		assert.ok(out.includes('/runs/KD-1/planning.md'));
+	});
+
+	it('omits bode-handoff block when artifactPath not provided', () => {
+		const out = buildPrompt('S', {
+			jiraIssue: ISSUE,
+			projectAgentsMd: undefined,
+			repoFileTree: undefined,
+			priorArtifact: undefined,
+		});
+		assert.ok(!out.includes('<bode-handoff>'));
+	});
 });

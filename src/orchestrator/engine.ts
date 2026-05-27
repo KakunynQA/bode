@@ -15,16 +15,20 @@ export type AdvanceResult =
 	| { kind: 'conflict'; meta: RunMeta }
 	| { kind: 'no-op'; meta: RunMeta };
 
+export type AdvanceOptions = {
+	projectRoot: string | undefined;
+	signal: AbortSignal | undefined;
+	autopilot: boolean | undefined;
+	projectConfig?: ProjectConfig | undefined;
+	interactive?: boolean;
+	dangerousBypass?: boolean;
+};
+
 export async function advancePhase(
 	taskKey: string,
 	config: BodeConfig,
 	jira: JiraAdapter,
-	options: {
-		projectRoot: string | undefined;
-		signal: AbortSignal | undefined;
-		autopilot: boolean | undefined;
-		projectConfig?: ProjectConfig | undefined;
-	}
+	options: AdvanceOptions
 ): Promise<Result<AdvanceResult>> {
 	const metaResult = await loadRunMeta(taskKey);
 	if (!metaResult.ok) return metaResult;
@@ -65,16 +69,21 @@ export async function advancePhase(
 		console.warn(`[bode] Jira transition failed: ${transitionResult.error.message}`);
 	}
 
-	const spinner = ora(`Running ${getPhaseStatusLabel(executingStatus)} phase...`).start();
+	const interactive = options.interactive ?? true;
+	const spinner = interactive
+		? null
+		: ora(`Running ${getPhaseStatusLabel(executingStatus)} phase...`).start();
 
 	const phaseResult = await runPhase(taskKey, executingStatus, config, jira, {
 		projectRoot: options.projectRoot,
 		signal: options.signal,
 		projectConfig: options.projectConfig,
+		interactive,
+		dangerousBypass: options.dangerousBypass ?? false,
 	});
 
 	if (!phaseResult.ok) {
-		spinner.fail(`Phase failed: ${phaseResult.error.message}`);
+		spinner?.fail(`Phase failed: ${phaseResult.error.message}`);
 		await postJiraComment(
 			taskKey,
 			jira,
@@ -86,35 +95,31 @@ export async function advancePhase(
 	const result = phaseResult.value;
 
 	if (result.kind === 'success') {
-		if (result.permissionIssue) {
-			spinner.warn(
-				`${getPhaseStatusLabel(nextStatus)} finished but the CLI flagged a permission issue (${formatDuration(result.durationMs)})`
-			);
-		} else {
-			spinner.succeed(
-				`${getPhaseStatusLabel(nextStatus)} complete (${formatDuration(result.durationMs)})`
-			);
-		}
+		spinner?.succeed(
+			`${getPhaseStatusLabel(nextStatus)} complete (${formatDuration(result.durationMs)})`
+		);
 
-		// Post summary comment on Jira
 		await postPhaseSummary(
 			taskKey,
 			executingStatus,
 			result.artifact,
 			result.durationMs,
 			config,
-			jira,
-			result.permissionIssue
+			jira
+		);
+	} else if (result.kind === 'missing-artifact') {
+		spinner?.warn(
+			`${getPhaseStatusLabel(executingStatus)} session ended without writing the artifact.`
 		);
 	} else if (result.kind === 'failed') {
-		spinner.fail(`Phase failed: ${result.reason}`);
+		spinner?.fail(`Phase failed: ${result.reason}`);
 		await postJiraComment(
 			taskKey,
 			jira,
 			`**[Bode] Phase ${getPhaseStatusLabel(executingStatus)} failed**\n\n${result.reason}`
 		);
 	} else {
-		spinner.warn('Phase timed out');
+		spinner?.warn('Phase timed out');
 		await postJiraComment(
 			taskKey,
 			jira,
@@ -253,8 +258,7 @@ async function postPhaseSummary(
 	artifact: string,
 	durationMs: number,
 	config: BodeConfig,
-	jira: JiraAdapter,
-	permissionIssue?: import('~/utils/output-scan.ts').PermissionHit
+	jira: JiraAdapter
 ): Promise<void> {
 	const phaseLabel = getPhaseStatusLabel(phaseStatus);
 	const maxChars = config.comment_format?.plan_inline_max_chars ?? 3000;
@@ -264,18 +268,10 @@ async function postPhaseSummary(
 	const summary = extractSummary(artifact, maxChars);
 	const duration = formatDuration(durationMs);
 
-	const attentionBlock = permissionIssue
-		? `\n\n---\n**⚠ Attention required — CLI flagged "${permissionIssue.pattern}"**\n` +
-			(permissionIssue.suggestedPaths.length > 0
-				? `Paths mentioned: ${permissionIssue.suggestedPaths.map((p) => `\`${p}\``).join(', ')}\n\n`
-				: '\n') +
-			`Snippet:\n\n> ${permissionIssue.snippet.replace(/\n/g, '\n> ')}`
-		: '';
-
 	await postJiraComment(
 		taskKey,
 		jira,
-		`**${prefix}[Bode ${phaseLabel}]** Completed in ${duration}.\n\n${summary}${attentionBlock}`
+		`**${prefix}[Bode ${phaseLabel}]** Completed in ${duration}.\n\n${summary}`
 	);
 }
 

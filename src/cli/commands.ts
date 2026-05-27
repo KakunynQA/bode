@@ -29,6 +29,10 @@ export function createCommands(program: Command): void {
 			'--auto-and-merge-dangerously',
 			'Run all phases AND auto-merge the PR (use with caution)'
 		)
+		.option(
+			'--approve-all-dangerous',
+			'Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code.'
+		)
 		.action(
 			async (
 				taskKey: string,
@@ -37,6 +41,7 @@ export function createCommands(program: Command): void {
 					fromBranch?: string;
 					auto?: boolean;
 					autoAndMergeDangerously?: boolean;
+					approveAllDangerous?: boolean;
 				}
 			) => {
 				const { startAction } = await import('./actions/start.ts');
@@ -48,10 +53,16 @@ export function createCommands(program: Command): void {
 		.command('continue <taskKey>')
 		.description('Advance to next phase')
 		.option('--project <name>', 'Project name from ~/.bode/projects/')
-		.action(async (taskKey: string, options: { project?: string }) => {
-			const { continueAction } = await import('./actions/continue.ts');
-			await continueAction(taskKey, options);
-		});
+		.option(
+			'--approve-all-dangerous',
+			'Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code.'
+		)
+		.action(
+			async (taskKey: string, options: { project?: string; approveAllDangerous?: boolean }) => {
+				const { continueAction } = await import('./actions/continue.ts');
+				await continueAction(taskKey, options);
+			}
+		);
 
 	program
 		.command('status <taskKey>')

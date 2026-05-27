@@ -6,6 +6,12 @@ export type CliAdapterConfig = {
 	timeout_minutes: number;
 };
 
+export type CliInvocationOptions = {
+	signal?: AbortSignal | undefined;
+	interactive?: boolean;
+	dangerousBypass?: boolean;
+};
+
 export type CliInvocationResult = {
 	stdout: string;
 	stderr: string;
@@ -18,7 +24,8 @@ export interface CliAdapter {
 	invoke(
 		prompt: string,
 		config: CliAdapterConfig,
-		signal?: AbortSignal
+		options?: CliInvocationOptions
 	): Promise<Result<CliInvocationResult>>;
 	isAvailable(): Promise<boolean>;
+	dangerousFlags(): string[] | null;
 }

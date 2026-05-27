@@ -485,14 +485,16 @@ Each phase requires an AI CLI. Install at least one:
 
 ### "Permission denied" / "I need read access to ..."
 
-If the AI CLI prints a permission/access complaint, bode catches it two ways (since v0.12.0):
+Since v0.13.0 the AI CLI runs **interactively in your terminal** by default — you see the live session and approve tool calls in the CLI's own native UI, just like running `claude` or `codex` directly.
+
+Two safety nets remain:
 
 - **Preflight:** before each phase, bode checks that `workdir`, every `context_paths[]`, and every `repos[].workdir` is readable. If not, the phase aborts before spending tokens, listing every unreachable path.
-- **Output scan:** after a phase runs, bode greps stdout/stderr for patterns like `permission denied`, `EACCES`, `need read access`, `grant permission`. On a hit it prints a yellow `⚠` block with the snippet and any paths mentioned, and stops auto mode at that phase.
+- **`--approve-all-dangerous`:** pass on `bode start` / `bode continue` to inject each CLI's bypass-approvals flag (claude: `--dangerously-skip-permissions`, codex: `--dangerously-bypass-approvals-and-sandbox`). For CLIs without an equivalent flag (opencode, zai) bode warns upfront and asks whether to proceed — you'll approve actions interactively.
 
-To fix:
-- Grant the AI CLI access to the listed paths (Claude Code: `~/.claude/settings.json` allow-list; Codex/OpenCode: their respective allow mechanisms), then rerun the phase.
-- Or remove the unreachable path from `~/.bode/projects/<name>.yml` (`context_paths` / `repos`) if it was a stale entry.
+### AI session exited without writing the artifact
+
+When the AI exits without producing the phase artifact at `~/.bode/runs/<KEY>/<phase>.md`, bode shows a yellow warning and asks `[retry | continue | abort]`. Inspect what happened with `bode log <KEY>`.
 
 ### Branch creation fails / dirty workdir
 

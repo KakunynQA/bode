@@ -10,6 +10,7 @@ export type PromptContext = {
 	projectAgentsMd: string | undefined;
 	repoFileTree: string | undefined;
 	priorArtifact: string | undefined;
+	artifactPath?: string;
 	repos?: RepoEntry[];
 	branchTool?: string;
 	mainWorkdir?: string;
@@ -65,6 +66,23 @@ ${context.jiraIssue.description}
 			'</branch-instructions>'
 		);
 		parts.push(lines.join('\n'));
+	}
+
+	if (context.artifactPath) {
+		parts.push(
+			[
+				'\n<bode-handoff>',
+				'IMPORTANT — when you are finished with this phase, you MUST:',
+				`  1. Write your final markdown artifact to exactly this path:`,
+				`     ${context.artifactPath}`,
+				'     Overwrite if it already exists. Write only the artifact content — no commentary outside it.',
+				'  2. Then exit the session (type /exit, or quit normally).',
+				'',
+				'Bode reads that file after you exit to know the phase succeeded.',
+				'If the file is missing or empty when you exit, bode will ask the user what happened.',
+				'</bode-handoff>',
+			].join('\n')
+		);
 	}
 
 	return parts.join('\n');

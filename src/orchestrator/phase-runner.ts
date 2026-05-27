@@ -2,7 +2,7 @@ import type { BodeConfig, ProjectConfig } from '~/config/schema.ts';
 import type { PhaseName, PhaseStatus } from '~/types/phase.ts';
 import { getPhaseNameForStatus, getNextPhase } from '~/types/phase.ts';
 import type { JiraAdapter } from '~/types/jira.ts';
-import type { CliAdapterConfig } from '~/types/cli-adapter.ts';
+import type { CliAdapterConfig, CliInvocationOptions } from '~/types/cli-adapter.ts';
 import type { Result } from '~/types/result.ts';
 import { getAdapter } from '~/adapters/cli/registry.ts';
 import { loadSkillPrompt } from '~/skills/resolver.ts';
@@ -12,30 +12,30 @@ import { getRunDir } from '~/config/defaults.ts';
 import { writeText, readText } from '~/utils/fs.ts';
 import { gatherContext } from '~/config/context.ts';
 import { preflightProjectPaths } from './preflight.ts';
-import { detectPermissionIssue, type PermissionHit } from '~/utils/output-scan.ts';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 
 export type PhaseRunResult =
-	| {
-			kind: 'success';
-			artifact: string;
-			logPath: string;
-			durationMs: number;
-			permissionIssue?: PermissionHit;
-	  }
+	| { kind: 'success'; artifact: string; logPath: string; durationMs: number }
 	| { kind: 'failed'; reason: string; logPath: string }
+	| { kind: 'missing-artifact'; logPath: string; durationMs: number }
 	| { kind: 'timeout'; logPath: string };
+
+export type RunPhaseOptions = {
+	projectRoot: string | undefined;
+	signal: AbortSignal | undefined;
+	projectConfig?: ProjectConfig | undefined;
+	interactive?: boolean;
+	dangerousBypass?: boolean;
+};
 
 export async function runPhase(
 	taskKey: string,
 	status: PhaseStatus,
 	config: BodeConfig,
 	jira: JiraAdapter,
-	options: {
-		projectRoot: string | undefined;
-		signal: AbortSignal | undefined;
-		projectConfig?: ProjectConfig | undefined;
-	}
+	options: RunPhaseOptions
 ): Promise<Result<PhaseRunResult>> {
 	const phaseName = getPhaseNameForStatus(status);
 	if (!phaseName) {
@@ -86,21 +86,23 @@ export async function runPhase(
 		if (r.name) entry.name = r.name;
 		return entry;
 	});
+
+	const runDir = getRunDir(taskKey);
+	const logPath = join(runDir, `${phaseName}.log`);
+	const artifactPath = join(runDir, `${phaseName}.md`);
+
 	const prompt = buildPrompt(skillResult.value, {
 		jiraIssue: issue,
 		projectAgentsMd,
 		repoFileTree,
 		priorArtifact,
+		artifactPath,
 		...(repos ? { repos } : {}),
 		...(options.projectConfig?.branch_tool
 			? { branchTool: options.projectConfig.branch_tool }
 			: {}),
 		...(options.projectRoot ? { mainWorkdir: options.projectRoot } : {}),
 	});
-
-	const runDir = getRunDir(taskKey);
-	const logPath = join(runDir, `${phaseName}.log`);
-	const artifactPath = join(runDir, `${phaseName}.md`);
 
 	const cliConfig: CliAdapterConfig = {
 		cli: phaseConfig.cli,
@@ -114,7 +116,13 @@ export async function runPhase(
 		await jira.addLabel(taskKey, labels[currentLabelKey]);
 	}
 
-	const invokeResult = await adapterResult.value.invoke(prompt, cliConfig, options.signal);
+	const invocationOpts: CliInvocationOptions = {
+		signal: options.signal,
+		interactive: options.interactive ?? true,
+		dangerousBypass: options.dangerousBypass ?? false,
+	};
+
+	const invokeResult = await adapterResult.value.invoke(prompt, cliConfig, invocationOpts);
 
 	if (!invokeResult.ok) {
 		const failLog = `Phase ${phaseName} failed: ${invokeResult.error.message}`;
@@ -136,13 +144,30 @@ export async function runPhase(
 	}
 
 	const invocation = invokeResult.value;
-	await writeText(logPath, invocation.stdout);
-	await writeText(artifactPath, invocation.stdout);
 
-	const permissionIssue =
-		detectPermissionIssue(invocation.stdout) ??
-		detectPermissionIssue(invocation.stderr) ??
-		undefined;
+	if (invocation.stdout || invocation.stderr) {
+		const logBody = `STDOUT:\n${invocation.stdout}\n\nSTDERR:\n${invocation.stderr}`;
+		await writeText(logPath, logBody);
+	} else {
+		await writeText(
+			logPath,
+			`Interactive session — output not captured. Exit code: ${invocation.exitCode}. Duration: ${invocation.durationMs}ms.`
+		);
+	}
+
+	const artifact = await readArtifact(artifactPath, invocation.stdout);
+
+	if (!artifact) {
+		return {
+			ok: true,
+			value: { kind: 'missing-artifact', logPath, durationMs: invocation.durationMs },
+		};
+	}
+
+	// Only persist artifact when AI did not write it (headless fallback).
+	if (!existsSync(artifactPath)) {
+		await writeText(artifactPath, artifact);
+	}
 
 	const labelsConfig = config.jira_labels;
 	if (labelsConfig) {
@@ -167,12 +192,27 @@ export async function runPhase(
 		ok: true,
 		value: {
 			kind: 'success',
-			artifact: invocation.stdout,
+			artifact,
 			logPath,
 			durationMs: invocation.durationMs,
-			...(permissionIssue ? { permissionIssue } : {}),
 		},
 	};
+}
+
+async function readArtifact(artifactPath: string, headlessStdout: string): Promise<string | null> {
+	if (existsSync(artifactPath)) {
+		try {
+			const s = await stat(artifactPath);
+			if (s.size > 0) {
+				const content = await readText(artifactPath);
+				if (content && content.trim().length > 0) return content;
+			}
+		} catch {
+			// fall through to stdout fallback
+		}
+	}
+	if (headlessStdout && headlessStdout.trim().length > 0) return headlessStdout;
+	return null;
 }
 
 function getPriorPhaseFile(phase: PhaseName): string | null {
