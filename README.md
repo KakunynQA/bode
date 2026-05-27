@@ -1,6 +1,8 @@
-# Bode
+<div align="center">
 
-<p align="center">
+# 🐐 Bode
+
+<p>
   <a href="https://github.com/KakunynQA/bode">
     <img alt="Version" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FKakunynQA%2Fbode%2Fmain%2Fpackage.json&query=%24.version&label=Version&style=for-the-badge">
   </a>
@@ -13,13 +15,13 @@
   <img alt="License" src="https://img.shields.io/badge/License-UNLICENSED-e74c3c?style=for-the-badge">
 </p>
 
-<p align="center">
+<p>
   <strong>AI Coding Orchestrator for Jira</strong><br>
   Current version: <strong>0.1.0</strong><br>
   Drives <strong>Claude Code</strong>, <strong>OpenCode</strong>, <strong>Codex</strong> through configurable phases and syncs progress to <strong>Jira</strong>.
 </p>
 
-<p align="center">
+<p>
   <a href="https://github.com/KakunynQA/bode">Repository</a>
   ·
   <a href="https://github.com/KakunynQA/bode/issues">Issues</a>
@@ -28,6 +30,8 @@
   ·
   <a href="#configuration">Configuration</a>
 </p>
+
+</div>
 
 ---
 
