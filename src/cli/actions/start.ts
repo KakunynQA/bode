@@ -9,6 +9,8 @@ import { handlePromptError } from '~/utils/prompt.ts';
 import { planDangerousMode } from '~/cli/dangerous-check.ts';
 import { handleMissingArtifact } from '~/cli/missing-artifact.ts';
 import { printTaskSummary } from '~/cli/summary.ts';
+import { acquireLock } from '~/storage/lockfile.ts';
+import { registerLockReleaseHandlers } from '~/cli/lock-release.ts';
 import { select } from '@inquirer/prompts';
 import pc from 'picocolors';
 import ora from 'ora';
@@ -40,6 +42,17 @@ export async function startAction(
 
 	const { config, projectConfig } = projectResult.value;
 	const jira = createJiraAdapter(config.jira);
+
+	// Acquire exclusive lock on this task key (issue #4). Prevents two
+	// concurrent bode runs from clobbering each other's branch / meta /
+	// artifacts. The lock is auto-released on normal exit (via process.on
+	// 'exit'), on signals (SIGINT/SIGTERM), and on next acquire if stale.
+	const lockResult = await acquireLock(taskKey, `start ${taskKey}`);
+	if (!lockResult.ok) {
+		console.error(pc.red(lockResult.error.message));
+		process.exit(1);
+	}
+	registerLockReleaseHandlers(lockResult.value.release);
 
 	let dangerousBypass = false;
 	if (options.dangerouslyApproveAll) {

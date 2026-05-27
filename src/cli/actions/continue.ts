@@ -4,6 +4,8 @@ import { advancePhase } from '~/orchestrator/engine.ts';
 import { resolveProject } from '~/config/project-resolver.ts';
 import { planDangerousMode } from '~/cli/dangerous-check.ts';
 import { handleMissingArtifact } from '~/cli/missing-artifact.ts';
+import { acquireLock } from '~/storage/lockfile.ts';
+import { registerLockReleaseHandlers } from '~/cli/lock-release.ts';
 import pc from 'picocolors';
 
 export async function continueAction(
@@ -26,6 +28,13 @@ export async function continueAction(
 
 	const { config, projectConfig } = projectResult.value;
 	const jira = createJiraAdapter(config.jira);
+
+	const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);
+	if (!lockResult.ok) {
+		console.error(pc.red(lockResult.error.message));
+		process.exit(1);
+	}
+	registerLockReleaseHandlers(lockResult.value.release);
 
 	let dangerousBypass = false;
 	if (options.dangerouslyApproveAll) {

@@ -19598,7 +19598,22 @@ async function ensureDir(path3) {
 }
 async function writeJson(path3, data) {
   await ensureDir((0, import_node_path4.dirname)(path3));
-  await (0, import_promises.writeFile)(path3, JSON.stringify(data, null, 2), "utf-8");
+  const tmpPath = `${path3}.tmp.${process.pid}.${Date.now()}`;
+  const body = JSON.stringify(data, null, 2);
+  try {
+    await (0, import_promises.writeFile)(tmpPath, body, "utf-8");
+    await (0, import_promises.rename)(tmpPath, path3);
+  } catch (err) {
+    try {
+      await (0, import_promises.unlink)(tmpPath);
+    } catch {
+    }
+    try {
+      await (0, import_promises.writeFile)(path3, body, "utf-8");
+    } catch {
+      throw err;
+    }
+  }
 }
 async function readJson(path3) {
   if (!(0, import_node_fs2.existsSync)(path3)) return null;
@@ -43022,8 +43037,8 @@ var init_rest = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.18.0") {
-    return "0.18.0";
+  if ("0.19.0") {
+    return "0.19.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -45451,6 +45466,111 @@ var init_missing_artifact = __esm({
   }
 });
 
+// src/storage/lockfile.ts
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    const code = err.code;
+    return code === "EPERM";
+  }
+}
+function lockPath(taskKey) {
+  return (0, import_node_path15.join)(getRunDir(taskKey), LOCK_FILE);
+}
+async function readLock(taskKey) {
+  const path3 = lockPath(taskKey);
+  if (!(0, import_node_fs13.existsSync)(path3)) return null;
+  try {
+    const raw = await (0, import_promises9.readFile)(path3, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+async function acquireLock(taskKey, command) {
+  const path3 = lockPath(taskKey);
+  await (0, import_promises9.mkdir)((0, import_node_path15.join)(getRunDir(taskKey)), { recursive: true });
+  const existing = await readLock(taskKey);
+  if (existing) {
+    const stale = existing.host !== (0, import_node_os4.hostname)() || !isPidAlive(existing.pid) || existing.pid === process.pid;
+    if (!stale) {
+      const ageMin = Math.round((Date.now() - existing.startedAt) / 6e4);
+      return {
+        ok: false,
+        error: new Error(
+          `Task ${taskKey} is locked by another bode process (pid ${existing.pid} on ${existing.host}, running "${existing.command}" for ~${ageMin} min).
+  If you're sure that process is dead, delete ${path3} manually and retry.`
+        )
+      };
+    }
+  }
+  const info2 = {
+    pid: process.pid,
+    host: (0, import_node_os4.hostname)(),
+    startedAt: Date.now(),
+    command
+  };
+  await (0, import_promises9.writeFile)(path3, JSON.stringify(info2, null, 2), "utf-8");
+  const release = async () => {
+    try {
+      const current = await readLock(taskKey);
+      if (current && current.pid === process.pid && current.host === (0, import_node_os4.hostname)()) {
+        await (0, import_promises9.unlink)(path3);
+      }
+    } catch {
+    }
+  };
+  return { ok: true, value: { release } };
+}
+var import_node_fs13, import_promises9, import_node_path15, import_node_os4, LOCK_FILE;
+var init_lockfile = __esm({
+  "src/storage/lockfile.ts"() {
+    "use strict";
+    import_node_fs13 = require("node:fs");
+    import_promises9 = require("node:fs/promises");
+    import_node_path15 = require("node:path");
+    import_node_os4 = require("node:os");
+    init_defaults();
+    LOCK_FILE = ".lock";
+  }
+});
+
+// src/cli/lock-release.ts
+function registerLockReleaseHandlers(release) {
+  let released = false;
+  const sync = () => {
+    if (released) return;
+    released = true;
+    release().catch(() => {
+    });
+  };
+  const onSignal = (signal) => {
+    release().catch(() => {
+    }).finally(() => {
+      released = true;
+      process.kill(process.pid, signal);
+    });
+  };
+  process.once("exit", sync);
+  process.once("SIGINT", () => onSignal("SIGINT"));
+  process.once("SIGTERM", () => onSignal("SIGTERM"));
+  process.once("uncaughtException", (err) => {
+    release().catch(() => {
+    }).finally(() => {
+      released = true;
+      console.error(err);
+      process.exit(1);
+    });
+  });
+}
+var init_lock_release = __esm({
+  "src/cli/lock-release.ts"() {
+    "use strict";
+  }
+});
+
 // src/cli/actions/start.ts
 var start_exports = {};
 __export(start_exports, {
@@ -45471,6 +45591,12 @@ async function startAction(taskKey, options) {
   }
   const { config: config2, projectConfig } = projectResult.value;
   const jira = createJiraAdapter(config2.jira);
+  const lockResult = await acquireLock(taskKey, `start ${taskKey}`);
+  if (!lockResult.ok) {
+    console.error(import_picocolors8.default.red(lockResult.error.message));
+    process.exit(1);
+  }
+  registerLockReleaseHandlers(lockResult.value.release);
   let dangerousBypass = false;
   if (options.dangerouslyApproveAll) {
     const plan = await planDangerousMode(config2);
@@ -45729,6 +45855,8 @@ var init_start = __esm({
     init_dangerous_check();
     init_missing_artifact();
     init_summary();
+    init_lockfile();
+    init_lock_release();
     init_dist17();
     import_picocolors8 = __toESM(require_picocolors());
     init_ora();
@@ -45754,6 +45882,12 @@ async function continueAction(taskKey, options) {
   }
   const { config: config2, projectConfig } = projectResult.value;
   const jira = createJiraAdapter(config2.jira);
+  const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);
+  if (!lockResult.ok) {
+    console.error(import_picocolors9.default.red(lockResult.error.message));
+    process.exit(1);
+  }
+  registerLockReleaseHandlers(lockResult.value.release);
   let dangerousBypass = false;
   if (options.dangerouslyApproveAll) {
     const plan = await planDangerousMode(config2);
@@ -45822,6 +45956,8 @@ var init_continue = __esm({
     init_project_resolver();
     init_dangerous_check();
     init_missing_artifact();
+    init_lockfile();
+    init_lock_release();
     import_picocolors9 = __toESM(require_picocolors());
   }
 });
@@ -45924,7 +46060,7 @@ __export(log_exports, {
 });
 async function logAction(taskKey) {
   const { readdir: readdir4 } = await import("node:fs/promises");
-  const { join: join12 } = await import("node:path");
+  const { join: join13 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
     const files = await readdir4(runDir);
@@ -45938,7 +46074,7 @@ async function logAction(taskKey) {
       console.error(import_picocolors12.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join12(runDir, latest));
+    const content = await readText(join13(runDir, latest));
     if (content) {
       console.log(content);
     }
@@ -46071,7 +46207,7 @@ __export(list_exports, {
 async function listAction() {
   const runsDir = getRunsDir();
   try {
-    const entries = await (0, import_promises9.readdir)(runsDir);
+    const entries = await (0, import_promises10.readdir)(runsDir);
     if (entries.length === 0) {
       console.log(import_picocolors14.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
       return;
@@ -46091,11 +46227,11 @@ async function listAction() {
     console.log(import_picocolors14.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
   }
 }
-var import_promises9, import_picocolors14;
+var import_promises10, import_picocolors14;
 var init_list = __esm({
   "src/cli/actions/list.ts"() {
     "use strict";
-    import_promises9 = require("node:fs/promises");
+    import_promises10 = require("node:fs/promises");
     init_defaults();
     init_run_meta();
     init_phase();

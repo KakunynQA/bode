@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] — 2026-05-27
+
+Closes Wave 0. Two concurrency-safety improvements that previously could lose data or corrupt state.
+
+### Added
+
+- **Atomic `meta.json` writes** (#3). `writeJson` now writes to `<path>.tmp.<pid>.<ts>` first, then `rename`s atomically over the destination. `rename` is atomic on the same filesystem on every supported platform, so a crash or ctrl-C mid-write leaves either the previous file or the new file — never a half-written corrupt JSON. Falls back to non-atomic write if rename fails (e.g. cross-device), only rethrows when the fallback also fails.
+- **Per-task lockfile** (#4). `bode start` and `bode continue` acquire an exclusive lock at `~/.bode/runs/<KEY>/.lock` containing `{pid, host, startedAt, command}`. Two concurrent runs on the same task key are refused with a clear message naming the running pid, host, and command. Stale locks (dead pid, or different host) are reclaimed automatically. Released on normal exit, SIGINT, SIGTERM, and uncaught exception via `process.once('exit'/'SIGINT'/'SIGTERM'/'uncaughtException')`.
+- `src/storage/lockfile.ts` — `acquireLock`, `inspectLock`. Pure logic, no global state.
+- `src/cli/lock-release.ts` — `registerLockReleaseHandlers` wires signal/exit handlers.
+
+### Tests
+
+- `tests/unit/utils/fs-atomic.test.ts` — 4 cases: basic write, no temp leftovers, replace, 10-rewrite never-corrupt.
+- `tests/unit/storage/lockfile.test.ts` — 5 cases: acquire/release/inspect, stale-pid reclaim, foreign-host reclaim, same-pid re-acquire.
+
+Total: 107 → 116 tests.
+
 ## [0.18.0] — 2026-05-27
 
 **Architectural shift — closes #35.** Bode no longer shells out to `git` directly. Every git operation (branch create/push/checkout/delete, fetch, conflict check, stash, status, switch-to-base) is now the AI's responsibility, performed inside its interactive session via tool calls during the implementation/PR-creation phases. Consistent with v0.16.0 where the AI took over PR creation.
