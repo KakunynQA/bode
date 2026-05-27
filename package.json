@@ -1,6 +1,6 @@
 {
   "name": "bode",
-  "version": "0.5.0",
+  "version": "0.11.0",
   "description": "Local CLI that orchestrates AI coding work through configurable phases",
   "author": "Kakunyn",
   "license": "MIT",
@@ -14,15 +14,22 @@
   "engines": {
     "node": ">=18"
   },
+  "files": [
+    "dist/",
+    "src/skills/defaults/",
+    "src/assets/bode.art",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "node --import tsx src/index.ts",
     "build": "node scripts/build.mjs",
     "prepublishOnly": "npm run build",
     "check": "tsc --noEmit",
-    "lint": "eslint src/ --config eslint.config.mjs",
-    "format": "prettier --write src/",
-    "format:check": "prettier --check src/",
-    "test": "node --test"
+    "lint": "eslint src/ tests/ --config eslint.config.mjs",
+    "format": "prettier --write src/ tests/",
+    "format:check": "prettier --check src/ tests/",
+    "test": "npx tsx --test \"tests/unit/**/*.test.ts\""
   },
   "dependencies": {
     "@inquirer/prompts": "^8.5.0",
