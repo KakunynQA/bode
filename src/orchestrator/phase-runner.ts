@@ -11,10 +11,18 @@ import { saveRunMeta, loadRunMeta } from '~/storage/run-meta.ts';
 import { getRunDir } from '~/config/defaults.ts';
 import { writeText, readText } from '~/utils/fs.ts';
 import { gatherContext } from '~/config/context.ts';
+import { preflightProjectPaths } from './preflight.ts';
+import { detectPermissionIssue, type PermissionHit } from '~/utils/output-scan.ts';
 import { join } from 'node:path';
 
 export type PhaseRunResult =
-	| { kind: 'success'; artifact: string; logPath: string; durationMs: number }
+	| {
+			kind: 'success';
+			artifact: string;
+			logPath: string;
+			durationMs: number;
+			permissionIssue?: PermissionHit;
+	  }
 	| { kind: 'failed'; reason: string; logPath: string }
 	| { kind: 'timeout'; logPath: string };
 
@@ -41,6 +49,13 @@ export async function runPhase(
 
 	const adapterResult = getAdapter(phaseConfig.cli);
 	if (!adapterResult.ok) return adapterResult;
+
+	if (options.projectConfig) {
+		const preflight = await preflightProjectPaths(options.projectConfig);
+		if (!preflight.ok) {
+			return { ok: false, error: new Error(preflight.error.message) };
+		}
+	}
 
 	const skillResult = await loadSkillPrompt(phaseName, {
 		projectRoot: options.projectRoot,
@@ -124,6 +139,11 @@ export async function runPhase(
 	await writeText(logPath, invocation.stdout);
 	await writeText(artifactPath, invocation.stdout);
 
+	const permissionIssue =
+		detectPermissionIssue(invocation.stdout) ??
+		detectPermissionIssue(invocation.stderr) ??
+		undefined;
+
 	const labelsConfig = config.jira_labels;
 	if (labelsConfig) {
 		if (currentLabelKey) {
@@ -150,6 +170,7 @@ export async function runPhase(
 			artifact: invocation.stdout,
 			logPath,
 			durationMs: invocation.durationMs,
+			...(permissionIssue ? { permissionIssue } : {}),
 		},
 	};
 }

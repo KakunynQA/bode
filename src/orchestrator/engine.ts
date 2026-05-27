@@ -86,9 +86,15 @@ export async function advancePhase(
 	const result = phaseResult.value;
 
 	if (result.kind === 'success') {
-		spinner.succeed(
-			`${getPhaseStatusLabel(nextStatus)} complete (${formatDuration(result.durationMs)})`
-		);
+		if (result.permissionIssue) {
+			spinner.warn(
+				`${getPhaseStatusLabel(nextStatus)} finished but the CLI flagged a permission issue (${formatDuration(result.durationMs)})`
+			);
+		} else {
+			spinner.succeed(
+				`${getPhaseStatusLabel(nextStatus)} complete (${formatDuration(result.durationMs)})`
+			);
+		}
 
 		// Post summary comment on Jira
 		await postPhaseSummary(
@@ -97,7 +103,8 @@ export async function advancePhase(
 			result.artifact,
 			result.durationMs,
 			config,
-			jira
+			jira,
+			result.permissionIssue
 		);
 	} else if (result.kind === 'failed') {
 		spinner.fail(`Phase failed: ${result.reason}`);
@@ -246,7 +253,8 @@ async function postPhaseSummary(
 	artifact: string,
 	durationMs: number,
 	config: BodeConfig,
-	jira: JiraAdapter
+	jira: JiraAdapter,
+	permissionIssue?: import('~/utils/output-scan.ts').PermissionHit
 ): Promise<void> {
 	const phaseLabel = getPhaseStatusLabel(phaseStatus);
 	const maxChars = config.comment_format?.plan_inline_max_chars ?? 3000;
@@ -256,10 +264,18 @@ async function postPhaseSummary(
 	const summary = extractSummary(artifact, maxChars);
 	const duration = formatDuration(durationMs);
 
+	const attentionBlock = permissionIssue
+		? `\n\n---\n**⚠ Attention required — CLI flagged "${permissionIssue.pattern}"**\n` +
+			(permissionIssue.suggestedPaths.length > 0
+				? `Paths mentioned: ${permissionIssue.suggestedPaths.map((p) => `\`${p}\``).join(', ')}\n\n`
+				: '\n') +
+			`Snippet:\n\n> ${permissionIssue.snippet.replace(/\n/g, '\n> ')}`
+		: '';
+
 	await postJiraComment(
 		taskKey,
 		jira,
-		`**${prefix}[Bode ${phaseLabel}]** Completed in ${duration}.\n\n${summary}`
+		`**${prefix}[Bode ${phaseLabel}]** Completed in ${duration}.\n\n${summary}${attentionBlock}`
 	);
 }
 

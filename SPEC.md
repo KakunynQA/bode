@@ -440,6 +440,28 @@ If two devs run `bode start` on the same task simultaneously, second one detects
 | Network drop mid-phase | Local log preserved. User can `bode continue` to retry or `bode abort` to cancel. |
 | Conflicting labels | Exit with diagnostic. User runs `bode abort` to reset. |
 | Branch conflict with base | Stop before PR creation. Warn user to resolve manually. |
+| Workdir / context_paths / repos[] unreadable | Preflight aborts the phase with a structured error listing every offender (v0.12.0). |
+| CLI output mentions permission refusal | Phase succeeds but result carries a `permissionIssue` payload. `bode start`/`bode continue` print a yellow warning with the snippet, mentioned paths, and remediation options. `bode start --auto` stops at that phase (v0.12.0). |
+
+### Permission-issue detection (v0.12.0)
+
+Bode never resolves AI-CLI sandbox restrictions on its own — but it surfaces them so the user can act fast.
+
+**Two layers:**
+
+1. **Preflight (`src/orchestrator/preflight.ts`).** Before invoking the CLI, bode runs `fs.access(R_OK)` against `workdir`, each `context_paths[]` entry (resolved against `workdir`), and each `repos[].workdir`. If any path is missing or unreadable, the phase aborts before spending any CLI tokens.
+
+2. **Output scan (`src/utils/output-scan.ts`).** After the CLI returns successfully, bode greps `stdout`/`stderr` for known permission-refusal patterns. When a hit is found, the success result carries:
+
+   ```ts
+   permissionIssue: {
+     pattern: string;          // e.g. 'need-access' | 'eacces' | 'grant-permission'
+     snippet: string;          // bounded ~500 chars
+     suggestedPaths: string[]; // any paths mentioned in the snippet
+   }
+   ```
+
+   The warning is printed to the user and appended to the Jira summary comment. In auto mode bode stops; in manual mode the user can re-run after fixing access or remove the offending path from project config.
 
 ## Definition of Done (v0.10.1)
 

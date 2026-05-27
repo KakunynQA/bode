@@ -7,6 +7,7 @@ import { startBranch, mergePR, switchToBase } from '~/orchestrator/branch-manage
 import { isClean, stash } from '~/adapters/vcs/git.ts';
 import { abortRun } from './abort.ts';
 import { handlePromptError } from '~/utils/prompt.ts';
+import { printPermissionWarning } from '~/utils/permission-warning.ts';
 import { select } from '@inquirer/prompts';
 import pc from 'picocolors';
 import ora from 'ora';
@@ -193,6 +194,9 @@ export async function startAction(
 
 		const advanceVal = result.value;
 		if (advanceVal.kind === 'phase' && advanceVal.phaseResult.kind === 'success') {
+			if (advanceVal.phaseResult.permissionIssue) {
+				printPermissionWarning(advanceVal.phaseResult.permissionIssue);
+			}
 			console.log(pc.green(`\nPlan ready. Run ${pc.bold(`bode continue ${taskKey}`)} to advance.`));
 		} else if (advanceVal.kind === 'phase') {
 			console.error(
@@ -275,6 +279,20 @@ export async function startAction(
 			console.error(
 				pc.red(
 					`\nPhase ${loopCount} failed: ${advanceVal.phaseResult.kind === 'failed' ? advanceVal.phaseResult.reason : 'timed out'}`
+				)
+			);
+			process.exit(1);
+		}
+
+		if (
+			advanceVal.kind === 'phase' &&
+			advanceVal.phaseResult.kind === 'success' &&
+			advanceVal.phaseResult.permissionIssue
+		) {
+			printPermissionWarning(advanceVal.phaseResult.permissionIssue);
+			console.error(
+				pc.yellow(
+					'Auto mode stopping: grant access (or remove the path) and rerun "bode continue".'
 				)
 			);
 			process.exit(1);

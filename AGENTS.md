@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v0.10.0) that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs and syncing progress to Jira. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local CLI (v0.12.0) that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs and syncing progress to Jira. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 
@@ -71,6 +71,11 @@ Available models per CLI are defined in `src/adapters/cli/models.ts`.
 | `src/orchestrator/phase-runner.ts` | Core phase execution logic |
 | `src/orchestrator/engine.ts` | Phase advancement with spinners |
 | `src/orchestrator/branch-manager.ts` | Branch lifecycle management (create, conflict check, PR) |
+| `src/orchestrator/preflight.ts` | Validates workdir + context_paths + repos[] are readable before invoking the CLI (v0.12.0) |
+| `src/utils/output-scan.ts` | Heuristic detector for permission-refusal patterns in CLI stdout/stderr (v0.12.0) |
+| `src/utils/permission-warning.ts` | Pretty-print helper for permission-issue warnings (v0.12.0) |
+| `src/adapters/jira/rest.ts` | Real Jira REST adapter with ADF body + 30s timeout (v0.11.0) |
+| `src/adapters/jira/adf.ts` | Atlassian Document Format helpers (v0.11.0) |
 | `src/config/schema.ts` | Zod config validation schema |
 | `src/config/loader.ts` | YAML config loading with project/global merge |
 | `src/config/projects.ts` | Project config loader |
@@ -90,9 +95,29 @@ Available models per CLI are defined in `src/adapters/cli/models.ts`.
 ## CI/CD
 
 GitHub Actions workflow at `.github/workflows/ci.yml`:
-- **Validate**: check + lint + build on Node 20/22/24
+- **Validate**: check + lint + format:check + test + build on Node 18/20/22/24
 - **Build Artifacts**: upload dist/index.js for Linux/Windows/macOS
 - **Release**: auto-release on `v*` tags with tarball + dist
+
+## Release Discipline (always, no need to be reminded)
+
+Every user-facing change ships as a release. Without being asked, you MUST:
+
+1. **Bump version** in `package.json` using semver:
+   - `patch` (0.11.0 → 0.11.1) for bug fixes, internal refactors, docs-only.
+   - `minor` (0.11.0 → 0.12.0) for new features, new CLI flags, new adapters, new commands.
+   - `major` (0.11.0 → 1.0.0) for breaking changes to CLI surface, config schema, or run-meta format.
+2. **Update `CHANGELOG.md`** under a new dated `## [X.Y.Z] — YYYY-MM-DD` section. Use `### Added / Changed / Fixed / Removed` subsections per Keep a Changelog.
+3. **Update relevant docs** in the same commit:
+   - `SPEC.md` — any change to behavior, schema, commands, flags, lifecycle.
+   - `README.md` — any change to commands, flags, install steps, requirements.
+   - `AGENTS.md` / `CLAUDE.md` — any change to workflow rules, validation chain, project structure.
+   - `CONVENTIONS.md` — any change to code standards.
+   - `TESTING.md` — any change to test layout or how to run tests.
+4. **Rebuild `dist/`** (`npm run build`) so the committed bundle matches the new version.
+5. **Verify** by running `bode --version` against the built binary and confirming the new number.
+
+If you skip any of the above, you are not done. The user should not need to ask "did you bump the version?" or "did you update the docs?"
 
 ## Definition of Done
 
@@ -101,7 +126,11 @@ Every change must satisfy all of these before opening a PR:
 - [ ] `npm run check` passes (no type errors)
 - [ ] `npm run lint` passes (no warnings)
 - [ ] `npm run format:check` passes
-- [ ] `npm run build` succeeds
+- [ ] `npm test` passes (with new tests for new logic, regression tests for fixes)
+- [ ] `npm run build` succeeds and `dist/index.js` is committed
+- [ ] Version bumped in `package.json` per the Release Discipline above
+- [ ] `CHANGELOG.md` updated under a new version section
+- [ ] Affected docs updated (SPEC/README/AGENTS/CLAUDE/CONVENTIONS/TESTING)
 - [ ] New code follows `CONVENTIONS.md`
 - [ ] New external integration (Jira op, CLI adapter, VCS op): unit test + integration test
 - [ ] New CLI command: `--help` text, error cases handled, exits with correct codes

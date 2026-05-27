@@ -483,6 +483,17 @@ Each phase requires an AI CLI. Install at least one:
 - Codex: `npm i -g @openai/codex`
 - Z.AI: follow instructions at [Z.AI](https://github.com/zai-inc/zai-coding)
 
+### "Permission denied" / "I need read access to ..."
+
+If the AI CLI prints a permission/access complaint, bode catches it two ways (since v0.12.0):
+
+- **Preflight:** before each phase, bode checks that `workdir`, every `context_paths[]`, and every `repos[].workdir` is readable. If not, the phase aborts before spending tokens, listing every unreachable path.
+- **Output scan:** after a phase runs, bode greps stdout/stderr for patterns like `permission denied`, `EACCES`, `need read access`, `grant permission`. On a hit it prints a yellow `⚠` block with the snippet and any paths mentioned, and stops auto mode at that phase.
+
+To fix:
+- Grant the AI CLI access to the listed paths (Claude Code: `~/.claude/settings.json` allow-list; Codex/OpenCode: their respective allow mechanisms), then rerun the phase.
+- Or remove the unreachable path from `~/.bode/projects/<name>.yml` (`context_paths` / `repos`) if it was a stale entry.
+
 ### Branch creation fails / dirty workdir
 
 Bode now prompts you when the working directory has uncommitted changes:

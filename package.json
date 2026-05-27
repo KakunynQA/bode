@@ -1,6 +1,6 @@
 {
   "name": "bode",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "description": "Local CLI that orchestrates AI coding work through configurable phases",
   "author": "Kakunyn",
   "license": "MIT",

@@ -2,6 +2,7 @@ import { loadConfig } from '~/config/loader.ts';
 import { createJiraAdapter } from '~/adapters/jira/factory.ts';
 import { advancePhase } from '~/orchestrator/engine.ts';
 import { resolveProject } from '~/config/project-resolver.ts';
+import { printPermissionWarning } from '~/utils/permission-warning.ts';
 import pc from 'picocolors';
 
 export async function continueAction(
@@ -55,6 +56,9 @@ export async function continueAction(
 		const { meta, phaseResult } = advanceVal;
 
 		if (phaseResult.kind === 'success') {
+			if (phaseResult.permissionIssue) {
+				printPermissionWarning(phaseResult.permissionIssue);
+			}
 			console.log(pc.green(`\nPhase complete. Status: ${meta.status}`));
 
 			if (meta.status === 'reviewed') {
