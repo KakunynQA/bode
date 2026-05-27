@@ -170,4 +170,12 @@ export function createCommands(program: Command): void {
 			const { doctorAction } = await import('./actions/doctor.ts');
 			await doctorAction();
 		});
+
+	program
+		.command('telemetry [subcommand]')
+		.description('Opt-in telemetry: bode telemetry [on|off|status|preview]')
+		.action(async (subcommand: string | undefined) => {
+			const { telemetryAction } = await import('./actions/telemetry.ts');
+			await telemetryAction(subcommand);
+		});
 }

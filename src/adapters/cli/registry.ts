@@ -1,5 +1,6 @@
 import type { CliAdapter } from '~/types/cli-adapter.ts';
 import type { Result } from '~/types/result.ts';
+import { unknownAdapterError } from '~/utils/errors.ts';
 import { ClaudeCodeAdapter } from './claude-code.ts';
 import { OpenCodeAdapter } from './opencode.ts';
 import { CodexAdapter } from './codex.ts';
@@ -21,10 +22,9 @@ export function registerAdapter(name: string, factory: () => CliAdapter): void {
 export function getAdapter(name: string): Result<CliAdapter> {
 	const factory = adapters.get(name);
 	if (!factory) {
-		const available = [...adapters.keys()].join(', ');
 		return {
 			ok: false,
-			error: new Error(`Unknown CLI adapter: "${name}". Available: ${available}`),
+			error: unknownAdapterError('CLI', name, [...adapters.keys()]),
 		};
 	}
 	return { ok: true, value: factory() };

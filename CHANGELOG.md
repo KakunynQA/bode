@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] — 2026-05-27
+
+Wave 3 — DX polish. Closes #17, #18, #19, #20.
+
+### Added
+
+- **`src/utils/errors.ts`** (#17): `errorWithHint`, `errorChecklist`, `missingConfigError`, `unknownAdapterError`. Applied to CLI registry.
+- **`scripts/build-sea.mjs`** (#18): single-executable binary builder using Node 20+ SEA. No third-party packager. Output: `dist/bode-<platform>-<arch>(.exe)`. ~85MB.
+- **`packaging/homebrew/bode.rb`** + **`packaging/scoop/bode.json`** (#19) — formula + manifest templates that pull from GitHub Releases.
+- **Opt-in telemetry** (#20): `bode telemetry [on|off|status|preview]`. Default OFF. Records command, success, duration, tracker kind, CLI adapter, versions, machine UUID. NEVER records task content, ticket IDs, code, paths, credentials. Storage `~/.bode/telemetry/events.ndjson`; no network unless user configures `telemetry.endpoint`.
+
+### Tests
+
+- `tests/unit/utils/errors.test.ts` (4), `tests/unit/utils/telemetry.test.ts` (6). Total: 203 → 213.
+
+### Notes
+
+- Wave 3 closed. Cross-platform binary CI for releases is a Wave 4 task.
+
 ## [0.26.0] — 2026-05-27
 
 **Wave 2 essentially closed** — three new tracker adapters land (#12, #14, #15) plus `plain-markdown` aliasing (#13) and the long-promised `bode new` command. Zero new dependencies — every external API client is a thin `fetch()` wrapper.

@@ -1,0 +1,23 @@
+{
+  "version": "0.27.0",
+  "description": "Local CLI that orchestrates AI coding work through configurable phases",
+  "homepage": "https://github.com/KakunynQA/bode",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/KakunynQA/bode/releases/download/v0.27.0/bode-win32-x64.exe",
+      "hash": "REPLACE_ME_ON_RELEASE"
+    }
+  },
+  "bin": "bode-win32-x64.exe",
+  "checkver": {
+    "github": "https://github.com/KakunynQA/bode"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/KakunynQA/bode/releases/download/v$version/bode-win32-x64.exe"
+      }
+    }
+  }
+}

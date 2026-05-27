@@ -40854,6 +40854,23 @@ var init_phase = __esm({
   }
 });
 
+// src/utils/errors.ts
+function errorWithHint(message, hint) {
+  return new Error(`${message}
+  \u2192 ${hint}`);
+}
+function unknownAdapterError(kind, name, available) {
+  return errorWithHint(
+    `Unknown ${kind} adapter: "${name}"`,
+    `Available: ${available.join(", ")}. Or check spelling.`
+  );
+}
+var init_errors5 = __esm({
+  "src/utils/errors.ts"() {
+    "use strict";
+  }
+});
+
 // src/adapters/cli/base.ts
 var import_node_child_process4, isWindows, MAX_OUTPUT_BYTES, TRUNCATION_NOTICE, BaseCliAdapter;
 var init_base = __esm({
@@ -41127,10 +41144,9 @@ function registerDefaults() {
 function getAdapter(name) {
   const factory = adapters.get(name);
   if (!factory) {
-    const available = [...adapters.keys()].join(", ");
     return {
       ok: false,
-      error: new Error(`Unknown CLI adapter: "${name}". Available: ${available}`)
+      error: unknownAdapterError("CLI", name, [...adapters.keys()])
     };
   }
   return { ok: true, value: factory() };
@@ -41142,6 +41158,7 @@ var adapters;
 var init_registry = __esm({
   "src/adapters/cli/registry.ts"() {
     "use strict";
+    init_errors5();
     init_claude_code();
     init_opencode();
     init_codex();
@@ -46636,8 +46653,8 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.26.0") {
-    return "0.26.0";
+  if ("0.27.0") {
+    return "0.27.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -47565,7 +47582,7 @@ __export(log_exports, {
 });
 async function logAction(taskKey) {
   const { readdir: readdir4 } = await import("node:fs/promises");
-  const { join: join16 } = await import("node:path");
+  const { join: join17 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
     const files = await readdir4(runDir);
@@ -47579,7 +47596,7 @@ async function logAction(taskKey) {
       console.error(import_picocolors14.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join16(runDir, latest));
+    const content = await readText(join17(runDir, latest));
     if (content) {
       console.log(content);
     }
@@ -47939,6 +47956,135 @@ var init_doctor = __esm({
   }
 });
 
+// src/utils/telemetry.ts
+async function readState() {
+  if (!(0, import_node_fs18.existsSync)(STATE_FILE)) return null;
+  try {
+    const raw = await (0, import_promises13.readFile)(STATE_FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+async function writeState(state) {
+  await (0, import_promises13.mkdir)(TELEMETRY_DIR, { recursive: true });
+  await (0, import_promises13.writeFile)(STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
+}
+async function isTelemetryEnabled() {
+  const state = await readState();
+  return state?.enabled ?? false;
+}
+async function setTelemetryEnabled(enabled) {
+  const existing = await readState() ?? {
+    enabled: false,
+    machineId: (0, import_node_crypto2.randomUUID)()
+  };
+  const next = {
+    ...existing,
+    enabled
+  };
+  if (enabled) next.enabledAt = (/* @__PURE__ */ new Date()).toISOString();
+  await writeState(next);
+  return next;
+}
+async function readRecentEvents(limit = 20) {
+  if (!(0, import_node_fs18.existsSync)(EVENTS_FILE)) return [];
+  const raw = await (0, import_promises13.readFile)(EVENTS_FILE, "utf-8");
+  const lines = raw.trim().split("\n").slice(-limit);
+  return lines.filter((l) => l.length > 0).map((l) => {
+    try {
+      return JSON.parse(l);
+    } catch {
+      return null;
+    }
+  }).filter((e) => e !== null);
+}
+var import_node_fs18, import_promises13, import_node_path19, import_node_os5, import_node_crypto2, TELEMETRY_DIR, STATE_FILE, EVENTS_FILE, __testing3;
+var init_telemetry = __esm({
+  "src/utils/telemetry.ts"() {
+    "use strict";
+    import_node_fs18 = require("node:fs");
+    import_promises13 = require("node:fs/promises");
+    import_node_path19 = require("node:path");
+    import_node_os5 = require("node:os");
+    import_node_crypto2 = require("node:crypto");
+    TELEMETRY_DIR = (0, import_node_path19.join)((0, import_node_os5.homedir)(), ".bode", "telemetry");
+    STATE_FILE = (0, import_node_path19.join)(TELEMETRY_DIR, "state.json");
+    EVENTS_FILE = (0, import_node_path19.join)(TELEMETRY_DIR, "events.ndjson");
+    __testing3 = { TELEMETRY_DIR, STATE_FILE, EVENTS_FILE };
+  }
+});
+
+// src/cli/actions/telemetry.ts
+var telemetry_exports = {};
+__export(telemetry_exports, {
+  telemetryAction: () => telemetryAction
+});
+async function telemetryAction(subcommand) {
+  const cmd = subcommand?.toLowerCase() ?? "status";
+  switch (cmd) {
+    case "on":
+    case "enable": {
+      const s = await setTelemetryEnabled(true);
+      console.log(import_picocolors19.default.green("\u2713 Telemetry enabled."));
+      console.log(import_picocolors19.default.dim(`  Machine ID: ${s.machineId}`));
+      console.log(import_picocolors19.default.dim(`  Events log: ${__testing3.EVENTS_FILE}`));
+      console.log(import_picocolors19.default.dim("  Default endpoint: none (local-only). Set telemetry.endpoint in"));
+      console.log(import_picocolors19.default.dim("  config to forward events to your own collector."));
+      console.log("");
+      console.log(import_picocolors19.default.bold("What gets recorded:"));
+      console.log(import_picocolors19.default.dim("  command name, success/failure, duration, tracker kind, CLI adapter,"));
+      console.log(import_picocolors19.default.dim("  bode version, Node version, platform, machine UUID."));
+      console.log(import_picocolors19.default.bold("What never gets recorded:"));
+      console.log(import_picocolors19.default.dim("  task content, ticket IDs, code, paths, credentials, your identity."));
+      break;
+    }
+    case "off":
+    case "disable": {
+      await setTelemetryEnabled(false);
+      console.log(import_picocolors19.default.yellow("Telemetry disabled. Recorded events remain on disk."));
+      console.log(import_picocolors19.default.dim(`  To delete them: rm -rf ${__testing3.TELEMETRY_DIR}`));
+      break;
+    }
+    case "status": {
+      const enabled = await isTelemetryEnabled();
+      console.log(enabled ? import_picocolors19.default.green("Telemetry: ENABLED") : import_picocolors19.default.dim("Telemetry: disabled"));
+      console.log(import_picocolors19.default.dim(`  Storage: ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors19.default.dim(`  Toggle: bode telemetry on   |   bode telemetry off`));
+      console.log(import_picocolors19.default.dim(`  Preview: bode telemetry preview`));
+      break;
+    }
+    case "preview": {
+      const events = await readRecentEvents(20);
+      if (events.length === 0) {
+        console.log(import_picocolors19.default.dim("No telemetry events recorded yet."));
+        return;
+      }
+      console.log(import_picocolors19.default.bold(`Last ${events.length} events:`));
+      for (const e of events) {
+        const status = e.success ? import_picocolors19.default.green("\u2713") : import_picocolors19.default.red("\u2717");
+        const dur = e.duration_ms ? import_picocolors19.default.dim(` (${e.duration_ms}ms)`) : "";
+        console.log(
+          `  ${status} ${import_picocolors19.default.cyan(e.command.padEnd(12))} ${import_picocolors19.default.dim(e.ts)} ${import_picocolors19.default.dim(`v${e.bode_version}`)}${dur}`
+        );
+      }
+      break;
+    }
+    default:
+      console.error(import_picocolors19.default.red(`Unknown subcommand: ${cmd}`));
+      console.error(import_picocolors19.default.dim("Usage: bode telemetry [on|off|status|preview]"));
+      process.exit(1);
+  }
+}
+var import_picocolors19;
+var init_telemetry2 = __esm({
+  "src/cli/actions/telemetry.ts"() {
+    "use strict";
+    import_picocolors19 = __toESM(require_picocolors());
+    init_telemetry();
+  }
+});
+
 // node_modules/commander/esm.mjs
 var import_index = __toESM(require_commander(), 1);
 var {
@@ -48035,6 +48181,10 @@ function createCommands(program3) {
   program3.command("doctor").description("Diagnose bode environment, config, AI CLIs, and VCS tooling").action(async () => {
     const { doctorAction: doctorAction2 } = await Promise.resolve().then(() => (init_doctor(), doctor_exports));
     await doctorAction2();
+  });
+  program3.command("telemetry [subcommand]").description("Opt-in telemetry: bode telemetry [on|off|status|preview]").action(async (subcommand) => {
+    const { telemetryAction: telemetryAction2 } = await Promise.resolve().then(() => (init_telemetry2(), telemetry_exports));
+    await telemetryAction2(subcommand);
   });
 }
 
