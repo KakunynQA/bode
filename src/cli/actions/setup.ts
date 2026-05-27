@@ -7,6 +7,8 @@ import { loadConfig } from '~/config/loader.ts';
 import { listAdapterNames } from '~/adapters/cli/registry.ts';
 import { getModelsForCli } from '~/adapters/cli/models.ts';
 
+declare const __GOAT_ART__: string;
+
 async function selectCli(question: string, defaultCli: string): Promise<string> {
   const adapters = listAdapterNames();
   return select({
@@ -70,20 +72,8 @@ function cliDescription(name: string): string {
   }
 }
 
-const GOAT = `
-      ${pc.cyan('//\\\\\\\\\\\\\\\\\\\\')}
-     ${pc.cyan('////\\\\\\\\\\\\\\\\\\\\\\\\')}
-    ${pc.cyan('//////')}${pc.white('  __  ')}${pc.cyan('\\\\\\\\\\\\\\\\')}
-   ${pc.cyan('///////')}${pc.white(' /  \\ ')}${pc.cyan('\\\\\\\\\\\\\\\\')}
-  ${pc.cyan('////////')}${pc.white(' \\__/ ')}${pc.cyan('\\\\\\\\\\\\\\\\')}
- ${pc.cyan('/////////')}${pc.white('  /  ')}${pc.cyan('\\\\\\\\\\\\\\\\\\\\')}
-${pc.cyan('//////////')}${pc.white(' /   ')}${pc.cyan('\\\\\\\\\\\\\\\\\\\\\\\\')}
- ${pc.cyan('\\\\\\\\\\\\\\\\\\\\')}${pc.white('\\')}${pc.cyan('\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\')}
-  ${pc.cyan('\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\')}
-`;
-
 export async function setupAction(): Promise<void> {
-  console.log(GOAT);
+  console.log(__GOAT_ART__);
   console.log(pc.bold(pc.cyan('  Bode Setup Wizard v0.3.0\n')));
 
   const globalDir = getGlobalDir();
