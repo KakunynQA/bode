@@ -131,8 +131,6 @@ function cliDescription(name: string): string {
 			return 'OpenCode (multi-provider)';
 		case 'codex':
 			return 'OpenAI Codex CLI';
-		case 'zai':
-			return 'Z.AI Coding CLI';
 		default:
 			return '';
 	}

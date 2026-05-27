@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] — 2026-05-27
+
+### Changed (breaking)
+
+- **Flags renamed to the `--dangerously-*` family** for consistency with claude/codex conventions:
+  - `--approve-all-dangerous` → `--dangerously-approve-all`
+  - `--auto-and-merge-dangerously` → `--dangerously-auto-merge`
+  Old names are not aliased. Update your scripts.
+
+### Removed
+
+- **`ZaiAdapter` removed.** Investigation showed that Z.AI's `coding-helper` (a.k.a. `chelper`) is **not** an AI coding agent — it's a config wizard that installs/configures *other* CLIs (claude-code, opencode, crush, factory-droid) to route through Z.AI's GLM models. The `zai-coding` command this adapter shelled out to does not exist.
+- GLM models removed from `models.ts` under a dedicated `zai` entry. They remain listed under `opencode` (which can route to GLM via Z.AI configuration).
+
+### Documentation
+
+- `README.md` and `SPEC.md` now explain the recommended path for using Z.AI's GLM models: `npx @z_ai/coding-helper init`, pick `claude-code` or `opencode`, then configure that adapter in bode `setup`.
+
 ## [0.13.0] — 2026-05-27
 
 ### Changed (breaking architecture)

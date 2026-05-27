@@ -23,7 +23,7 @@ export abstract class BaseCliAdapter implements CliAdapter {
 
 	/**
 	 * Returns the CLI-specific flag(s) that disable approval prompts and sandboxing
-	 * when bode is invoked with `--approve-all-dangerous`. Returns null when the
+	 * when bode is invoked with `--dangerously-approve-all`. Returns null when the
 	 * underlying CLI has no equivalent — callers should warn the user upfront so
 	 * they understand they may need to approve actions interactively.
 	 */

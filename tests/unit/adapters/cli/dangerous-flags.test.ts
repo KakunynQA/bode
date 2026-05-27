@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { ClaudeCodeAdapter } from '~/adapters/cli/claude-code.ts';
 import { CodexAdapter } from '~/adapters/cli/codex.ts';
 import { OpenCodeAdapter } from '~/adapters/cli/opencode.ts';
-import { ZaiAdapter } from '~/adapters/cli/zai.ts';
 
 describe('dangerousFlags()', () => {
 	it('claude-code returns --dangerously-skip-permissions', () => {
@@ -18,10 +17,6 @@ describe('dangerousFlags()', () => {
 
 	it('opencode returns null (no equivalent flag)', () => {
 		assert.equal(new OpenCodeAdapter().dangerousFlags(), null);
-	});
-
-	it('zai returns null (no equivalent flag)', () => {
-		assert.equal(new ZaiAdapter().dangerousFlags(), null);
 	});
 });
 

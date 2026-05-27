@@ -38,10 +38,6 @@ const CLI_MODELS: CliModels[] = [
 		name: 'codex',
 		models: ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.3-codex', 'gpt-5.3-codex-spark'],
 	},
-	{
-		name: 'zai',
-		models: ['glm-5.1', 'glm-5-turbo', 'glm-5', 'glm-4.7-flash', 'glm-4.7'],
-	},
 ];
 
 export function getModelsForCli(cliName: string): string[] {

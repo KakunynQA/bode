@@ -19,8 +19,8 @@ export async function startAction(
 		project?: string;
 		fromBranch?: string;
 		auto?: boolean;
-		autoAndMergeDangerously?: boolean;
-		approveAllDangerous?: boolean;
+		dangerouslyAutoMerge?: boolean;
+		dangerouslyApproveAll?: boolean;
 	}
 ): Promise<void> {
 	const configResult = await loadConfig();
@@ -42,7 +42,7 @@ export async function startAction(
 	const jira = createJiraAdapter(config.jira);
 
 	let dangerousBypass = false;
-	if (options.approveAllDangerous) {
+	if (options.dangerouslyApproveAll) {
 		const plan = await planDangerousMode(config);
 		if (!plan.approved) {
 			console.log(pc.dim('Aborted by user.'));
@@ -188,7 +188,7 @@ export async function startAction(
 	}
 
 	const isAuto = options.auto ?? false;
-	const isDangerous = options.autoAndMergeDangerously ?? false;
+	const isDangerous = options.dangerouslyAutoMerge ?? false;
 	const interactive = !isAuto && !isDangerous;
 
 	const engineOpts = {
@@ -226,7 +226,7 @@ export async function startAction(
 
 	if (isDangerous) {
 		console.log(
-			pc.yellow('\n⚠ --auto-and-merge-dangerously: This will run all phases AND auto-merge the PR.')
+			pc.yellow('\n⚠ --dangerously-auto-merge: This will run all phases AND auto-merge the PR.')
 		);
 		console.log(pc.yellow('  Automated review may miss issues. Verify before deploying.\n'));
 	}

@@ -10,10 +10,10 @@ export type DangerousPlan = {
 };
 
 /**
- * When the user passes --approve-all-dangerous, this helper checks every
+ * When the user passes --dangerously-approve-all, this helper checks every
  * phase's configured CLI. For phases whose adapter has a bypass flag, the
  * flag is wired in automatically (handled downstream). For phases whose
- * adapter does NOT support a bypass flag (opencode, zai), bode warns the
+ * adapter does NOT support a bypass flag (e.g. opencode), bode warns the
  * user upfront and asks whether to proceed — they'll have to approve
  * actions interactively during those phases.
  *
@@ -22,7 +22,7 @@ export type DangerousPlan = {
 export async function planDangerousMode(config: BodeConfig): Promise<DangerousPlan> {
 	console.log('');
 	console.log(
-		pc.yellow('⚠ --approve-all-dangerous: bode will pass each AI CLI its bypass-approvals flag.')
+		pc.yellow('⚠ --dangerously-approve-all: bode will pass each AI CLI its bypass-approvals flag.')
 	);
 	console.log(pc.yellow('  This disables sandbox prompts. Use only on code you trust.'));
 	console.log('');

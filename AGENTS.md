@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v0.13.0) that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs interactively (terminal handoff) and syncing progress to Jira. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local CLI (v0.14.0) that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs interactively (terminal handoff) and syncing progress to Jira. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 
@@ -53,7 +53,6 @@ npm i -g KakunynQA/bode
 | Claude Code | `claude` | `src/adapters/cli/claude-code.ts` |
 | OpenCode | `opencode` | `src/adapters/cli/opencode.ts` |
 | Codex | `codex` | `src/adapters/cli/codex.ts` |
-| Z.AI | `zai-coding` | `src/adapters/cli/zai.ts` |
 
 Available models per CLI are defined in `src/adapters/cli/models.ts`.
 

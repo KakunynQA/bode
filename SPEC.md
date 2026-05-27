@@ -2,7 +2,7 @@
 
 ## What Bode Is
 
-Bode is a local CLI that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs (Claude Code, OpenCode, Codex, Z.AI) and syncing progress to Jira so the team has shared visibility without leaving their existing workflow.
+Bode is a local CLI that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs (Claude Code, OpenCode, Codex) and syncing progress to Jira so the team has shared visibility without leaving their existing workflow. Z.AI's GLM models are reached through any of these adapters by running `npx @z_ai/coding-helper init` once.
 
 ## What Bode Is Not
 
@@ -292,12 +292,11 @@ This gives the AI CLI awareness of project conventions, architecture, and file l
 
 ## CLI Headless Invocation
 
-| CLI | Invocation pattern |
-|---|---|
-| claude-code | `claude --print --model <model> < prompt.txt > output.log` |
-| opencode | `opencode run --model <model> --prompt-file /dev/stdin` |
-| codex | `codex exec --model <model> --prompt-file /dev/stdin` |
-| zai | `zai-coding --model <model> --prompt-file /dev/stdin` |
+| CLI | Headless invocation | Interactive invocation (v0.13.0+) |
+|---|---|---|
+| claude-code | `claude --print --model <model> < prompt.txt` | `claude --model <model> "<prompt>"` |
+| opencode | `opencode run --model <model> --prompt-file /dev/stdin` | `opencode --model <model> "<prompt>"` |
+| codex | `codex exec --model <model> --prompt-file /dev/stdin` | `codex --model <model> "<prompt>"` |
 
 All adapters implement the `CliAdapter` interface via `BaseCliAdapter`, handling spawn, stdin/stdout/stderr capture, timeout, and exit code interpretation.
 
@@ -469,7 +468,6 @@ Passes each AI CLI's bypass-approvals/sandbox flag automatically. Per-adapter ma
 | `claude-code` | `--dangerously-skip-permissions` |
 | `codex` | `--dangerously-bypass-approvals-and-sandbox` |
 | `opencode` | (none — bode warns upfront) |
-| `zai` | (none — bode warns upfront) |
 
 When the configured CLI does not support a bypass flag, bode prints a warning and asks the user whether to proceed. The user will need to approve actions interactively during those phases.
 
@@ -498,7 +496,7 @@ When the configured CLI does not support a bypass flag, bode prints a warning an
 - [x] Branch naming by Jira issue type
 - [x] Conflict detection before PR creation
 - [x] --from-branch flag for custom base branch
-- [x] 4 CLI adapters: Claude Code, OpenCode, Codex, Z.AI
+- [x] 3 CLI adapters: Claude Code, OpenCode, Codex (Z.AI's GLM models reached through any of them via `coding-helper init`)
 - [x] All commands handle network errors gracefully
 - [x] Unit test coverage: config loading, CLI adapters, Jira ops, skill resolution, branch naming, VCS resolution
 - [x] Real Jira REST adapter with API Token auth

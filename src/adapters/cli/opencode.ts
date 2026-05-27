@@ -19,7 +19,7 @@ export class OpenCodeAdapter extends BaseCliAdapter {
 	}
 
 	// OpenCode does not expose a single equivalent flag for full bypass.
-	// Returning null causes bode to warn the user upfront when --approve-all-dangerous
+	// Returning null causes bode to warn the user upfront when --dangerously-approve-all
 	// is used with this adapter.
 	dangerousFlags(): string[] | null {
 		return null;

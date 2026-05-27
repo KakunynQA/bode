@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { getAdapter, listAdapterNames } from '~/adapters/cli/registry.ts';
 
 describe('CLI adapter registry', () => {
-	it('lists 4 default adapters', () => {
+	it('lists 3 default adapters (claude-code, opencode, codex)', () => {
 		const names = listAdapterNames();
 		assert.ok(names.includes('claude-code'));
 		assert.ok(names.includes('opencode'));
 		assert.ok(names.includes('codex'));
-		assert.ok(names.includes('zai'));
+		assert.ok(!names.includes('zai'), 'zai adapter was removed in v0.14.0');
 	});
 
 	it('returns adapter for a known name', () => {

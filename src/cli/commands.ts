@@ -25,12 +25,9 @@ export function createCommands(program: Command): void {
 		.option('--project <name>', 'Project name from ~/.bode/projects/')
 		.option('--from-branch <branch>', 'Base branch (default: project default_branch or main)')
 		.option('--auto', 'Run all phases automatically until PR is created')
+		.option('--dangerously-auto-merge', 'Run all phases AND auto-merge the PR (use with caution)')
 		.option(
-			'--auto-and-merge-dangerously',
-			'Run all phases AND auto-merge the PR (use with caution)'
-		)
-		.option(
-			'--approve-all-dangerous',
+			'--dangerously-approve-all',
 			'Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code.'
 		)
 		.action(
@@ -40,8 +37,8 @@ export function createCommands(program: Command): void {
 					project?: string;
 					fromBranch?: string;
 					auto?: boolean;
-					autoAndMergeDangerously?: boolean;
-					approveAllDangerous?: boolean;
+					dangerouslyAutoMerge?: boolean;
+					dangerouslyApproveAll?: boolean;
 				}
 			) => {
 				const { startAction } = await import('./actions/start.ts');
@@ -54,11 +51,11 @@ export function createCommands(program: Command): void {
 		.description('Advance to next phase')
 		.option('--project <name>', 'Project name from ~/.bode/projects/')
 		.option(
-			'--approve-all-dangerous',
+			'--dangerously-approve-all',
 			'Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code.'
 		)
 		.action(
-			async (taskKey: string, options: { project?: string; approveAllDangerous?: boolean }) => {
+			async (taskKey: string, options: { project?: string; dangerouslyApproveAll?: boolean }) => {
 				const { continueAction } = await import('./actions/continue.ts');
 				await continueAction(taskKey, options);
 			}

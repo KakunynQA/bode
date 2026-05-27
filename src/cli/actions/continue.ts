@@ -8,7 +8,7 @@ import pc from 'picocolors';
 
 export async function continueAction(
 	taskKey: string,
-	options: { project?: string; approveAllDangerous?: boolean }
+	options: { project?: string; dangerouslyApproveAll?: boolean }
 ): Promise<void> {
 	const configResult = await loadConfig();
 	if (!configResult.ok) {
@@ -28,7 +28,7 @@ export async function continueAction(
 	const jira = createJiraAdapter(config.jira);
 
 	let dangerousBypass = false;
-	if (options.approveAllDangerous) {
+	if (options.dangerouslyApproveAll) {
 		const plan = await planDangerousMode(config);
 		if (!plan.approved) {
 			console.log(pc.dim('Aborted by user.'));

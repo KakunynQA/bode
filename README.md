@@ -18,7 +18,7 @@
 <p>
   <strong>AI Coding Orchestrator for Jira</strong><br>
   Current version: <strong>0.10.1</strong><br>
-  Drives <strong>Claude Code</strong>, <strong>OpenCode</strong>, <strong>Codex</strong>, <strong>Z.AI</strong> through configurable phases, syncs progress to <strong>Jira</strong>, and manages PRs on <strong>GitHub</strong> and <strong>GitLab</strong>.
+  Drives <strong>Claude Code</strong>, <strong>OpenCode</strong>, and <strong>Codex</strong> through configurable phases, syncs progress to <strong>Jira</strong>, and manages PRs on <strong>GitHub</strong> and <strong>GitLab</strong>.
 </p>
 
 <p>
@@ -44,7 +44,7 @@
 It is a strong fit for:
 
 - teams using **Jira** for task tracking
-- developers using **Claude Code**, **OpenCode**, **Codex**, or **Z.AI** for AI-assisted coding
+- developers using **Claude Code**, **OpenCode**, or **Codex** for AI-assisted coding (Z.AI's GLM models work through any of these via `npx @z_ai/coding-helper init`)
 - projects that need **auditability** of AI-generated plans and reviews
 - teams that want **shared visibility** of AI progress via Jira labels and comments
 - teams following **GitHub Flow** for branching (GitHub and GitLab supported)
@@ -97,7 +97,7 @@ bode --help
 - **Node.js** >= 18
 - **Git** installed and configured
 - **gh CLI** (GitHub PRs) or **glab CLI** (GitLab MRs)
-- At least one AI CLI installed: [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [OpenCode](https://opencode.ai), [Codex](https://github.com/openai/codex), or [Z.AI](https://github.com/zai-inc/zai-coding)
+- At least one AI CLI installed: [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [OpenCode](https://opencode.ai), or [Codex](https://github.com/openai/codex). To route any of these through Z.AI's GLM models, run [`npx @z_ai/coding-helper init`](https://docs.z.ai/devpack/extension/coding-tool-helper).
 - Jira account with an [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
 
 ---
@@ -481,7 +481,7 @@ Each phase requires an AI CLI. Install at least one:
 - Claude Code: `npm i -g @anthropic-ai/claude-code`
 - OpenCode: follow instructions at [opencode.ai](https://opencode.ai)
 - Codex: `npm i -g @openai/codex`
-- Z.AI: follow instructions at [Z.AI](https://github.com/zai-inc/zai-coding)
+- Z.AI (GLM models via claude-code/opencode/codex): `npx @z_ai/coding-helper init`
 
 ### "Permission denied" / "I need read access to ..."
 
@@ -490,7 +490,7 @@ Since v0.13.0 the AI CLI runs **interactively in your terminal** by default — 
 Two safety nets remain:
 
 - **Preflight:** before each phase, bode checks that `workdir`, every `context_paths[]`, and every `repos[].workdir` is readable. If not, the phase aborts before spending tokens, listing every unreachable path.
-- **`--approve-all-dangerous`:** pass on `bode start` / `bode continue` to inject each CLI's bypass-approvals flag (claude: `--dangerously-skip-permissions`, codex: `--dangerously-bypass-approvals-and-sandbox`). For CLIs without an equivalent flag (opencode, zai) bode warns upfront and asks whether to proceed — you'll approve actions interactively.
+- **`--dangerously-approve-all`:** pass on `bode start` / `bode continue` to inject each CLI's bypass-approvals flag (claude: `--dangerously-skip-permissions`, codex: `--dangerously-bypass-approvals-and-sandbox`). For CLIs without an equivalent flag (opencode) bode warns upfront and asks whether to proceed — you'll approve actions interactively.
 
 ### AI session exited without writing the artifact
 

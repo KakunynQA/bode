@@ -31761,7 +31761,7 @@ var init_base2 = __esm({
     BaseCliAdapter = class {
       /**
        * Returns the CLI-specific flag(s) that disable approval prompts and sandboxing
-       * when bode is invoked with `--approve-all-dangerous`. Returns null when the
+       * when bode is invoked with `--dangerously-approve-all`. Returns null when the
        * underlying CLI has no equivalent — callers should warn the user upfront so
        * they understand they may need to approve actions interactively.
        */
@@ -31962,7 +31962,7 @@ var init_opencode = __esm({
         return args;
       }
       // OpenCode does not expose a single equivalent flag for full bypass.
-      // Returning null causes bode to warn the user upfront when --approve-all-dangerous
+      // Returning null causes bode to warn the user upfront when --dangerously-approve-all
       // is used with this adapter.
       dangerousFlags() {
         return null;
@@ -32006,41 +32006,11 @@ var init_codex = __esm({
   }
 });
 
-// src/adapters/cli/zai.ts
-var ZaiAdapter;
-var init_zai = __esm({
-  "src/adapters/cli/zai.ts"() {
-    "use strict";
-    init_base2();
-    ZaiAdapter = class extends BaseCliAdapter {
-      name = "zai";
-      getCommand() {
-        return "zai-coding";
-      }
-      buildArgs(prompt, config2, options) {
-        const args = [];
-        if (!options.interactive) {
-          args.push("--model", config2.model, "--prompt-file", "/dev/stdin");
-        } else {
-          args.push("--model", config2.model, prompt);
-        }
-        return args;
-      }
-      // Z.AI has no documented bypass flag — warn the user upfront when
-      // --approve-all-dangerous is used with this adapter.
-      dangerousFlags() {
-        return null;
-      }
-    };
-  }
-});
-
 // src/adapters/cli/registry.ts
 function registerDefaults() {
   adapters.set("claude-code", () => new ClaudeCodeAdapter());
   adapters.set("opencode", () => new OpenCodeAdapter());
   adapters.set("codex", () => new CodexAdapter());
-  adapters.set("zai", () => new ZaiAdapter());
 }
 function getAdapter(name) {
   const factory = adapters.get(name);
@@ -32063,7 +32033,6 @@ var init_registry = __esm({
     init_claude_code();
     init_opencode();
     init_codex();
-    init_zai();
     adapters = /* @__PURE__ */ new Map();
     registerDefaults();
   }
@@ -32112,10 +32081,6 @@ var init_models = __esm({
       {
         name: "codex",
         models: ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.3-codex-spark"]
-      },
-      {
-        name: "zai",
-        models: ["glm-5.1", "glm-5-turbo", "glm-5", "glm-4.7-flash", "glm-4.7"]
       }
     ];
   }
@@ -32586,8 +32551,8 @@ var init_rest = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.13.0") {
-    return "0.13.0";
+  if ("0.14.0") {
+    return "0.14.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -32716,8 +32681,6 @@ function cliDescription(name) {
       return "OpenCode (multi-provider)";
     case "codex":
       return "OpenAI Codex CLI";
-    case "zai":
-      return "Z.AI Coding CLI";
     default:
       return "";
   }
@@ -34690,7 +34653,7 @@ var init_abort = __esm({
 async function planDangerousMode(config2) {
   console.log("");
   console.log(
-    import_picocolors4.default.yellow("\u26A0 --approve-all-dangerous: bode will pass each AI CLI its bypass-approvals flag.")
+    import_picocolors4.default.yellow("\u26A0 --dangerously-approve-all: bode will pass each AI CLI its bypass-approvals flag.")
   );
   console.log(import_picocolors4.default.yellow("  This disables sandbox prompts. Use only on code you trust."));
   console.log("");
@@ -34818,7 +34781,7 @@ async function startAction(taskKey, options) {
   const { config: config2, projectConfig } = projectResult.value;
   const jira = createJiraAdapter(config2.jira);
   let dangerousBypass = false;
-  if (options.approveAllDangerous) {
+  if (options.dangerouslyApproveAll) {
     const plan = await planDangerousMode(config2);
     if (!plan.approved) {
       console.log(import_picocolors6.default.dim("Aborted by user."));
@@ -34947,7 +34910,7 @@ async function startAction(taskKey, options) {
     });
   }
   const isAuto = options.auto ?? false;
-  const isDangerous = options.autoAndMergeDangerously ?? false;
+  const isDangerous = options.dangerouslyAutoMerge ?? false;
   const interactive = !isAuto && !isDangerous;
   const engineOpts = {
     projectRoot: projectConfig.workdir,
@@ -34983,7 +34946,7 @@ Planning failed: ${advanceVal.phaseResult.kind === "failed" ? advanceVal.phaseRe
   }
   if (isDangerous) {
     console.log(
-      import_picocolors6.default.yellow("\n\u26A0 --auto-and-merge-dangerously: This will run all phases AND auto-merge the PR.")
+      import_picocolors6.default.yellow("\n\u26A0 --dangerously-auto-merge: This will run all phases AND auto-merge the PR.")
     );
     console.log(import_picocolors6.default.yellow("  Automated review may miss issues. Verify before deploying.\n"));
   }
@@ -35099,7 +35062,7 @@ async function continueAction(taskKey, options) {
   const { config: config2, projectConfig } = projectResult.value;
   const jira = createJiraAdapter(config2.jira);
   let dangerousBypass = false;
-  if (options.approveAllDangerous) {
+  if (options.dangerouslyApproveAll) {
     const plan = await planDangerousMode(config2);
     if (!plan.approved) {
       console.log(import_picocolors7.default.dim("Aborted by user."));
@@ -35495,11 +35458,8 @@ function createCommands(program3) {
     const { setupAction: setupAction2 } = await Promise.resolve().then(() => (init_setup(), setup_exports));
     await setupAction2("project");
   });
-  program3.command("start <taskKey>").description("Start a task. Creates branch, runs planning phase. Use --auto to run all phases.").option("--project <name>", "Project name from ~/.bode/projects/").option("--from-branch <branch>", "Base branch (default: project default_branch or main)").option("--auto", "Run all phases automatically until PR is created").option(
-    "--auto-and-merge-dangerously",
-    "Run all phases AND auto-merge the PR (use with caution)"
-  ).option(
-    "--approve-all-dangerous",
+  program3.command("start <taskKey>").description("Start a task. Creates branch, runs planning phase. Use --auto to run all phases.").option("--project <name>", "Project name from ~/.bode/projects/").option("--from-branch <branch>", "Base branch (default: project default_branch or main)").option("--auto", "Run all phases automatically until PR is created").option("--dangerously-auto-merge", "Run all phases AND auto-merge the PR (use with caution)").option(
+    "--dangerously-approve-all",
     "Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code."
   ).action(
     async (taskKey, options) => {
@@ -35508,7 +35468,7 @@ function createCommands(program3) {
     }
   );
   program3.command("continue <taskKey>").description("Advance to next phase").option("--project <name>", "Project name from ~/.bode/projects/").option(
-    "--approve-all-dangerous",
+    "--dangerously-approve-all",
     "Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code."
   ).action(
     async (taskKey, options) => {
