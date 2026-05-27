@@ -12,13 +12,13 @@
   <a href="https://github.com/KakunynQA/bode/blob/main/package.json">
     <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-Strict-3178C6?style=for-the-badge&logo=typescript">
   </a>
-  <img alt="License" src="https://img.shields.io/badge/License-UNLICENSED-e74c3c?style=for-the-badge">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge">
 </p>
 
 <p>
   <strong>AI Coding Orchestrator for Jira</strong><br>
-  Current version: <strong>0.1.0</strong><br>
-  Drives <strong>Claude Code</strong>, <strong>OpenCode</strong>, <strong>Codex</strong> through configurable phases and syncs progress to <strong>Jira</strong>.
+  Current version: <strong>0.3.0</strong><br>
+  Drives <strong>Claude Code</strong>, <strong>OpenCode</strong>, <strong>Codex</strong>, <strong>Z.AI</strong> through configurable phases and syncs progress to <strong>Jira</strong>.
 </p>
 
 <p>
@@ -134,6 +134,32 @@ Runs the **implementation** phase, opens a PR on GitHub, updates Jira labels.
 bode continue KD-312   # runs review phase
 bode done KD-312 --yes # marks Jira as Done, cleans labels
 ```
+
+---
+
+## Jira Board Setup
+
+Bode expects your Jira board to have these columns (statuses):
+
+| Column | Bode Phase | What happens |
+| --- | --- | --- |
+| **To Do** | (initial) | Ticket created, waiting to be picked up |
+| **In Progress** | Planning | `bode start` moves here, adds label `bode:planning` |
+| **In Progress** | Implementation | `bode continue` runs implementation, adds label `bode:implementing` |
+| **In Review** | Review | `bode continue` runs review, adds label `bode:reviewing` |
+| **Done** | (final) | `bode done` moves here, cleans labels, posts summary comment |
+
+Bode adds labels to track which phase a ticket is in:
+
+| Label | Meaning |
+| --- | --- |
+| `bode:planning` | Planning phase running |
+| `bode:planned` | Plan produced, waiting for approval |
+| `bode:implementing` | Implementation phase running |
+| `bode:implementing` | Implementation complete |
+| `bode:reviewing` | Review phase running |
+| `bode:reviewed` | Review complete |
+| `bode:autopilot` | Skip gates, run all phases automatically |
 
 ---
 
@@ -298,4 +324,4 @@ Each phase has a configurable timeout (default: 15 min for planning, 60 min for 
 
 ## License
 
-Internal — Kakunyn
+[MIT](./LICENSE) — Kakunyn

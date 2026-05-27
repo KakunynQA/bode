@@ -28469,10 +28469,9 @@ var init_models = __esm({
         models: [
           "claude-opus-4-7",
           "claude-sonnet-4-6",
-          "claude-sonnet-4-20250514",
-          "claude-haiku-4-20250414",
-          "claude-3-7-sonnet-20250219",
-          "claude-3-5-sonnet-20241022"
+          "claude-opus-4-6",
+          "claude-opus-4-5",
+          "claude-haiku-4-5"
         ]
       },
       {
@@ -28480,35 +28479,39 @@ var init_models = __esm({
         models: [
           "claude-opus-4-7",
           "claude-sonnet-4-6",
-          "claude-sonnet-4-20250514",
-          "claude-haiku-4-20250414",
-          "gpt-4.1",
-          "gpt-4.1-mini",
-          "gpt-4.1-nano",
-          "o3",
-          "o4-mini",
-          "gemini-2.5-pro",
-          "gemini-2.5-flash"
+          "claude-opus-4-6",
+          "claude-opus-4-5",
+          "claude-haiku-4-5",
+          "gpt-5.5",
+          "gpt-5.4",
+          "gpt-5.4-mini",
+          "gpt-5.3-codex",
+          "gpt-5.3-codex-spark",
+          "glm-5.1",
+          "glm-5-turbo",
+          "glm-5",
+          "glm-4.7-flash",
+          "glm-4.7"
         ]
       },
       {
         name: "codex",
         models: [
-          "o3",
-          "o4-mini",
-          "gpt-4.1",
-          "gpt-4.1-mini",
-          "gpt-4.1-nano"
+          "gpt-5.5",
+          "gpt-5.4",
+          "gpt-5.4-mini",
+          "gpt-5.3-codex",
+          "gpt-5.3-codex-spark"
         ]
       },
       {
         name: "zai",
         models: [
           "glm-5.1",
-          "glm-4.1",
-          "glm-4.1-thinking",
-          "glm-4.1v",
-          "glm-4.1v-thinking"
+          "glm-5-turbo",
+          "glm-5",
+          "glm-4.7-flash",
+          "glm-4.7"
         ]
       }
     ];
@@ -28576,7 +28579,8 @@ function cliDescription(name) {
   }
 }
 async function setupAction() {
-  console.log(import_picocolors.default.bold("\n\u{1F410} Bode Setup Wizard\n"));
+  console.log(GOAT);
+  console.log(import_picocolors.default.bold(import_picocolors.default.cyan("  Bode Setup Wizard v0.3.0\n")));
   const globalDir = getGlobalDir();
   await ensureDir(globalDir);
   await ensureDir(`${globalDir}/runs`);
@@ -28690,7 +28694,7 @@ comment_format:
   console.log(import_picocolors.default.green("\u2713 Setup complete!\n"));
   console.log(import_picocolors.default.dim('Next: Run "bode start <TASK-KEY>" to begin working on a Jira task.'));
 }
-var import_picocolors, import_node_fs3;
+var import_picocolors, import_node_fs3, GOAT;
 var init_setup = __esm({
   "src/cli/actions/setup.ts"() {
     "use strict";
@@ -28702,6 +28706,17 @@ var init_setup = __esm({
     init_loader();
     init_registry();
     init_models();
+    GOAT = `
+      ${import_picocolors.default.cyan("//\\\\\\\\\\\\\\\\\\\\")}
+     ${import_picocolors.default.cyan("////\\\\\\\\\\\\\\\\\\\\\\\\")}
+    ${import_picocolors.default.cyan("//////")}${import_picocolors.default.white("  __  ")}${import_picocolors.default.cyan("\\\\\\\\\\\\\\\\")}
+   ${import_picocolors.default.cyan("///////")}${import_picocolors.default.white(" /  \\ ")}${import_picocolors.default.cyan("\\\\\\\\\\\\\\\\")}
+  ${import_picocolors.default.cyan("////////")}${import_picocolors.default.white(" \\__/ ")}${import_picocolors.default.cyan("\\\\\\\\\\\\\\\\")}
+ ${import_picocolors.default.cyan("/////////")}${import_picocolors.default.white("  /  ")}${import_picocolors.default.cyan("\\\\\\\\\\\\\\\\\\\\")}
+${import_picocolors.default.cyan("//////////")}${import_picocolors.default.white(" /   ")}${import_picocolors.default.cyan("\\\\\\\\\\\\\\\\\\\\\\\\")}
+ ${import_picocolors.default.cyan("\\\\\\\\\\\\\\\\\\\\")}${import_picocolors.default.white("\\")}${import_picocolors.default.cyan("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")}
+  ${import_picocolors.default.cyan("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")}
+`;
   }
 });
 
@@ -32849,7 +32864,7 @@ function createCommands(program3) {
 // src/cli/program.ts
 function createProgram() {
   const program3 = new Command();
-  program3.name("bode").description("Orchestrate AI coding work through configurable phases").version("0.2.0");
+  program3.name("bode").description("Orchestrate AI coding work through configurable phases").version("0.3.0");
   createCommands(program3);
   return program3;
 }

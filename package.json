@@ -1,9 +1,9 @@
 {
   "name": "bode",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local CLI that orchestrates AI coding work through configurable phases",
   "author": "Kakunyn",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/KakunynQA/bode.git"

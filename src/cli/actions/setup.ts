@@ -70,8 +70,21 @@ function cliDescription(name: string): string {
   }
 }
 
+const GOAT = `
+      ${pc.cyan('//\\\\\\\\\\\\\\\\\\\\')}
+     ${pc.cyan('////\\\\\\\\\\\\\\\\\\\\\\\\')}
+    ${pc.cyan('//////')}${pc.white('  __  ')}${pc.cyan('\\\\\\\\\\\\\\\\')}
+   ${pc.cyan('///////')}${pc.white(' /  \\ ')}${pc.cyan('\\\\\\\\\\\\\\\\')}
+  ${pc.cyan('////////')}${pc.white(' \\__/ ')}${pc.cyan('\\\\\\\\\\\\\\\\')}
+ ${pc.cyan('/////////')}${pc.white('  /  ')}${pc.cyan('\\\\\\\\\\\\\\\\\\\\')}
+${pc.cyan('//////////')}${pc.white(' /   ')}${pc.cyan('\\\\\\\\\\\\\\\\\\\\\\\\')}
+ ${pc.cyan('\\\\\\\\\\\\\\\\\\\\')}${pc.white('\\')}${pc.cyan('\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\')}
+  ${pc.cyan('\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\')}
+`;
+
 export async function setupAction(): Promise<void> {
-  console.log(pc.bold('\n🐐 Bode Setup Wizard\n'));
+  console.log(GOAT);
+  console.log(pc.bold(pc.cyan('  Bode Setup Wizard v0.3.0\n')));
 
   const globalDir = getGlobalDir();
   await ensureDir(globalDir);
