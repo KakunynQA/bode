@@ -1,35 +1,74 @@
 import { loadConfig } from '~/config/loader.ts';
-import { MockJiraAdapter } from '~/adapters/jira/mock.ts';
+import { createJiraAdapter } from '~/adapters/jira/factory.ts';
 import { advancePhase } from '~/orchestrator/engine.ts';
+import { resolveProject } from '~/config/project-resolver.ts';
 import pc from 'picocolors';
 
-export async function continueAction(taskKey: string, options: { project?: string }): Promise<void> {
-  const configResult = await loadConfig(options.project);
-  if (!configResult.ok) {
-    console.error(pc.red(`Configuration error: ${configResult.error.message}`));
-    process.exit(1);
-  }
+export async function continueAction(
+	taskKey: string,
+	options: { project?: string }
+): Promise<void> {
+	const configResult = await loadConfig();
+	if (!configResult.ok) {
+		console.error(pc.red(`Configuration error: ${configResult.error.message}`));
+		process.exit(1);
+	}
 
-  const jira = new MockJiraAdapter();
+	const baseConfig = configResult.value;
 
-  const result = await advancePhase(taskKey, configResult.value, jira, { projectRoot: options.project, signal: undefined, autopilot: undefined });
-  if (!result.ok) {
-    console.error(pc.red(`Error: ${result.error.message}`));
-    process.exit(1);
-  }
+	const projectResult = await resolveProject(baseConfig, { projectName: options.project });
+	if (!projectResult.ok) {
+		console.error(pc.red(projectResult.error.message));
+		process.exit(1);
+	}
 
-  const { meta, phaseResult } = result.value;
+	const { config, projectConfig } = projectResult.value;
+	const jira = createJiraAdapter(config.jira);
 
-  if (phaseResult.kind === 'success') {
-    console.log(pc.green(`\nPhase complete. Status: ${meta.status}`));
+	const result = await advancePhase(taskKey, config, jira, {
+		projectRoot: projectConfig.workdir,
+		signal: undefined,
+		autopilot: undefined,
+		projectConfig,
+	});
+	if (!result.ok) {
+		console.error(pc.red(`Error: ${result.error.message}`));
+		process.exit(1);
+	}
 
-    if (meta.status === 'reviewed') {
-      console.log(pc.dim('Self-review complete. Human review needed.'));
-    } else {
-      console.log(pc.dim(`Run "bode continue ${taskKey}" to advance.`));
-    }
-  } else {
-    console.error(pc.red(`\nPhase failed: ${phaseResult.kind === 'failed' ? phaseResult.reason : 'timed out'}`));
-    process.exit(1);
-  }
+	const advanceVal = result.value;
+
+	if (advanceVal.kind === 'conflict') {
+		console.error(pc.yellow('\nConflicts detected with base branch!'));
+		console.error(pc.dim('Resolve conflicts manually, then run "bode continue" again.'));
+		console.error(pc.dim(`Jira label "bode:conflict" added to ${taskKey}.`));
+		process.exit(1);
+	}
+
+	if (advanceVal.kind === 'pr-created') {
+		console.log(pc.green(`\nPR created: ${pc.bold(advanceVal.prUrl)}`));
+		console.log(pc.dim('Review the PR manually. Run "bode done" when ready to finalize.'));
+		return;
+	}
+
+	if (advanceVal.kind === 'phase') {
+		const { meta, phaseResult } = advanceVal;
+
+		if (phaseResult.kind === 'success') {
+			console.log(pc.green(`\nPhase complete. Status: ${meta.status}`));
+
+			if (meta.status === 'reviewed') {
+				console.log(pc.dim('Run "bode continue" to create PR and move to awaiting-merge.'));
+			} else {
+				console.log(pc.dim(`Run "bode continue ${taskKey}" to advance.`));
+			}
+		} else {
+			console.error(
+				pc.red(
+					`\nPhase failed: ${phaseResult.kind === 'failed' ? phaseResult.reason : 'timed out'}`
+				)
+			);
+			process.exit(1);
+		}
+	}
 }

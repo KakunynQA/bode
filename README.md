@@ -17,8 +17,8 @@
 
 <p>
   <strong>AI Coding Orchestrator for Jira</strong><br>
-  Current version: <strong>0.5.0</strong><br>
-  Drives <strong>Claude Code</strong>, <strong>OpenCode</strong>, <strong>Codex</strong>, <strong>Z.AI</strong> through configurable phases and syncs progress to <strong>Jira</strong>.
+  Current version: <strong>0.10.1</strong><br>
+  Drives <strong>Claude Code</strong>, <strong>OpenCode</strong>, <strong>Codex</strong>, <strong>Z.AI</strong> through configurable phases, syncs progress to <strong>Jira</strong>, and manages PRs on <strong>GitHub</strong> and <strong>GitLab</strong>.
 </p>
 
 <p>
@@ -29,6 +29,8 @@
   <a href="#commands">Commands</a>
   ·
   <a href="#configuration">Configuration</a>
+  ·
+  <a href="#branch-strategy">Branch Strategy</a>
 </p>
 
 </div>
@@ -42,9 +44,10 @@
 It is a strong fit for:
 
 - teams using **Jira** for task tracking
-- developers using **Claude Code**, **OpenCode**, or **Codex** for AI-assisted coding
+- developers using **Claude Code**, **OpenCode**, **Codex**, or **Z.AI** for AI-assisted coding
 - projects that need **auditability** of AI-generated plans and reviews
 - teams that want **shared visibility** of AI progress via Jira labels and comments
+- teams following **GitHub Flow** for branching (GitHub and GitLab supported)
 
 ---
 
@@ -52,6 +55,8 @@ It is a strong fit for:
 
 - [Installation](#installation)
 - [Quick start](#quick-start)
+- [Branch Strategy](#branch-strategy)
+- [Auto Mode](#auto-mode)
 - [Commands](#commands)
 - [Configuration](#configuration)
 - [Skills](#skills)
@@ -69,20 +74,15 @@ It is a strong fit for:
 npm i -g KakunynQA/bode
 ```
 
-or with pnpm:
-
-```bash
-pnpm i -g KakunynQA/bode
-```
-
-### Install from source
+### Install from source (recommended on Windows)
 
 ```bash
 git clone https://github.com/KakunynQA/bode.git
 cd bode
 npm install
 npm run build
-npm link
+npm pack
+npm i -g bode-*.tgz
 ```
 
 After installation, the `bode` command is available globally:
@@ -95,8 +95,10 @@ bode --help
 ### Requirements
 
 - **Node.js** >= 18
-- At least one AI CLI installed: [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [OpenCode](https://opencode.ai), or [Codex](https://github.com/openai/codex)
-- Jira account (connected via MCP Atlassian)
+- **Git** installed and configured
+- **gh CLI** (GitHub PRs) or **glab CLI** (GitLab MRs)
+- At least one AI CLI installed: [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [OpenCode](https://opencode.ai), [Codex](https://github.com/openai/codex), or [Z.AI](https://github.com/zai-inc/zai-coding)
+- Jira account with an [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
 
 ---
 
@@ -110,56 +112,144 @@ bode setup
 
 Interactive wizard that asks for your Jira site, project key, GitHub org, and which AI CLI to use for each phase. Saves to `~/.bode/config.yml`.
 
-### 2. Start a task
+### 2. Configure a project
 
 ```bash
-bode start KD-312
+bode setup-project
 ```
 
-Fetches the Jira ticket, runs the **planning** phase with your configured AI CLI, posts the plan as a Jira comment, and adds the label `bode:planned`.
+Creates a project config in `~/.bode/projects/<name>.yml` with workdir, default branch, context paths, per-project Jira overrides, and **per-phase CLI/model overrides**. Only saves values that differ from the global config.
 
-### 3. Review plan and continue
+### 3. Start a task
+
+```bash
+bode start KD-312 --project grid
+```
+
+Creates a Git branch (`feat/kd-312` based on Jira issue type), pushes it, fetches the Jira ticket, runs the **planning** phase, and adds the label `bode:planned`.
+
+### 4. Review plan and continue
 
 Review the plan in Jira. When ready:
 
 ```bash
-bode continue KD-312
+bode continue KD-312   # runs implementation phase
+bode continue KD-312   # runs review phase
 ```
 
-Runs the **implementation** phase, opens a PR on GitHub, updates Jira labels.
-
-### 4. Review and close
+### 5. PR and merge
 
 ```bash
-bode continue KD-312   # runs review phase
-bode done KD-312 --yes # marks Jira as Done, cleans labels
+bode continue KD-312   # creates PR, moves to "awaiting-merge"
+# Review the PR manually on GitHub...
+bode done KD-312 --yes # switches back to base branch, marks done
 ```
 
 ---
 
-## Jira Board Setup
+## Branch Strategy
 
-Bode expects your Jira board to have these columns (statuses):
+Bode follows **GitHub Flow** integrated into the task lifecycle:
 
-| Column | Bode Phase | What happens |
+### Branch naming by Jira issue type
+
+| Jira Issue Type | Branch Prefix | Example |
 | --- | --- | --- |
-| **To Do** | (initial) | Ticket created, waiting to be picked up |
-| **In Progress** | Planning | `bode start` moves here, adds label `bode:planning` |
-| **In Progress** | Implementation | `bode continue` runs implementation, adds label `bode:implementing` |
-| **In Review** | Review | `bode continue` runs review, adds label `bode:reviewing` |
-| **Done** | (final) | `bode done` moves here, cleans labels, posts summary comment |
+| Story | `feat/` | `feat/kd-312` |
+| Bug | `fix/` | `fix/kd-100` |
+| Task | `chore/` | `chore/kd-200` |
+| Improvement | `refactor/` | `refactor/kd-300` |
+| Sub-task | `feat/` | `feat/kd-500` |
+| Unknown | `feat/` | `feat/kd-400` |
 
-Bode adds labels to track which phase a ticket is in:
+### Task lifecycle with branches
 
-| Label | Meaning |
-| --- | --- |
-| `bode:planning` | Planning phase running |
-| `bode:planned` | Plan produced, waiting for approval |
-| `bode:implementing` | Implementation phase running |
-| `bode:implementing` | Implementation complete |
-| `bode:reviewing` | Review phase running |
-| `bode:reviewed` | Review complete |
-| `bode:autopilot` | Skip gates, run all phases automatically |
+```
+bode start KD-312
+  → git checkout -b feat/kd-312 main
+  → git push -u origin feat/kd-312
+  → runs planning phase
+
+bode continue KD-312
+  → runs implementation phase
+
+bode continue KD-312
+  → runs review phase
+
+bode continue KD-312
+  → checks for conflicts with base branch
+  → creates PR via gh/glab CLI
+  → status: awaiting-merge (waiting for manual review)
+
+# Developer reviews PR on GitHub...
+
+bode done KD-312 --yes
+  → switches back to base branch
+  → marks Jira as Done
+```
+
+### Conflict handling
+
+When advancing to `awaiting-merge`, Bode checks for conflicts with the base branch:
+
+1. Fetches latest from origin
+2. Checks if base branch is ancestor of task branch
+3. If conflicts detected:
+   - Marks the task with `conflict: true`
+   - Adds `bode:conflict` label in Jira
+   - Stops and warns the developer
+   - Developer must resolve conflicts manually
+
+### Multi-branch support
+
+Multiple tasks can run in parallel on different branches. Each task has its own branch tracked in the run metadata.
+
+### Custom base branch
+
+```bash
+bode start KD-312 --from-branch develop
+```
+
+Uses `develop` instead of the project's default branch.
+
+### Auto-merge (use with caution)
+
+```bash
+bode done KD-312 --yes --auto-approve-pr-merge
+```
+
+Automatically merges the PR and deletes the branch. **Warning:** auto-merge can cause problems. The default behavior is to leave the PR open for manual review.
+
+### Abort and cleanup
+
+```bash
+bode abort KD-312 --yes
+```
+
+Switches back to the base branch, deletes the task branch, and marks the task as aborted.
+
+---
+
+## Auto Mode
+
+Bode can run all phases automatically without manual gates between them:
+
+### `--auto`
+
+```bash
+bode start KD-312 --auto
+# runs: planning → implementation → review → PR creation in one command
+```
+
+Each phase runs sequentially. Stops after creating the PR (`awaiting-merge` status) so you can review it manually.
+
+### `--auto-and-merge-dangerously`
+
+```bash
+bode start KD-312 --auto-and-merge-dangerously
+```
+
+Runs all phases AND merges the PR automatically. Shows a warning about the risks before proceeding. Use only in well-tested, low-risk workflows.
 
 ---
 
@@ -167,18 +257,30 @@ Bode adds labels to track which phase a ticket is in:
 
 | Command | Description |
 | --- | --- |
-| `bode setup` | Interactive setup wizard. Configures Jira, CLIs, GitHub. |
-| `bode start <KEY>` | Start a task. Runs planning phase. Stops at gate unless autopilot. |
-| `bode continue <KEY>` | Advance to next phase (implementation → review → done). |
-| `bode status <KEY>` | Show current phase, Jira link, last update. |
+| `bode setup` | Interactive setup wizard. Configures Jira, CLIs, VCS provider. |
+| `bode setup-project` | Create or edit a project config (workdir, context, Jira, VCS overrides). |
+| `bode start <KEY>` | Start a task. Creates branch, runs planning phase. |
+| `bode continue <KEY>` | Advance to next phase. Creates PR at awaiting-merge. |
+| `bode status <KEY>` | Show current phase, branch, PR link, conflict status. |
 | `bode show <artifact> <KEY>` | Print artifact to stdout. Artifacts: `plan`, `implementation`, `review`. |
 | `bode log <KEY>` | Show the log of the current or last phase. |
-| `bode abort <KEY>` | Cancel current execution. Posts comment to Jira. Resets labels. |
-| `bode done <KEY>` | Mark task as done. Moves Jira → Done. Cleans labels. |
-| `bode list` | List all tasks currently tracked locally. |
+| `bode abort <KEY>` | Cancel execution, clean up branch, reset labels. |
+| `bode done <KEY>` | Mark task as done. Switches to base branch. Optionally merges PR. |
+| `bode list` | List all tasks tracked locally (branch, conflict status shown). |
 | `bode skills` | Show resolved skill paths and prompts. |
 
 All commands support `--help` for detailed usage.
+
+Key flags:
+
+| Flag | Command(s) | Description |
+| --- | --- | --- |
+| `--project <name>` | start, continue | Project name from `~/.bode/projects/` |
+| `--from-branch <branch>` | start | Base branch (default: project's `default_branch` or `main`) |
+| `--auto` | start | Run all phases sequentially until PR created |
+| `--auto-and-merge-dangerously` | start | Run all phases + merge PR + mark done (with warning) |
+| `--auto-approve-pr-merge` | done | Automatically merge PR before cleanup |
+| `-y, --yes` | abort, done | Skip confirmation prompt |
 
 ---
 
@@ -186,9 +288,10 @@ All commands support `--help` for detailed usage.
 
 ### Resolution order
 
-1. **Project config:** `<project>/.bode.yml` (overrides)
-2. **Global config:** `~/.bode/config.yml` (main)
-3. **Defaults:** built into Bode
+1. **Project config:** `~/.bode/projects/<name>.yml` (per-project overrides)
+2. **Local config:** `<project>/.bode.yml` (legacy, overrides)
+3. **Global config:** `~/.bode/config.yml` (main)
+4. **Defaults:** built into Bode
 
 ### `~/.bode/config.yml`
 
@@ -196,6 +299,11 @@ All commands support `--help` for detailed usage.
 jira:
   site: mycompany.atlassian.net
   default_project: KD
+  email: you@company.com          # for API token auth
+  api_token: your-api-token-here
+
+vcs:
+  provider: github  # "github" or "gitlab"
 
 github:
   default_org: myorg
@@ -219,6 +327,31 @@ phases:
 gates:
   after_planning: true
   after_implementation: true
+
+defaults:
+  project: grid
+```
+
+### `~/.bode/projects/grid.yml`
+
+```yaml
+name: grid
+workdir: /home/user/projects/grid-stack
+default_branch: main
+
+jira:
+  site: mycompany.atlassian.net
+  default_project: GRID
+
+vcs_provider: github  # override per project
+
+context_paths:
+  - .
+  - ../grid-ui/src
+
+context_files:
+  - AGENTS.md
+  - CLAUDE.md
 ```
 
 ### Local storage
@@ -226,9 +359,12 @@ gates:
 ```
 ~/.bode/
 ├── config.yml              # global config
+├── projects/               # per-project configs
+│   ├── grid.yml
+│   └── api.yml
 ├── runs/
 │   └── KD-312/
-│       ├── meta.json       # task metadata, current phase
+│       ├── meta.json       # task metadata, branch, PR, phase
 │       ├── planning.log    # raw output from planning CLI
 │       ├── planning.md     # extracted plan
 │       ├── implementation.log
@@ -280,15 +416,24 @@ npm run check          # TypeScript typecheck
 npm run lint           # ESLint
 npm run format:check   # Prettier check
 npm run build          # Compile to dist/
+npm test               # Run unit tests
 
-# Build and link locally
+# Build and install globally from source
 npm run build
-npm link
+npm pack
+npm i -g bode-*.tgz
 ```
 
 ---
 
 ## Troubleshooting
+
+### Existing run detected
+
+If a task already has a run, Bode asks:
+- **Abort and restart** — aborts the previous run and starts fresh
+- **Continue** — skips branch setup and continues from the current phase
+- **Cancel** — exits
 
 ### `bode` command not found
 
@@ -301,20 +446,56 @@ npm i -g KakunynQA/bode
 Or from source:
 
 ```bash
-cd bode && npm run build && npm link
+cd bode && npm run build && npm pack && npm i -g bode-*.tgz
 ```
 
-### Jira MCP unreachable
+### Windows npm install from GitHub fails
 
-Bode talks to Jira via the Atlassian MCP server. Make sure the MCP server is running and configured. Run `bode setup` to reconfigure.
+This is a known issue with npm 11 on Windows (symlink bug). Use the tarball install method instead:
+
+```bash
+git clone https://github.com/KakunynQA/bode.git
+cd bode
+npm install
+npm run build
+npm pack
+npm i -g bode-*.tgz
+```
+
+### Jira connection fails
+
+Bode connects to Jira via REST API v3 using Basic Auth with an API token.
+
+1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
+2. Click **Create API token**
+3. Give it a name (e.g. "bode")
+4. Copy the token
+5. Run `bode setup` and enter your Jira email and the token when prompted
+
+The token is stored in `~/.bode/config.yml`. Keep this file secure.
 
 ### CLI not installed
 
-Each phase requires an AI CLI (claude-code, opencode, or codex). Install at least one:
+Each phase requires an AI CLI. Install at least one:
 
 - Claude Code: `npm i -g @anthropic-ai/claude-code`
 - OpenCode: follow instructions at [opencode.ai](https://opencode.ai)
 - Codex: `npm i -g @openai/codex`
+- Z.AI: follow instructions at [Z.AI](https://github.com/zai-inc/zai-coding)
+
+### Branch creation fails / dirty workdir
+
+Bode now prompts you when the working directory has uncommitted changes:
+- **Stash** — auto-stashes with `git stash push -m "bode:auto-stash:<TASK>"` and continues
+- **Retry** — exits so you can handle it manually, then re-run
+- **Abort** — cancels the command
+
+### `gh` / `glab` CLI not found
+
+PR creation requires the [GitHub CLI](https://cli.github.com/) (`gh`) or the [GitLab CLI](https://gitlab.com/gitlab-org/cli) (`glab`), depending on your VCS provider config. Install the appropriate one and authenticate.
+
+- GitHub: `gh auth login`
+- GitLab: `glab auth login`
 
 ### Phase timeout
 

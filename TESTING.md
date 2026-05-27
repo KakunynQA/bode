@@ -6,7 +6,7 @@ Bode has no UI, so testing focuses on unit logic, integration with external syst
 
 | Layer | Tool | Runs |
 |---|---|---|
-| Unit | `node --test` | Every PR, fast, deterministic |
+| Unit | `npx tsx --test` | Every PR, fast, deterministic |
 | Integration | `node --test --tag=integration` | Local with credentials, optional in CI with secrets |
 | Smoke | Custom script `npm run smoke` | Manual before releases |
 
@@ -16,11 +16,11 @@ Cover:
 - Config loading and validation (`src/config/`)
 - Skill resolution and prompt building (`src/skills/`)
 - Result type helpers, formatters (`src/utils/`)
-- Phase state machine transitions (`src/types/phase.ts`)
+- Phase state machine transitions, branch naming logic, VCS provider resolution (`src/types/phase.ts`, `src/adapters/vcs/`)
 - Adapter error handling (mock the external calls)
 
 Rules:
-- Co-located with code: `loader.ts` → `loader.test.ts`
+- In `tests/unit/` directory mirroring src/ structure. Run: `npm test`
 - Mock external systems (Jira, CLI invocations, filesystem when realistic)
 - No real timers (`setTimeout` etc). Use injected clock or fake timers.
 - Deterministic: same input, same output, always
@@ -53,7 +53,7 @@ describe('resolveSkillPath', () => {
 Cover the adapters where mocks lie too much:
 - `src/adapters/cli/*` — actually invoke each CLI with a trivial prompt, assert output structure
 - `src/adapters/jira/*` — call real Jira sandbox, create/update/delete a test issue
-- `src/adapters/vcs/*` — create a real test PR in a sandbox repo
+- `src/adapters/vcs/*` — create real test PR/MR in sandbox repo
 
 Tagged so they skip when credentials absent:
 
@@ -101,6 +101,7 @@ tests/
 │   ├── configs/         # sample bode configs
 │   ├── skills/          # sample skill prompts
 │   ├── jira-responses/  # JSON snapshots of real Jira responses (for mocks)
+│   ├── projects/        # sample per-project config overrides
 │   └── cli-outputs/     # sample outputs from each AI CLI
 ├── unit/                # mirrors src/
 ├── integration/         # adapter tests

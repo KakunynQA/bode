@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v0.4.0) that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs and syncing progress to Jira. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local CLI (v0.10.0) that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs and syncing progress to Jira. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 
@@ -33,9 +33,15 @@ npm i -g KakunynQA/bode
 
 - TypeScript strict, Node.js runtime (>=18), no DB (filesystem at `~/.bode/`)
 - Built with esbuild to single CJS bundle in `dist/index.js`
-- Jira via Atlassian MCP server (no direct REST) — currently using mock adapter
+- Jira via REST API v3 (Basic Auth with API Token) — mock adapter as fallback
 - AI CLIs invoked via `child_process` in headless mode through `CliAdapter` interface
-- Config in YAML (`~/.bode/config.yml`, project `.bode.yml`)
+- Branch management via GitAdapter (`src/adapters/vcs/git.ts`) with GitHub Flow
+- VCS adapters for both GitHub (`gh`) and GitLab (`glab`) in `src/adapters/vcs/`
+- Multi-project config system with per-project overrides in `~/.bode/projects/`
+- Context gathering (AGENTS.md + file tree) injected into prompts
+- Jira transitions per column (In Progress → In Review → Code Review → Done)
+- Summary comments posted to Jira cards for every phase
+- Config in YAML (`~/.bode/config.yml`, project `.bode.yml`, project configs `~/.bode/projects/<name>.yml`)
 - Skill prompts in markdown (`~/.bode/skills/`, project `.bode/skills/`)
 - Interactive setup uses `@inquirer/prompts` for arrow-key selection
 - ASCII art embedded via esbuild `define` from `src/assets/bode.art`
@@ -59,15 +65,25 @@ Available models per CLI are defined in `src/adapters/cli/models.ts`.
 | `src/cli/program.ts` | Commander program setup, version |
 | `src/cli/commands.ts` | All command definitions |
 | `src/cli/actions/setup.ts` | Interactive setup wizard with @inquirer/prompts |
-| `src/cli/actions/start.ts` | Start task (planning phase) |
+| `src/cli/actions/start.ts` | Start task (planning phase) with interactive prompts for dirty workdir + existing run |
+| `src/cli/actions/abort.ts` | Task abort logic + `abortRun()` reusable helper |
 | `src/cli/actions/continue.ts` | Advance to next phase |
 | `src/orchestrator/phase-runner.ts` | Core phase execution logic |
 | `src/orchestrator/engine.ts` | Phase advancement with spinners |
+| `src/orchestrator/branch-manager.ts` | Branch lifecycle management (create, conflict check, PR) |
 | `src/config/schema.ts` | Zod config validation schema |
 | `src/config/loader.ts` | YAML config loading with project/global merge |
+| `src/config/projects.ts` | Project config loader |
+| `src/config/project-resolver.ts` | Interactive project selection + YAML writer |
+| `src/config/context.ts` | Context gathering (AGENTS.md, file tree) |
 | `src/skills/resolver.ts` | Skill file resolution (project > global > bundled) |
 | `src/adapters/cli/models.ts` | Per-CLI model registry |
 | `src/adapters/cli/registry.ts` | CLI adapter registry |
+| `src/adapters/vcs/git.ts` | Git operations (branch, checkout, fetch, status) |
+| `src/adapters/vcs/gitlab.ts` | GitLab MR adapter (glab CLI) |
+| `src/adapters/vcs/github.ts` | GitHub PR adapter (gh CLI) |
+| `src/adapters/vcs/factory.ts` | VCS adapter factory (github/gitlab) |
+| `src/adapters/jira/factory.ts` | Jira adapter factory |
 | `src/assets/bode.art` | ASCII goat art (embedded at build time) |
 | `scripts/build.mjs` | esbuild build script (injects __GOAT_ART__) |
 
@@ -137,6 +153,15 @@ When adding a new AI CLI adapter:
 3. Add to adapter registry in `src/adapters/cli/registry.ts`.
 4. Add models to `src/adapters/cli/models.ts`.
 5. Update `bode setup` interactive flow — it auto-discovers from registry.
+6. Document any new config keys in `SPEC.md`.
+
+### VCS adapter workflow
+When adding a new VCS provider:
+1. Read existing adapters in `src/adapters/vcs/` for pattern.
+2. Implement the VCS adapter interface (see `github.ts` or `gitlab.ts`).
+3. Register in `src/adapters/vcs/factory.ts`.
+4. Add config schema keys in `src/config/schema.ts`.
+5. Update `bode setup` interactive flow — it auto-discovers from factory.
 6. Document any new config keys in `SPEC.md`.
 
 ## Working with Jira (via MCP)

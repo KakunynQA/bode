@@ -34,7 +34,7 @@ src/
 ├── adapters/
 │   ├── cli/          # CliAdapter implementations (claude-code, opencode, codex, zai)
 │   ├── jira/         # MCP Atlassian wrapper (mock for now)
-│   └── vcs/          # GitHub PR creation via gh CLI
+│   └── vcs/          # GitHub/GitLab PR/MR via gh/glab CLI
 ├── assets/           # Static assets (bode.art) embedded at build time
 ├── cli/
 │   ├── actions/      # One file per command action
@@ -145,11 +145,11 @@ Custom error types per boundary:
 
 ## Testing
 
-- Unit tests with `node --test` for pure logic, config loading, skill resolution.
+- Unit tests with `npx tsx --test` for pure logic, config loading, skill resolution.
 - Integration tests for CliAdapter implementations (run actual CLIs, may need credentials).
 - Smoke test script: runs a fake Jira task end-to-end against a sandbox project.
 - No tests for CLI handlers (they're thin glue, integration-tested via smoke).
-- Test files next to code: `loader.ts` + `loader.test.ts`.
+- Test files in `tests/unit/` mirroring src/ structure. Run with `npm test`.
 - All tests deterministic. No real timers in unit tests.
 
 ## Forbidden
