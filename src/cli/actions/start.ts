@@ -1,6 +1,6 @@
 import { loadConfig, resolveVcsProvider } from '~/config/loader.ts';
 import { loadRunMeta, createRun, saveRunMeta } from '~/storage/run-meta.ts';
-import { createJiraAdapter } from '~/adapters/jira/factory.ts';
+import { selectTracker } from '~/adapters/tracker/factory.ts';
 import { advancePhase } from '~/orchestrator/engine.ts';
 import { resolveProject } from '~/config/project-resolver.ts';
 import { mergePR } from '~/orchestrator/branch-manager.ts';
@@ -41,7 +41,11 @@ export async function startAction(
 	}
 
 	const { config, projectConfig } = projectResult.value;
-	const jira = createJiraAdapter(config.jira);
+	const tracker = selectTracker({ jira: config.jira, workdir: projectConfig.workdir });
+	const jira = tracker.adapter;
+	if (tracker.kind === 'local') {
+		console.log(pc.dim(`Tracker: local (.bode/tasks/) — no Jira configured`));
+	}
 
 	// Acquire exclusive lock on this task key (issue #4). Prevents two
 	// concurrent bode runs from clobbering each other's branch / meta /

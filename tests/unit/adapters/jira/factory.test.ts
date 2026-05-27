@@ -1,15 +1,15 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { createJiraAdapter } from '~/adapters/jira/factory.ts';
-import { MockJiraAdapter } from '~/adapters/jira/mock.ts';
+import { LocalTrackerAdapter } from '~/adapters/tracker/local.ts';
 import { RealJiraAdapter } from '~/adapters/jira/rest.ts';
 
-describe('createJiraAdapter', () => {
-	it('returns Mock when no email/token', () => {
+describe('createJiraAdapter (legacy shim — v0.21.0+ delegates to selectTracker)', () => {
+	it('returns LocalTracker when no email/token (was MockJiraAdapter pre-v0.21)', () => {
 		const adapter = createJiraAdapter({ site: 'x.atlassian.net' });
-		assert.ok(adapter instanceof MockJiraAdapter);
+		assert.ok(adapter instanceof LocalTrackerAdapter);
 	});
-	it('returns Real when email + token present', () => {
+	it('returns Real when site + email + token present', () => {
 		const adapter = createJiraAdapter({
 			site: 'x.atlassian.net',
 			email: 'a@b.com',
@@ -17,11 +17,11 @@ describe('createJiraAdapter', () => {
 		});
 		assert.ok(adapter instanceof RealJiraAdapter);
 	});
-	it('returns Mock when only email present', () => {
+	it('returns LocalTracker when only email present', () => {
 		const adapter = createJiraAdapter({
 			site: 'x.atlassian.net',
 			email: 'a@b.com',
 		});
-		assert.ok(adapter instanceof MockJiraAdapter);
+		assert.ok(adapter instanceof LocalTrackerAdapter);
 	});
 });

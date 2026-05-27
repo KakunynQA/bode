@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] — 2026-05-27
+
+**Closes #9 — Jira is no longer required.** Bode now has a first-class local file-based tracker. New users without Jira (or with Linear / GitHub Issues / nothing) get a working bode experience without configuring credentials.
+
+### Added
+
+- **`LocalTrackerAdapter`** at `src/adapters/tracker/local.ts`. Stores tasks at `<workdir>/.bode/tasks/<key>.md` with YAML frontmatter (`summary`, `status`, `type`, `assignee`, `labels`, `created`, `updated`) + a markdown body. Comments append as `## Comment — <ISO timestamp>` sections.
+- **`selectTracker({ jira, workdir, force? })`** at `src/adapters/tracker/factory.ts`. Returns `{ kind: 'jira' | 'local' | 'mock', adapter }`. Priority:
+  1. `force` (test-only override)
+  2. Jira (when site + email + token are all present)
+  3. Local (default fallback)
+- `bode start` prints `Tracker: local (.bode/tasks/) — no Jira configured` when falling back, so users know what's happening.
+- `LocalTrackerAdapter.createTask(key, summary, options)` for the upcoming `bode <prompt>` fast path to create tasks programmatically.
+
+### Changed
+
+- **`jira` config block is now optional** in `bodeConfigSchema`. Old configs with `jira: { site: '', default_project: '' }` continue to work; new configs can omit the block entirely.
+- `DEFAULT_CONFIG.jira` is now `{}` (was `{ site: '', default_project: '' }`).
+- `start.ts`, `continue.ts`, `done.ts` migrated from `createJiraAdapter(config.jira)` to `selectTracker({ jira: config.jira, workdir })`.
+
+### Deprecated
+
+- `createJiraAdapter` in `src/adapters/jira/factory.ts`. Now a thin shim that delegates to `selectTracker`. Behavior shift: when no Jira creds present, returns `LocalTrackerAdapter` instead of `MockJiraAdapter`. Slated for removal in v0.23.0+.
+
+### Tests
+
+- `tests/unit/adapters/tracker/local.test.ts` (12 cases)
+- `tests/unit/adapters/tracker/factory.test.ts` (5 cases)
+- Updated `tests/unit/adapters/jira/factory.test.ts` for new fallback.
+
+Total: 129 → 145 (+16).
+
+### Migration notes
+
+- If you have `~/.bode/config.yml` without a `jira:` block, bode now works. Tasks live at `<workdir>/.bode/tasks/<key>.md`.
+- To keep using Jira: set `jira.site`, `jira.email`, `jira.api_token` — same as before.
+- `.bode/tasks/*.md` files are git-trackable. Check them in for AI history, or gitignore them. Bode does not modify `.gitignore`.
+
 ## [0.20.0] — 2026-05-27
 
 First Wave 1 release — starts the path to zero-config-first-run.

@@ -1,5 +1,5 @@
 import { loadConfig } from '~/config/loader.ts';
-import { createJiraAdapter } from '~/adapters/jira/factory.ts';
+import { selectTracker } from '~/adapters/tracker/factory.ts';
 import { advancePhase } from '~/orchestrator/engine.ts';
 import { resolveProject } from '~/config/project-resolver.ts';
 import { planDangerousMode } from '~/cli/dangerous-check.ts';
@@ -27,7 +27,8 @@ export async function continueAction(
 	}
 
 	const { config, projectConfig } = projectResult.value;
-	const jira = createJiraAdapter(config.jira);
+	const tracker = selectTracker({ jira: config.jira, workdir: projectConfig.workdir });
+	const jira = tracker.adapter;
 
 	const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);
 	if (!lockResult.ok) {

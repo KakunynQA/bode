@@ -170,8 +170,8 @@ export async function setupAction(subcommand?: string): Promise<void> {
 		const loadResult = await loadConfig();
 		if (loadResult.ok) {
 			const cfg = loadResult.value;
-			currentJiraSite = cfg.jira.site;
-			currentProject = cfg.jira.default_project;
+			currentJiraSite = cfg.jira.site ?? '';
+			currentProject = cfg.jira.default_project ?? '';
 			currentJiraEmail = cfg.jira.email ?? '';
 			currentJiraToken = cfg.jira.api_token ?? '';
 			currentGithubOrg = cfg.github?.default_org ?? '';

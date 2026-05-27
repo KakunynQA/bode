@@ -18,13 +18,18 @@ const jiraTransitionsSchema = z
 	.optional();
 
 export const bodeConfigSchema = z.object({
-	jira: z.object({
-		site: z.string(),
-		default_project: z.string(),
-		email: z.string().optional(),
-		api_token: z.string().optional(),
-		transitions: jiraTransitionsSchema,
-	}),
+	// `jira` is optional since v0.21.0 — when absent or empty, bode falls back
+	// to the LocalTrackerAdapter (`.bode/tasks/<key>.md` files).
+	jira: z
+		.object({
+			site: z.string().optional(),
+			default_project: z.string().optional(),
+			email: z.string().optional(),
+			api_token: z.string().optional(),
+			transitions: jiraTransitionsSchema,
+		})
+		.optional()
+		.default({}),
 	github: z
 		.object({
 			default_org: z.string(),

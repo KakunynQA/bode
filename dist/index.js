@@ -19540,10 +19540,9 @@ var init_defaults = __esm({
     import_node_os3 = require("node:os");
     import_node_path3 = require("node:path");
     DEFAULT_CONFIG = {
-      jira: {
-        site: "",
-        default_project: ""
-      },
+      // `jira` defaults to empty since v0.21.0. When neither global config nor
+      // project config sets credentials, bode uses the LocalTrackerAdapter.
+      jira: {},
       phases: {
         planning: {
           cli: "claude-code",
@@ -42073,13 +42072,15 @@ var init_schema = __esm({
       done: external_exports.string().optional()
     }).optional();
     bodeConfigSchema = external_exports.object({
+      // `jira` is optional since v0.21.0 — when absent or empty, bode falls back
+      // to the LocalTrackerAdapter (`.bode/tasks/<key>.md` files).
       jira: external_exports.object({
-        site: external_exports.string(),
-        default_project: external_exports.string(),
+        site: external_exports.string().optional(),
+        default_project: external_exports.string().optional(),
         email: external_exports.string().optional(),
         api_token: external_exports.string().optional(),
         transitions: jiraTransitionsSchema
-      }),
+      }).optional().default({}),
       github: external_exports.object({
         default_org: external_exports.string()
       }).optional(),
@@ -43077,8 +43078,8 @@ var init_rest = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.20.0") {
-    return "0.20.0";
+  if ("0.21.0") {
+    return "0.21.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -43242,8 +43243,8 @@ async function setupAction(subcommand) {
     const loadResult = await loadConfig();
     if (loadResult.ok) {
       const cfg = loadResult.value;
-      currentJiraSite = cfg.jira.site;
-      currentProject = cfg.jira.default_project;
+      currentJiraSite = cfg.jira.site ?? "";
+      currentProject = cfg.jira.default_project ?? "";
       currentJiraEmail = cfg.jira.email ?? "";
       currentJiraToken = cfg.jira.api_token ?? "";
       currentGithubOrg = cfg.github?.default_org ?? "";
@@ -43848,6 +43849,180 @@ var init_run_meta = __esm({
   }
 });
 
+// src/adapters/tracker/local.ts
+function parseLocalTask(raw) {
+  const match = raw.match(FRONTMATTER_RE);
+  if (!match || !match[1] || match[2] === void 0) {
+    return { ok: true, value: { frontmatter: {}, body: raw } };
+  }
+  try {
+    const fm = (0, import_yaml4.parse)(match[1]);
+    if (!fm || typeof fm !== "object") {
+      return { ok: true, value: { frontmatter: {}, body: match[2] } };
+    }
+    return { ok: true, value: { frontmatter: fm, body: match[2] } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
+  }
+}
+function serializeLocalTask(frontmatter, body) {
+  const fmYaml = (0, import_yaml4.stringify)(frontmatter).trimEnd();
+  const trimmedBody = body.trimStart();
+  return `---
+${fmYaml}
+---
+
+${trimmedBody}`;
+}
+var import_node_fs8, import_promises6, import_node_path10, import_yaml4, LocalTrackerAdapter, FRONTMATTER_RE;
+var init_local = __esm({
+  "src/adapters/tracker/local.ts"() {
+    "use strict";
+    import_node_fs8 = require("node:fs");
+    import_promises6 = require("node:fs/promises");
+    import_node_path10 = require("node:path");
+    import_yaml4 = __toESM(require_dist());
+    LocalTrackerAdapter = class {
+      tasksDir;
+      constructor(workdir) {
+        this.tasksDir = (0, import_node_path10.join)(workdir, ".bode", "tasks");
+      }
+      taskPath(key) {
+        return (0, import_node_path10.join)(this.tasksDir, `${key}.md`);
+      }
+      async readTask(key) {
+        const path3 = this.taskPath(key);
+        if (!(0, import_node_fs8.existsSync)(path3)) {
+          return {
+            ok: false,
+            error: new Error(
+              `Local task "${key}" not found at ${path3}. Create it manually or use \`bode new "<summary>"\` (coming in a future release).`
+            )
+          };
+        }
+        try {
+          const raw = await (0, import_promises6.readFile)(path3, "utf-8");
+          const parsed = parseLocalTask(raw);
+          if (!parsed.ok) return parsed;
+          return { ok: true, value: parsed.value };
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
+        }
+      }
+      async writeTask(key, frontmatter, body) {
+        try {
+          await (0, import_promises6.mkdir)(this.tasksDir, { recursive: true });
+          const content = serializeLocalTask(frontmatter, body);
+          await (0, import_promises6.writeFile)(this.taskPath(key), content, "utf-8");
+          return { ok: true, value: void 0 };
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
+        }
+      }
+      async getIssue(key) {
+        const result = await this.readTask(key);
+        if (!result.ok) return result;
+        const { frontmatter, body } = result.value;
+        return {
+          ok: true,
+          value: {
+            key,
+            summary: frontmatter.summary ?? key,
+            description: body.trim(),
+            status: frontmatter.status ?? "pending",
+            issueType: frontmatter.type ?? "Task",
+            assignee: frontmatter.assignee ?? null,
+            labels: frontmatter.labels ?? [],
+            url: `file://${this.taskPath(key)}`
+          }
+        };
+      }
+      async addComment(key, body) {
+        const result = await this.readTask(key);
+        if (!result.ok) return result;
+        const { frontmatter, body: existingBody } = result.value;
+        const created = (/* @__PURE__ */ new Date()).toISOString();
+        const newBody = `${existingBody.trimEnd()}
+
+## Comment \u2014 ${created}
+
+${body.trim()}
+`;
+        frontmatter.updated = created;
+        const wr = await this.writeTask(key, frontmatter, newBody);
+        if (!wr.ok) return wr;
+        return {
+          ok: true,
+          value: { id: `local-${Date.now()}`, body, created }
+        };
+      }
+      async transitionStatus(key, transitionName) {
+        const result = await this.readTask(key);
+        if (!result.ok) return result;
+        const { frontmatter, body } = result.value;
+        frontmatter.status = transitionName;
+        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
+        return this.writeTask(key, frontmatter, body);
+      }
+      async addLabel(key, label) {
+        const result = await this.readTask(key);
+        if (!result.ok) return result;
+        const { frontmatter, body } = result.value;
+        const labels = new Set(frontmatter.labels ?? []);
+        labels.add(label);
+        frontmatter.labels = [...labels];
+        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
+        return this.writeTask(key, frontmatter, body);
+      }
+      async removeLabel(key, label) {
+        const result = await this.readTask(key);
+        if (!result.ok) return result;
+        const { frontmatter, body } = result.value;
+        frontmatter.labels = (frontmatter.labels ?? []).filter((l) => l !== label);
+        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
+        return this.writeTask(key, frontmatter, body);
+      }
+      async attachFile(_key, _filename, _content) {
+        return { ok: true, value: void 0 };
+      }
+      async getTransitions(_key) {
+        return {
+          ok: true,
+          value: [
+            { id: "pending", name: "Pending", toStatusName: "pending" },
+            { id: "planning", name: "In Progress", toStatusName: "planning" },
+            { id: "implementing", name: "In Progress", toStatusName: "implementing" },
+            { id: "reviewing", name: "In Progress", toStatusName: "reviewing" },
+            { id: "awaiting-merge", name: "Code Review", toStatusName: "awaiting-merge" },
+            { id: "done", name: "Done", toStatusName: "done" }
+          ]
+        };
+      }
+      /**
+       * Convenience for callers that want to create a brand-new local task
+       * (used by the upcoming `bode new` / `bode <prompt>` fast path).
+       */
+      async createTask(key, summary, options = {}) {
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        const frontmatter = {
+          summary,
+          status: "pending",
+          type: options.type ?? "Task",
+          labels: options.labels ?? [],
+          created: now,
+          updated: now
+        };
+        const body = options.description ?? `# ${summary}
+`;
+        const wr = await this.writeTask(key, frontmatter, body);
+        if (!wr.ok) return wr;
+        return this.getIssue(key);
+      }
+    };
+    FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
+  }
+});
+
 // src/adapters/jira/mock.ts
 var mockIssues, mockComments, mockLabels, MockJiraAdapter;
 var init_mock = __esm({
@@ -43912,18 +44087,42 @@ var init_mock = __esm({
   }
 });
 
-// src/adapters/jira/factory.ts
-function createJiraAdapter(config2) {
-  if (config2.email && config2.api_token) {
-    return new RealJiraAdapter(config2.site, config2.email, config2.api_token);
+// src/adapters/tracker/factory.ts
+function selectTracker(options) {
+  if (options.force) {
+    switch (options.force) {
+      case "jira":
+        if (options.jira?.email && options.jira?.api_token && options.jira?.site) {
+          return {
+            kind: "jira",
+            adapter: new RealJiraAdapter(
+              options.jira.site,
+              options.jira.email,
+              options.jira.api_token
+            )
+          };
+        }
+        return { kind: "mock", adapter: new MockJiraAdapter() };
+      case "mock":
+        return { kind: "mock", adapter: new MockJiraAdapter() };
+      case "local":
+        return { kind: "local", adapter: new LocalTrackerAdapter(options.workdir) };
+    }
   }
-  return new MockJiraAdapter();
+  if (options.jira?.site && options.jira?.email && options.jira?.api_token) {
+    return {
+      kind: "jira",
+      adapter: new RealJiraAdapter(options.jira.site, options.jira.email, options.jira.api_token)
+    };
+  }
+  return { kind: "local", adapter: new LocalTrackerAdapter(options.workdir) };
 }
 var init_factory = __esm({
-  "src/adapters/jira/factory.ts"() {
+  "src/adapters/tracker/factory.ts"() {
     "use strict";
-    init_mock();
+    init_local();
     init_rest();
+    init_mock();
   }
 });
 
@@ -43987,23 +44186,23 @@ function getEmbeddedSkill(phase) {
 function getDevBundledPath(phase) {
   if (typeof __dirname === "undefined") return null;
   const candidates = [
-    (0, import_node_path10.join)(__dirname, "defaults", `${phase}.md`),
-    (0, import_node_path10.join)(__dirname, "..", "src", "skills", "defaults", `${phase}.md`),
-    (0, import_node_path10.join)(__dirname, "..", "skills", "defaults", `${phase}.md`),
-    (0, import_node_path10.join)(__dirname, "skills", "defaults", `${phase}.md`)
+    (0, import_node_path11.join)(__dirname, "defaults", `${phase}.md`),
+    (0, import_node_path11.join)(__dirname, "..", "src", "skills", "defaults", `${phase}.md`),
+    (0, import_node_path11.join)(__dirname, "..", "skills", "defaults", `${phase}.md`),
+    (0, import_node_path11.join)(__dirname, "skills", "defaults", `${phase}.md`)
   ];
   for (const c of candidates) {
-    if ((0, import_node_fs8.existsSync)(c)) return c;
+    if ((0, import_node_fs9.existsSync)(c)) return c;
   }
   return null;
 }
 async function resolveSkillPath(phase, options) {
-  const projectSkill = options.projectRoot ? (0, import_node_path10.join)(options.projectRoot, ".bode", "skills", `${phase}.md`) : null;
-  const globalSkill = (0, import_node_path10.join)(options.globalDir ?? getSkillsDir(), `${phase}.md`);
-  if (projectSkill && (0, import_node_fs8.existsSync)(projectSkill)) {
+  const projectSkill = options.projectRoot ? (0, import_node_path11.join)(options.projectRoot, ".bode", "skills", `${phase}.md`) : null;
+  const globalSkill = (0, import_node_path11.join)(options.globalDir ?? getSkillsDir(), `${phase}.md`);
+  if (projectSkill && (0, import_node_fs9.existsSync)(projectSkill)) {
     return { ok: true, value: projectSkill };
   }
-  if ((0, import_node_fs8.existsSync)(globalSkill)) {
+  if ((0, import_node_fs9.existsSync)(globalSkill)) {
     return { ok: true, value: globalSkill };
   }
   const dev = getDevBundledPath(phase);
@@ -44024,19 +44223,19 @@ async function loadSkillPrompt(phase, options) {
     return { ok: false, error: new Error(`Embedded skill missing: ${embeddedPhase}`) };
   }
   try {
-    const content = await (0, import_promises6.readFile)(resolved, "utf-8");
+    const content = await (0, import_promises7.readFile)(resolved, "utf-8");
     return { ok: true, value: content };
   } catch (error52) {
     return { ok: false, error: error52 };
   }
 }
-var import_node_fs8, import_node_path10, import_promises6, EMBEDDED_SKILL_TAG, EMBEDDED_SKILLS;
+var import_node_fs9, import_node_path11, import_promises7, EMBEDDED_SKILL_TAG, EMBEDDED_SKILLS;
 var init_resolver = __esm({
   "src/skills/resolver.ts"() {
     "use strict";
-    import_node_fs8 = require("node:fs");
-    import_node_path10 = require("node:path");
-    import_promises6 = require("node:fs/promises");
+    import_node_fs9 = require("node:fs");
+    import_node_path11 = require("node:path");
+    import_promises7 = require("node:fs/promises");
     init_defaults();
     EMBEDDED_SKILL_TAG = "embedded:";
     EMBEDDED_SKILLS = {
@@ -44243,10 +44442,10 @@ async function readAgentsMd(workdir, contextFiles) {
   const candidates = contextFiles ?? ["AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md"];
   const parts = [];
   for (const candidate of candidates) {
-    const fullPath = (0, import_node_path11.join)(workdir, candidate);
-    if ((0, import_node_fs9.existsSync)(fullPath)) {
+    const fullPath = (0, import_node_path12.join)(workdir, candidate);
+    if ((0, import_node_fs10.existsSync)(fullPath)) {
       try {
-        const content = await (0, import_promises7.readFile)(fullPath, "utf-8");
+        const content = await (0, import_promises8.readFile)(fullPath, "utf-8");
         if (content.trim()) {
           parts.push(`### ${candidate}
 
@@ -44263,8 +44462,8 @@ async function generateFileTree(workdir, contextPaths) {
   const lines = [];
   let count = 0;
   for (const basePath of paths) {
-    const fullBase = (0, import_node_path11.join)(workdir, basePath);
-    if (!(0, import_node_fs9.existsSync)(fullBase)) continue;
+    const fullBase = (0, import_node_path12.join)(workdir, basePath);
+    if (!(0, import_node_fs10.existsSync)(fullBase)) continue;
     await walkDir(fullBase, workdir, lines, 0, (ref) => {
       count = ref;
     });
@@ -44276,7 +44475,7 @@ async function walkDir(dirPath, rootDir, lines, depth, counter, prefix = "") {
   if (depth > FILE_TREE_MAX_DEPTH) return;
   let entries;
   try {
-    entries = await (0, import_promises7.readdir)(dirPath, { withFileTypes: true });
+    entries = await (0, import_promises8.readdir)(dirPath, { withFileTypes: true });
   } catch {
     return;
   }
@@ -44293,7 +44492,7 @@ async function walkDir(dirPath, rootDir, lines, depth, counter, prefix = "") {
     if (IGNORED_FILES.has(entry.name)) continue;
     if (entry.isDirectory()) {
       lines.push(`${prefix}${entry.name}/`);
-      await walkDir((0, import_node_path11.join)(dirPath, entry.name), rootDir, lines, depth + 1, counter, `${prefix}  `);
+      await walkDir((0, import_node_path12.join)(dirPath, entry.name), rootDir, lines, depth + 1, counter, `${prefix}  `);
       count = lines.length;
       counter(count);
     } else {
@@ -44303,13 +44502,13 @@ async function walkDir(dirPath, rootDir, lines, depth, counter, prefix = "") {
     }
   }
 }
-var import_node_fs9, import_promises7, import_node_path11, FILE_TREE_MAX_DEPTH, FILE_TREE_MAX_ENTRIES, IGNORED_DIRS, IGNORED_FILES;
+var import_node_fs10, import_promises8, import_node_path12, FILE_TREE_MAX_DEPTH, FILE_TREE_MAX_ENTRIES, IGNORED_DIRS, IGNORED_FILES;
 var init_context = __esm({
   "src/config/context.ts"() {
     "use strict";
-    import_node_fs9 = require("node:fs");
-    import_promises7 = require("node:fs/promises");
-    import_node_path11 = require("node:path");
+    import_node_fs10 = require("node:fs");
+    import_promises8 = require("node:fs/promises");
+    import_node_path12 = require("node:path");
     FILE_TREE_MAX_DEPTH = 4;
     FILE_TREE_MAX_ENTRIES = 200;
     IGNORED_DIRS = /* @__PURE__ */ new Set([
@@ -44350,11 +44549,11 @@ var init_context = __esm({
 
 // src/orchestrator/preflight.ts
 function resolveTarget(workdir, candidate) {
-  return (0, import_node_path12.isAbsolute)(candidate) ? candidate : (0, import_node_path12.join)(workdir, candidate);
+  return (0, import_node_path13.isAbsolute)(candidate) ? candidate : (0, import_node_path13.join)(workdir, candidate);
 }
 async function checkReadable(path3) {
   try {
-    await (0, import_promises8.access)(path3, import_node_fs10.constants.R_OK);
+    await (0, import_promises9.access)(path3, import_node_fs11.constants.R_OK);
     return "ok";
   } catch (err) {
     const code = err.code;
@@ -44387,13 +44586,13 @@ ${lines.join("\n")}
 Fix permissions or remove the path from your project config, then retry.`;
   return { ok: false, error: { message, issues } };
 }
-var import_promises8, import_node_fs10, import_node_path12;
+var import_promises9, import_node_fs11, import_node_path13;
 var init_preflight = __esm({
   "src/orchestrator/preflight.ts"() {
     "use strict";
-    import_promises8 = require("node:fs/promises");
-    import_node_fs10 = require("node:fs");
-    import_node_path12 = require("node:path");
+    import_promises9 = require("node:fs/promises");
+    import_node_fs11 = require("node:fs");
+    import_node_path13 = require("node:path");
   }
 });
 
@@ -44424,7 +44623,7 @@ async function runPhase(taskKey, status, config2, jira, options) {
   if (!issueResult.ok) return issueResult;
   const issue2 = issueResult.value;
   const priorPhaseFile = getPriorPhaseFile(phaseName);
-  const priorArtifact = priorPhaseFile ? await readText((0, import_node_path13.join)(getRunDir(taskKey), priorPhaseFile)) ?? void 0 : void 0;
+  const priorArtifact = priorPhaseFile ? await readText((0, import_node_path14.join)(getRunDir(taskKey), priorPhaseFile)) ?? void 0 : void 0;
   let projectAgentsMd;
   let repoFileTree;
   if (options.projectConfig) {
@@ -44438,9 +44637,9 @@ async function runPhase(taskKey, status, config2, jira, options) {
     return entry;
   });
   const runDir = getRunDir(taskKey);
-  const logPath = (0, import_node_path13.join)(runDir, `${phaseName}.log`);
-  const artifactPath = (0, import_node_path13.join)(runDir, `${phaseName}.md`);
-  const branchFile = (0, import_node_path13.join)(runDir, "branch.txt");
+  const logPath = (0, import_node_path14.join)(runDir, `${phaseName}.log`);
+  const artifactPath = (0, import_node_path14.join)(runDir, `${phaseName}.md`);
+  const branchFile = (0, import_node_path14.join)(runDir, "branch.txt");
   const currentMetaResult = await loadRunMeta(taskKey);
   const currentMeta = currentMetaResult.ok ? currentMetaResult.value : null;
   const baseBranch = currentMeta?.baseBranch;
@@ -44525,7 +44724,7 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
       value: { kind: "missing-artifact", logPath, durationMs: invocation.durationMs }
     };
   }
-  if (!(0, import_node_fs11.existsSync)(artifactPath)) {
+  if (!(0, import_node_fs12.existsSync)(artifactPath)) {
     await writeText(artifactPath, artifact);
   }
   const labelsConfig = config2.jira_labels;
@@ -44539,7 +44738,7 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
     }
   }
   let aiBranch = null;
-  if ((0, import_node_fs11.existsSync)(branchFile)) {
+  if ((0, import_node_fs12.existsSync)(branchFile)) {
     const raw = await readText(branchFile);
     const trimmed = raw?.trim();
     if (trimmed && trimmed.length > 0 && trimmed.length < 200) {
@@ -44568,9 +44767,9 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
   };
 }
 async function readArtifact(artifactPath, headlessStdout) {
-  if ((0, import_node_fs11.existsSync)(artifactPath)) {
+  if ((0, import_node_fs12.existsSync)(artifactPath)) {
     try {
-      const s = await (0, import_promises9.stat)(artifactPath);
+      const s = await (0, import_promises10.stat)(artifactPath);
       if (s.size > 0) {
         const content = await readText(artifactPath);
         if (content && content.trim().length > 0) return content;
@@ -44617,7 +44816,7 @@ function getNextLabelKey(phase) {
       return null;
   }
 }
-var import_node_path13, import_node_fs11, import_promises9;
+var import_node_path14, import_node_fs12, import_promises10;
 var init_phase_runner = __esm({
   "src/orchestrator/phase-runner.ts"() {
     "use strict";
@@ -44630,9 +44829,9 @@ var init_phase_runner = __esm({
     init_fs();
     init_context();
     init_preflight();
-    import_node_path13 = require("node:path");
-    import_node_fs11 = require("node:fs");
-    import_promises9 = require("node:fs/promises");
+    import_node_path14 = require("node:path");
+    import_node_fs12 = require("node:fs");
+    import_promises10 = require("node:fs/promises");
   }
 });
 
@@ -44671,13 +44870,13 @@ var init_transitions = __esm({
 // src/cli/summary.ts
 async function printPhaseArtifacts(taskKey, phaseName) {
   const runDir = getRunDir(taskKey);
-  const logPath = (0, import_node_path14.join)(runDir, `${phaseName}.log`);
-  const artifactPath = (0, import_node_path14.join)(runDir, `${phaseName}.md`);
+  const logPath = (0, import_node_path15.join)(runDir, `${phaseName}.log`);
+  const artifactPath = (0, import_node_path15.join)(runDir, `${phaseName}.md`);
   const lines = [];
-  if ((0, import_node_fs12.existsSync)(artifactPath)) {
+  if ((0, import_node_fs13.existsSync)(artifactPath)) {
     lines.push(`  Artifact: ${import_picocolors3.default.cyan(artifactPath)}`);
   }
-  if ((0, import_node_fs12.existsSync)(logPath)) {
+  if ((0, import_node_fs13.existsSync)(logPath)) {
     lines.push(`  Log:      ${import_picocolors3.default.dim(logPath)}`);
   }
   if (lines.length > 0) {
@@ -44712,10 +44911,10 @@ function printTaskSummary(meta3) {
   console.log(import_picocolors3.default.bold("  Artifacts"));
   let any2 = false;
   for (const phase of PHASE_FILES) {
-    const md = (0, import_node_path14.join)(runDir, `${phase}.md`);
-    const log = (0, import_node_path14.join)(runDir, `${phase}.log`);
-    const hasMd = (0, import_node_fs12.existsSync)(md);
-    const hasLog = (0, import_node_fs12.existsSync)(log);
+    const md = (0, import_node_path15.join)(runDir, `${phase}.md`);
+    const log = (0, import_node_path15.join)(runDir, `${phase}.log`);
+    const hasMd = (0, import_node_fs13.existsSync)(md);
+    const hasLog = (0, import_node_fs13.existsSync)(log);
     if (!hasMd && !hasLog) continue;
     any2 = true;
     console.log(`    ${import_picocolors3.default.cyan(phase)}`);
@@ -44739,13 +44938,13 @@ function formatDuration(ms) {
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m`;
 }
-var import_picocolors3, import_node_fs12, import_node_path14, PHASE_FILES;
+var import_picocolors3, import_node_fs13, import_node_path15, PHASE_FILES;
 var init_summary = __esm({
   "src/cli/summary.ts"() {
     "use strict";
     import_picocolors3 = __toESM(require_picocolors());
-    import_node_fs12 = require("node:fs");
-    import_node_path14 = require("node:path");
+    import_node_fs13 = require("node:fs");
+    import_node_path15 = require("node:path");
     init_defaults();
     PHASE_FILES = ["planning", "implementation", "review"];
   }
@@ -44759,14 +44958,14 @@ __export(pr_creator_exports, {
 });
 async function createPullRequestViaAI(args) {
   const runDir = getRunDir(args.taskKey);
-  const prFile = (0, import_node_path15.join)(runDir, "pr.txt");
-  const logPath = (0, import_node_path15.join)(runDir, "pr.log");
-  if ((0, import_node_fs13.existsSync)(prFile)) {
+  const prFile = (0, import_node_path16.join)(runDir, "pr.txt");
+  const logPath = (0, import_node_path16.join)(runDir, "pr.log");
+  if ((0, import_node_fs14.existsSync)(prFile)) {
     await writeText(prFile, "");
   }
-  const planning = await readText((0, import_node_path15.join)(runDir, "planning.md")) ?? "(no plan artifact)";
-  const implementation = await readText((0, import_node_path15.join)(runDir, "implementation.md")) ?? "(no implementation artifact)";
-  const review = await readText((0, import_node_path15.join)(runDir, "review.md")) ?? "(no review artifact)";
+  const planning = await readText((0, import_node_path16.join)(runDir, "planning.md")) ?? "(no plan artifact)";
+  const implementation = await readText((0, import_node_path16.join)(runDir, "implementation.md")) ?? "(no implementation artifact)";
+  const review = await readText((0, import_node_path16.join)(runDir, "review.md")) ?? "(no review artifact)";
   const tool = args.provider === "gitlab" ? "glab" : "gh";
   const createCmd = args.provider === "gitlab" ? `glab mr create --source-branch ${args.branch} --target-branch ${args.baseBranch} --title <title> --description <body> --no-editor` : `gh pr create --head ${args.branch} --base ${args.baseBranch} --title <title> --body <body>`;
   const prompt = buildPrPrompt({
@@ -44889,12 +45088,12 @@ function extractPrNumber(url2, provider) {
   const match = url2.match(re);
   return match?.[1] ? parseInt(match[1], 10) : 0;
 }
-var import_node_path15, import_node_fs13, __testing;
+var import_node_path16, import_node_fs14, __testing;
 var init_pr_creator = __esm({
   "src/orchestrator/pr-creator.ts"() {
     "use strict";
-    import_node_path15 = require("node:path");
-    import_node_fs13 = require("node:fs");
+    import_node_path16 = require("node:path");
+    import_node_fs14 = require("node:fs");
     init_fs();
     init_defaults();
     init_registry();
@@ -45517,13 +45716,13 @@ function isPidAlive(pid) {
   }
 }
 function lockPath(taskKey) {
-  return (0, import_node_path16.join)(getRunDir(taskKey), LOCK_FILE);
+  return (0, import_node_path17.join)(getRunDir(taskKey), LOCK_FILE);
 }
 async function readLock(taskKey) {
   const path3 = lockPath(taskKey);
-  if (!(0, import_node_fs14.existsSync)(path3)) return null;
+  if (!(0, import_node_fs15.existsSync)(path3)) return null;
   try {
-    const raw = await (0, import_promises10.readFile)(path3, "utf-8");
+    const raw = await (0, import_promises11.readFile)(path3, "utf-8");
     return JSON.parse(raw);
   } catch {
     return null;
@@ -45531,7 +45730,7 @@ async function readLock(taskKey) {
 }
 async function acquireLock(taskKey, command) {
   const path3 = lockPath(taskKey);
-  await (0, import_promises10.mkdir)((0, import_node_path16.join)(getRunDir(taskKey)), { recursive: true });
+  await (0, import_promises11.mkdir)((0, import_node_path17.join)(getRunDir(taskKey)), { recursive: true });
   const existing = await readLock(taskKey);
   if (existing) {
     const stale = existing.host !== (0, import_node_os4.hostname)() || !isPidAlive(existing.pid) || existing.pid === process.pid;
@@ -45552,25 +45751,25 @@ async function acquireLock(taskKey, command) {
     startedAt: Date.now(),
     command
   };
-  await (0, import_promises10.writeFile)(path3, JSON.stringify(info2, null, 2), "utf-8");
+  await (0, import_promises11.writeFile)(path3, JSON.stringify(info2, null, 2), "utf-8");
   const release = async () => {
     try {
       const current = await readLock(taskKey);
       if (current && current.pid === process.pid && current.host === (0, import_node_os4.hostname)()) {
-        await (0, import_promises10.unlink)(path3);
+        await (0, import_promises11.unlink)(path3);
       }
     } catch {
     }
   };
   return { ok: true, value: { release } };
 }
-var import_node_fs14, import_promises10, import_node_path16, import_node_os4, LOCK_FILE;
+var import_node_fs15, import_promises11, import_node_path17, import_node_os4, LOCK_FILE;
 var init_lockfile = __esm({
   "src/storage/lockfile.ts"() {
     "use strict";
-    import_node_fs14 = require("node:fs");
-    import_promises10 = require("node:fs/promises");
-    import_node_path16 = require("node:path");
+    import_node_fs15 = require("node:fs");
+    import_promises11 = require("node:fs/promises");
+    import_node_path17 = require("node:path");
     import_node_os4 = require("node:os");
     init_defaults();
     LOCK_FILE = ".lock";
@@ -45630,7 +45829,11 @@ async function startAction(taskKey, options) {
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
-  const jira = createJiraAdapter(config2.jira);
+  const tracker = selectTracker({ jira: config2.jira, workdir: projectConfig.workdir });
+  const jira = tracker.adapter;
+  if (tracker.kind === "local") {
+    console.log(import_picocolors8.default.dim(`Tracker: local (.bode/tasks/) \u2014 no Jira configured`));
+  }
   const lockResult = await acquireLock(taskKey, `start ${taskKey}`);
   if (!lockResult.ok) {
     console.error(import_picocolors8.default.red(lockResult.error.message));
@@ -45921,7 +46124,8 @@ async function continueAction(taskKey, options) {
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
-  const jira = createJiraAdapter(config2.jira);
+  const tracker = selectTracker({ jira: config2.jira, workdir: projectConfig.workdir });
+  const jira = tracker.adapter;
   const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);
   if (!lockResult.ok) {
     console.error(import_picocolors9.default.red(lockResult.error.message));
@@ -46100,7 +46304,7 @@ __export(log_exports, {
 });
 async function logAction(taskKey) {
   const { readdir: readdir4 } = await import("node:fs/promises");
-  const { join: join15 } = await import("node:path");
+  const { join: join16 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
     const files = await readdir4(runDir);
@@ -46114,7 +46318,7 @@ async function logAction(taskKey) {
       console.error(import_picocolors12.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join15(runDir, latest));
+    const content = await readText(join16(runDir, latest));
     if (content) {
       console.log(content);
     }
@@ -46193,8 +46397,11 @@ PR pending: ${meta3.prUrl} \u2014 merge manually when ready.`));
 }
 async function finalize2(taskKey, meta3, config2, projectCfg) {
   if (config2) {
-    await removeBodeLabels(taskKey, config2);
-    const jira = createJiraAdapter(config2.jira);
+    await removeBodeLabels(taskKey, config2, meta3);
+    const jira = selectTracker({
+      jira: config2.jira,
+      workdir: meta3.workdir ?? process.cwd()
+    }).adapter;
     const doneTarget = resolveJiraTransition("done", config2, projectCfg);
     if (doneTarget.trim() !== "") {
       const transResult = await jira.transitionStatus(taskKey, doneTarget);
@@ -46214,10 +46421,13 @@ async function finalize2(taskKey, meta3, config2, projectCfg) {
   await saveRunMeta(finalMeta);
   printTaskSummary(finalMeta);
 }
-async function removeBodeLabels(taskKey, config2) {
+async function removeBodeLabels(taskKey, config2, meta3) {
   const labels = config2.jira_labels;
   if (!labels) return;
-  const jira = createJiraAdapter(config2.jira);
+  const jira = selectTracker({
+    jira: config2.jira,
+    workdir: meta3.workdir ?? process.cwd()
+  }).adapter;
   const allLabels = /* @__PURE__ */ new Set([...Object.values(labels), "bode:conflict"]);
   for (const label of allLabels) {
     await jira.removeLabel(taskKey, label).catch(() => {
@@ -46247,7 +46457,7 @@ __export(list_exports, {
 async function listAction() {
   const runsDir = getRunsDir();
   try {
-    const entries = await (0, import_promises11.readdir)(runsDir);
+    const entries = await (0, import_promises12.readdir)(runsDir);
     if (entries.length === 0) {
       console.log(import_picocolors14.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
       return;
@@ -46267,11 +46477,11 @@ async function listAction() {
     console.log(import_picocolors14.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
   }
 }
-var import_promises11, import_picocolors14;
+var import_promises12, import_picocolors14;
 var init_list = __esm({
   "src/cli/actions/list.ts"() {
     "use strict";
-    import_promises11 = require("node:fs/promises");
+    import_promises12 = require("node:fs/promises");
     init_defaults();
     init_run_meta();
     init_phase();
@@ -46348,7 +46558,7 @@ async function detectAvailableCli() {
   return void 0;
 }
 function detectContextFiles(workdir) {
-  return CONTEXT_FILE_CANDIDATES.filter((rel) => (0, import_node_fs15.existsSync)((0, import_node_path17.join)(workdir, rel)));
+  return CONTEXT_FILE_CANDIDATES.filter((rel) => (0, import_node_fs16.existsSync)((0, import_node_path18.join)(workdir, rel)));
 }
 async function detectEnv(workdir, options) {
   const gitRemoteUrl = await readGitRemote(workdir) ?? void 0;
@@ -46356,8 +46566,8 @@ async function detectEnv(workdir, options) {
   const repoSlug = gitRemoteUrl ? parseSlug(gitRemoteUrl) ?? void 0 : void 0;
   const availableAiCli = await detectAvailableCli();
   const contextFiles = detectContextFiles(workdir);
-  const hasRepoConfig = (0, import_node_fs15.existsSync)((0, import_node_path17.join)(workdir, ".bode.yml"));
-  const hasGlobalConfig = (0, import_node_fs15.existsSync)(options.globalConfigPath);
+  const hasRepoConfig = (0, import_node_fs16.existsSync)((0, import_node_path18.join)(workdir, ".bode.yml"));
+  const hasGlobalConfig = (0, import_node_fs16.existsSync)(options.globalConfigPath);
   return {
     ...gitRemoteUrl ? { gitRemoteUrl } : {},
     ...vcsProvider ? { vcsProvider } : {},
@@ -46368,14 +46578,14 @@ async function detectEnv(workdir, options) {
     hasGlobalConfig
   };
 }
-var import_node_fs15, import_node_child_process5, import_node_util12, import_node_path17, execFileAsync3, AI_CLI_PROBES, CONTEXT_FILE_CANDIDATES;
+var import_node_fs16, import_node_child_process5, import_node_util12, import_node_path18, execFileAsync3, AI_CLI_PROBES, CONTEXT_FILE_CANDIDATES;
 var init_auto_detect = __esm({
   "src/config/auto-detect.ts"() {
     "use strict";
-    import_node_fs15 = require("node:fs");
+    import_node_fs16 = require("node:fs");
     import_node_child_process5 = require("node:child_process");
     import_node_util12 = require("node:util");
-    import_node_path17 = require("node:path");
+    import_node_path18 = require("node:path");
     execFileAsync3 = (0, import_node_util12.promisify)(import_node_child_process5.execFile);
     AI_CLI_PROBES = [
       { name: "claude-code", binary: "claude" },
@@ -46424,7 +46634,7 @@ async function checkBinaryAvailable(name, binary) {
 }
 async function checkGlobalConfig() {
   const path3 = getGlobalConfigPath();
-  if (!(0, import_node_fs16.existsSync)(path3)) {
+  if (!(0, import_node_fs17.existsSync)(path3)) {
     return {
       name: "Global config",
       status: "warn",
@@ -46443,7 +46653,7 @@ async function checkGlobalConfig() {
 }
 async function checkRunsDir() {
   const dir = getRunsDir();
-  if (!(0, import_node_fs16.existsSync)(dir)) {
+  if (!(0, import_node_fs17.existsSync)(dir)) {
     return {
       name: "Runs directory",
       status: "warn",
@@ -46530,12 +46740,12 @@ async function doctorAction() {
   console.log(import_picocolors16.default.red(`${fails} failure(s), ${warns} warning(s).`));
   process.exit(1);
 }
-var import_picocolors16, import_node_fs16, import_node_child_process6, import_node_util13, execFileAsync4;
+var import_picocolors16, import_node_fs17, import_node_child_process6, import_node_util13, execFileAsync4;
 var init_doctor = __esm({
   "src/cli/actions/doctor.ts"() {
     "use strict";
     import_picocolors16 = __toESM(require_picocolors());
-    import_node_fs16 = require("node:fs");
+    import_node_fs17 = require("node:fs");
     import_node_child_process6 = require("node:child_process");
     import_node_util13 = require("node:util");
     init_auto_detect();

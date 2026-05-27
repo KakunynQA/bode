@@ -3,10 +3,9 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export const DEFAULT_CONFIG: BodeConfig = {
-	jira: {
-		site: '',
-		default_project: '',
-	},
+	// `jira` defaults to empty since v0.21.0. When neither global config nor
+	// project config sets credentials, bode uses the LocalTrackerAdapter.
+	jira: {},
 	phases: {
 		planning: {
 			cli: 'claude-code',

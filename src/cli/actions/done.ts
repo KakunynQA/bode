@@ -1,7 +1,7 @@
 import { loadRunMeta, saveRunMeta, type RunMeta } from '~/storage/run-meta.ts';
 import { mergePR } from '~/orchestrator/branch-manager.ts';
 import { loadConfig, resolveVcsProvider } from '~/config/loader.ts';
-import { createJiraAdapter } from '~/adapters/jira/factory.ts';
+import { selectTracker } from '~/adapters/tracker/factory.ts';
 import { resolveJiraTransition } from '~/config/transitions.ts';
 import { loadProjectConfig } from '~/config/projects.ts';
 import { printTaskSummary } from '~/cli/summary.ts';
@@ -82,8 +82,11 @@ async function finalize(
 	projectCfg: ProjectConfig | undefined
 ): Promise<void> {
 	if (config) {
-		await removeBodeLabels(taskKey, config);
-		const jira = createJiraAdapter(config.jira);
+		await removeBodeLabels(taskKey, config, meta);
+		const jira = selectTracker({
+			jira: config.jira,
+			workdir: meta.workdir ?? process.cwd(),
+		}).adapter;
 		const doneTarget = resolveJiraTransition('done', config, projectCfg);
 		if (doneTarget.trim() !== '') {
 			const transResult = await jira.transitionStatus(taskKey, doneTarget);
@@ -106,10 +109,13 @@ async function finalize(
 	printTaskSummary(finalMeta);
 }
 
-async function removeBodeLabels(taskKey: string, config: BodeConfig): Promise<void> {
+async function removeBodeLabels(taskKey: string, config: BodeConfig, meta: RunMeta): Promise<void> {
 	const labels = config.jira_labels;
 	if (!labels) return;
-	const jira = createJiraAdapter(config.jira);
+	const jira = selectTracker({
+		jira: config.jira,
+		workdir: meta.workdir ?? process.cwd(),
+	}).adapter;
 	const allLabels = new Set<string>([...Object.values(labels), 'bode:conflict']);
 	for (const label of allLabels) {
 		await jira.removeLabel(taskKey, label).catch(() => {});
