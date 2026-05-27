@@ -1196,9 +1196,9 @@ var require_command = __commonJS({
   "node_modules/commander/lib/command.js"(exports2) {
     var EventEmitter = require("node:events").EventEmitter;
     var childProcess = require("node:child_process");
-    var path = require("node:path");
+    var path2 = require("node:path");
     var fs = require("node:fs");
-    var process10 = require("node:process");
+    var process11 = require("node:process");
     var { Argument: Argument2, humanReadableArgName } = require_argument();
     var { CommanderError: CommanderError2 } = require_error();
     var { Help: Help2, stripColor } = require_help();
@@ -1245,13 +1245,13 @@ var require_command = __commonJS({
         this._showSuggestionAfterError = true;
         this._savedState = null;
         this._outputConfiguration = {
-          writeOut: (str) => process10.stdout.write(str),
-          writeErr: (str) => process10.stderr.write(str),
+          writeOut: (str) => process11.stdout.write(str),
+          writeErr: (str) => process11.stderr.write(str),
           outputError: (str, write) => write(str),
-          getOutHelpWidth: () => process10.stdout.isTTY ? process10.stdout.columns : void 0,
-          getErrHelpWidth: () => process10.stderr.isTTY ? process10.stderr.columns : void 0,
-          getOutHasColors: () => useColor() ?? (process10.stdout.isTTY && process10.stdout.hasColors?.()),
-          getErrHasColors: () => useColor() ?? (process10.stderr.isTTY && process10.stderr.hasColors?.()),
+          getOutHelpWidth: () => process11.stdout.isTTY ? process11.stdout.columns : void 0,
+          getErrHelpWidth: () => process11.stderr.isTTY ? process11.stderr.columns : void 0,
+          getOutHasColors: () => useColor() ?? (process11.stdout.isTTY && process11.stdout.hasColors?.()),
+          getErrHasColors: () => useColor() ?? (process11.stderr.isTTY && process11.stderr.hasColors?.()),
           stripColor: (str) => stripColor(str)
         };
         this._hidden = false;
@@ -1645,7 +1645,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
         if (this._exitCallback) {
           this._exitCallback(new CommanderError2(exitCode, code, message));
         }
-        process10.exit(exitCode);
+        process11.exit(exitCode);
       }
       /**
        * Register callback `fn` for the command.
@@ -2045,16 +2045,16 @@ Expecting one of '${allowedValues.join("', '")}'`);
         }
         parseOptions = parseOptions || {};
         if (argv === void 0 && parseOptions.from === void 0) {
-          if (process10.versions?.electron) {
+          if (process11.versions?.electron) {
             parseOptions.from = "electron";
           }
-          const execArgv = process10.execArgv ?? [];
+          const execArgv = process11.execArgv ?? [];
           if (execArgv.includes("-e") || execArgv.includes("--eval") || execArgv.includes("-p") || execArgv.includes("--print")) {
             parseOptions.from = "eval";
           }
         }
         if (argv === void 0) {
-          argv = process10.argv;
+          argv = process11.argv;
         }
         this.rawArgs = argv.slice();
         let userArgs;
@@ -2065,7 +2065,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
             userArgs = argv.slice(2);
             break;
           case "electron":
-            if (process10.defaultApp) {
+            if (process11.defaultApp) {
               this._scriptPath = argv[1];
               userArgs = argv.slice(2);
             } else {
@@ -2209,9 +2209,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
         let launchWithNode = false;
         const sourceExt = [".js", ".ts", ".tsx", ".mjs", ".cjs"];
         function findFile(baseDir, baseName) {
-          const localBin = path.resolve(baseDir, baseName);
+          const localBin = path2.resolve(baseDir, baseName);
           if (fs.existsSync(localBin)) return localBin;
-          if (sourceExt.includes(path.extname(baseName))) return void 0;
+          if (sourceExt.includes(path2.extname(baseName))) return void 0;
           const foundExt = sourceExt.find(
             (ext) => fs.existsSync(`${localBin}${ext}`)
           );
@@ -2229,17 +2229,17 @@ Expecting one of '${allowedValues.join("', '")}'`);
           } catch {
             resolvedScriptPath = this._scriptPath;
           }
-          executableDir = path.resolve(
-            path.dirname(resolvedScriptPath),
+          executableDir = path2.resolve(
+            path2.dirname(resolvedScriptPath),
             executableDir
           );
         }
         if (executableDir) {
           let localFile = findFile(executableDir, executableFile);
           if (!localFile && !subcommand._executableFile && this._scriptPath) {
-            const legacyName = path.basename(
+            const legacyName = path2.basename(
               this._scriptPath,
-              path.extname(this._scriptPath)
+              path2.extname(this._scriptPath)
             );
             if (legacyName !== this._name) {
               localFile = findFile(
@@ -2250,13 +2250,13 @@ Expecting one of '${allowedValues.join("', '")}'`);
           }
           executableFile = localFile || executableFile;
         }
-        launchWithNode = sourceExt.includes(path.extname(executableFile));
+        launchWithNode = sourceExt.includes(path2.extname(executableFile));
         let proc;
-        if (process10.platform !== "win32") {
+        if (process11.platform !== "win32") {
           if (launchWithNode) {
             args.unshift(executableFile);
-            args = incrementNodeInspectorPort(process10.execArgv).concat(args);
-            proc = childProcess.spawn(process10.argv[0], args, { stdio: "inherit" });
+            args = incrementNodeInspectorPort(process11.execArgv).concat(args);
+            proc = childProcess.spawn(process11.argv[0], args, { stdio: "inherit" });
           } else {
             proc = childProcess.spawn(executableFile, args, { stdio: "inherit" });
           }
@@ -2267,13 +2267,13 @@ Expecting one of '${allowedValues.join("', '")}'`);
             subcommand._name
           );
           args.unshift(executableFile);
-          args = incrementNodeInspectorPort(process10.execArgv).concat(args);
-          proc = childProcess.spawn(process10.execPath, args, { stdio: "inherit" });
+          args = incrementNodeInspectorPort(process11.execArgv).concat(args);
+          proc = childProcess.spawn(process11.execPath, args, { stdio: "inherit" });
         }
         if (!proc.killed) {
           const signals2 = ["SIGUSR1", "SIGUSR2", "SIGTERM", "SIGINT", "SIGHUP"];
           signals2.forEach((signal) => {
-            process10.on(signal, () => {
+            process11.on(signal, () => {
               if (proc.killed === false && proc.exitCode === null) {
                 proc.kill(signal);
               }
@@ -2284,7 +2284,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
         proc.on("close", (code) => {
           code = code ?? 1;
           if (!exitCallback) {
-            process10.exit(code);
+            process11.exit(code);
           } else {
             exitCallback(
               new CommanderError2(
@@ -2306,7 +2306,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
             throw new Error(`'${executableFile}' not executable`);
           }
           if (!exitCallback) {
-            process10.exit(1);
+            process11.exit(1);
           } else {
             const wrappedError = new CommanderError2(
               1,
@@ -2806,13 +2806,13 @@ Expecting one of '${allowedValues.join("', '")}'`);
        */
       _parseOptionsEnv() {
         this.options.forEach((option) => {
-          if (option.envVar && option.envVar in process10.env) {
+          if (option.envVar && option.envVar in process11.env) {
             const optionKey = option.attributeName();
             if (this.getOptionValue(optionKey) === void 0 || ["default", "config", "env"].includes(
               this.getOptionValueSource(optionKey)
             )) {
               if (option.required || option.optional) {
-                this.emit(`optionEnv:${option.name()}`, process10.env[option.envVar]);
+                this.emit(`optionEnv:${option.name()}`, process11.env[option.envVar]);
               } else {
                 this.emit(`optionEnv:${option.name()}`);
               }
@@ -3165,7 +3165,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
        * @return {Command}
        */
       nameFromFilename(filename) {
-        this._name = path.basename(filename, path.extname(filename));
+        this._name = path2.basename(filename, path2.extname(filename));
         return this;
       }
       /**
@@ -3179,9 +3179,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
        * @param {string} [path]
        * @return {(string|null|Command)}
        */
-      executableDir(path2) {
-        if (path2 === void 0) return this._executableDir;
-        this._executableDir = path2;
+      executableDir(path3) {
+        if (path3 === void 0) return this._executableDir;
+        this._executableDir = path3;
         return this;
       }
       /**
@@ -3336,7 +3336,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
        */
       help(contextOptions) {
         this.outputHelp(contextOptions);
-        let exitCode = Number(process10.exitCode ?? 0);
+        let exitCode = Number(process11.exitCode ?? 0);
         if (exitCode === 0 && contextOptions && typeof contextOptions !== "function" && contextOptions.error) {
           exitCode = 1;
         }
@@ -3426,9 +3426,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
       });
     }
     function useColor() {
-      if (process10.env.NO_COLOR || process10.env.FORCE_COLOR === "0" || process10.env.FORCE_COLOR === "false")
+      if (process11.env.NO_COLOR || process11.env.FORCE_COLOR === "0" || process11.env.FORCE_COLOR === "false")
         return false;
-      if (process10.env.FORCE_COLOR || process10.env.CLICOLOR_FORCE !== void 0)
+      if (process11.env.FORCE_COLOR || process11.env.CLICOLOR_FORCE !== void 0)
         return true;
       return void 0;
     }
@@ -3531,28 +3531,2162 @@ var require_picocolors = __commonJS({
   }
 });
 
+// node_modules/@inquirer/core/dist/lib/key.js
+function isKeybinding(value) {
+  return keybindingLookup.has(value);
+}
+function getDefaultKeybindings() {
+  const env2 = process.env["INQUIRER_KEYBINDINGS"];
+  if (!env2)
+    return [];
+  return Array.from(new Set(env2.toLowerCase().split(/[\s,]+/).filter(isKeybinding)));
+}
+var keybindings, keybindingLookup, isUpKey, isDownKey, isBackspaceKey, isTabKey, isNumberKey, isEnterKey;
+var init_key = __esm({
+  "node_modules/@inquirer/core/dist/lib/key.js"() {
+    keybindings = ["emacs", "vim"];
+    keybindingLookup = new Set(keybindings);
+    isUpKey = (key, keybindings2 = []) => (
+      // The up key
+      key.name === "up" || // Vim keybinding: hjkl keys map to left/down/up/right
+      keybindings2.includes("vim") && key.name === "k" || // Emacs keybinding: Ctrl+P means "previous" in Emacs navigation conventions
+      keybindings2.includes("emacs") && key.ctrl && key.name === "p"
+    );
+    isDownKey = (key, keybindings2 = []) => (
+      // The down key
+      key.name === "down" || // Vim keybinding: hjkl keys map to left/down/up/right
+      keybindings2.includes("vim") && key.name === "j" || // Emacs keybinding: Ctrl+N means "next" in Emacs navigation conventions
+      keybindings2.includes("emacs") && key.ctrl && key.name === "n"
+    );
+    isBackspaceKey = (key) => key.name === "backspace";
+    isTabKey = (key) => key.name === "tab";
+    isNumberKey = (key) => "1234567890".includes(key.name);
+    isEnterKey = (key) => key.name === "enter" || key.name === "return";
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/errors.js
+var AbortPromptError, CancelPromptError, ExitPromptError, HookError, ValidationError;
+var init_errors = __esm({
+  "node_modules/@inquirer/core/dist/lib/errors.js"() {
+    AbortPromptError = class extends Error {
+      name = "AbortPromptError";
+      message = "Prompt was aborted";
+      constructor(options) {
+        super();
+        this.cause = options?.cause;
+      }
+    };
+    CancelPromptError = class extends Error {
+      name = "CancelPromptError";
+      message = "Prompt was canceled";
+    };
+    ExitPromptError = class extends Error {
+      name = "ExitPromptError";
+    };
+    HookError = class extends Error {
+      name = "HookError";
+    };
+    ValidationError = class extends Error {
+      name = "ValidationError";
+    };
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/hook-engine.js
+function createStore(rl) {
+  const store = {
+    rl,
+    hooks: [],
+    hooksCleanup: [],
+    hooksEffect: [],
+    index: 0,
+    handleChange() {
+    }
+  };
+  return store;
+}
+function withHooks(rl, cb) {
+  const store = createStore(rl);
+  return hookStorage.run(store, () => {
+    function cycle(render) {
+      store.handleChange = () => {
+        store.index = 0;
+        render();
+      };
+      store.handleChange();
+    }
+    return cb(cycle);
+  });
+}
+function getStore() {
+  const store = hookStorage.getStore();
+  if (!store) {
+    throw new HookError("[Inquirer] Hook functions can only be called from within a prompt");
+  }
+  return store;
+}
+function readline() {
+  return getStore().rl;
+}
+function withUpdates(fn) {
+  const wrapped = (...args) => {
+    const store = getStore();
+    let shouldUpdate = false;
+    const oldHandleChange = store.handleChange;
+    store.handleChange = () => {
+      shouldUpdate = true;
+    };
+    const returnValue = fn(...args);
+    if (shouldUpdate) {
+      oldHandleChange();
+    }
+    store.handleChange = oldHandleChange;
+    return returnValue;
+  };
+  return import_node_async_hooks.AsyncResource.bind(wrapped);
+}
+function withPointer(cb) {
+  const store = getStore();
+  const { index } = store;
+  const pointer = {
+    get() {
+      return store.hooks[index];
+    },
+    set(value) {
+      store.hooks[index] = value;
+    },
+    initialized: index in store.hooks
+  };
+  const returnValue = cb(pointer);
+  store.index++;
+  return returnValue;
+}
+function handleChange() {
+  getStore().handleChange();
+}
+var import_node_async_hooks, hookStorage, effectScheduler;
+var init_hook_engine = __esm({
+  "node_modules/@inquirer/core/dist/lib/hook-engine.js"() {
+    import_node_async_hooks = require("node:async_hooks");
+    init_errors();
+    hookStorage = new import_node_async_hooks.AsyncLocalStorage();
+    effectScheduler = {
+      queue(cb) {
+        const store = getStore();
+        const { index } = store;
+        store.hooksEffect.push(() => {
+          store.hooksCleanup[index]?.();
+          const cleanFn = cb(readline());
+          if (cleanFn != null && typeof cleanFn !== "function") {
+            throw new ValidationError("useEffect return value must be a cleanup function or nothing.");
+          }
+          store.hooksCleanup[index] = cleanFn;
+        });
+      },
+      run() {
+        const store = getStore();
+        withUpdates(() => {
+          store.hooksEffect.forEach((effect) => {
+            effect();
+          });
+          store.hooksEffect.length = 0;
+        })();
+      },
+      clearAll() {
+        const store = getStore();
+        store.hooksCleanup.forEach((cleanFn) => {
+          cleanFn?.();
+        });
+        store.hooksEffect.length = 0;
+        store.hooksCleanup.length = 0;
+      }
+    };
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/use-state.js
+function isFactory(value) {
+  return typeof value === "function";
+}
+function useState(defaultValue) {
+  return withPointer((pointer) => {
+    const setState = import_node_async_hooks2.AsyncResource.bind(function setState2(newValue) {
+      if (pointer.get() !== newValue) {
+        pointer.set(newValue);
+        handleChange();
+      }
+    });
+    if (pointer.initialized) {
+      return [pointer.get(), setState];
+    }
+    const value = isFactory(defaultValue) ? defaultValue() : defaultValue;
+    pointer.set(value);
+    return [value, setState];
+  });
+}
+var import_node_async_hooks2;
+var init_use_state = __esm({
+  "node_modules/@inquirer/core/dist/lib/use-state.js"() {
+    import_node_async_hooks2 = require("node:async_hooks");
+    init_hook_engine();
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/use-effect.js
+function useEffect(cb, depArray) {
+  withPointer((pointer) => {
+    const oldDeps = pointer.get();
+    const hasChanged = !Array.isArray(oldDeps) || depArray.some((dep, i) => !Object.is(dep, oldDeps[i]));
+    if (hasChanged) {
+      effectScheduler.queue(cb);
+    }
+    pointer.set(depArray);
+  });
+}
+var init_use_effect = __esm({
+  "node_modules/@inquirer/core/dist/lib/use-effect.js"() {
+    init_hook_engine();
+  }
+});
+
+// node_modules/@inquirer/figures/dist/index.js
+function isUnicodeSupported() {
+  if (!import_node_process.default.platform.startsWith("win")) {
+    return import_node_process.default.env["TERM"] !== "linux";
+  }
+  return Boolean(import_node_process.default.env["CI"]) || // CI environments generally support unicode
+  Boolean(import_node_process.default.env["WT_SESSION"]) || // Windows Terminal
+  Boolean(import_node_process.default.env["TERMINUS_SUBLIME"]) || // Terminus (<0.2.27)
+  import_node_process.default.env["ConEmuTask"] === "{cmd::Cmder}" || // ConEmu and cmder
+  import_node_process.default.env["TERM_PROGRAM"] === "Terminus-Sublime" || import_node_process.default.env["TERM_PROGRAM"] === "vscode" || import_node_process.default.env["TERM"] === "xterm-256color" || import_node_process.default.env["TERM"] === "alacritty" || import_node_process.default.env["TERMINAL_EMULATOR"] === "JetBrains-JediTerm";
+}
+var import_node_process, common, specialMainSymbols, specialFallbackSymbols, mainSymbols, fallbackSymbols, shouldUseMain, figures, dist_default, replacements;
+var init_dist = __esm({
+  "node_modules/@inquirer/figures/dist/index.js"() {
+    import_node_process = __toESM(require("node:process"), 1);
+    common = {
+      circleQuestionMark: "(?)",
+      questionMarkPrefix: "(?)",
+      square: "\u2588",
+      squareDarkShade: "\u2593",
+      squareMediumShade: "\u2592",
+      squareLightShade: "\u2591",
+      squareTop: "\u2580",
+      squareBottom: "\u2584",
+      squareLeft: "\u258C",
+      squareRight: "\u2590",
+      squareCenter: "\u25A0",
+      bullet: "\u25CF",
+      dot: "\u2024",
+      ellipsis: "\u2026",
+      pointerSmall: "\u203A",
+      triangleUp: "\u25B2",
+      triangleUpSmall: "\u25B4",
+      triangleDown: "\u25BC",
+      triangleDownSmall: "\u25BE",
+      triangleLeftSmall: "\u25C2",
+      triangleRightSmall: "\u25B8",
+      home: "\u2302",
+      heart: "\u2665",
+      musicNote: "\u266A",
+      musicNoteBeamed: "\u266B",
+      arrowUp: "\u2191",
+      arrowDown: "\u2193",
+      arrowLeft: "\u2190",
+      arrowRight: "\u2192",
+      arrowLeftRight: "\u2194",
+      arrowUpDown: "\u2195",
+      almostEqual: "\u2248",
+      notEqual: "\u2260",
+      lessOrEqual: "\u2264",
+      greaterOrEqual: "\u2265",
+      identical: "\u2261",
+      infinity: "\u221E",
+      subscriptZero: "\u2080",
+      subscriptOne: "\u2081",
+      subscriptTwo: "\u2082",
+      subscriptThree: "\u2083",
+      subscriptFour: "\u2084",
+      subscriptFive: "\u2085",
+      subscriptSix: "\u2086",
+      subscriptSeven: "\u2087",
+      subscriptEight: "\u2088",
+      subscriptNine: "\u2089",
+      oneHalf: "\xBD",
+      oneThird: "\u2153",
+      oneQuarter: "\xBC",
+      oneFifth: "\u2155",
+      oneSixth: "\u2159",
+      oneEighth: "\u215B",
+      twoThirds: "\u2154",
+      twoFifths: "\u2156",
+      threeQuarters: "\xBE",
+      threeFifths: "\u2157",
+      threeEighths: "\u215C",
+      fourFifths: "\u2158",
+      fiveSixths: "\u215A",
+      fiveEighths: "\u215D",
+      sevenEighths: "\u215E",
+      line: "\u2500",
+      lineBold: "\u2501",
+      lineDouble: "\u2550",
+      lineDashed0: "\u2504",
+      lineDashed1: "\u2505",
+      lineDashed2: "\u2508",
+      lineDashed3: "\u2509",
+      lineDashed4: "\u254C",
+      lineDashed5: "\u254D",
+      lineDashed6: "\u2574",
+      lineDashed7: "\u2576",
+      lineDashed8: "\u2578",
+      lineDashed9: "\u257A",
+      lineDashed10: "\u257C",
+      lineDashed11: "\u257E",
+      lineDashed12: "\u2212",
+      lineDashed13: "\u2013",
+      lineDashed14: "\u2010",
+      lineDashed15: "\u2043",
+      lineVertical: "\u2502",
+      lineVerticalBold: "\u2503",
+      lineVerticalDouble: "\u2551",
+      lineVerticalDashed0: "\u2506",
+      lineVerticalDashed1: "\u2507",
+      lineVerticalDashed2: "\u250A",
+      lineVerticalDashed3: "\u250B",
+      lineVerticalDashed4: "\u254E",
+      lineVerticalDashed5: "\u254F",
+      lineVerticalDashed6: "\u2575",
+      lineVerticalDashed7: "\u2577",
+      lineVerticalDashed8: "\u2579",
+      lineVerticalDashed9: "\u257B",
+      lineVerticalDashed10: "\u257D",
+      lineVerticalDashed11: "\u257F",
+      lineDownLeft: "\u2510",
+      lineDownLeftArc: "\u256E",
+      lineDownBoldLeftBold: "\u2513",
+      lineDownBoldLeft: "\u2512",
+      lineDownLeftBold: "\u2511",
+      lineDownDoubleLeftDouble: "\u2557",
+      lineDownDoubleLeft: "\u2556",
+      lineDownLeftDouble: "\u2555",
+      lineDownRight: "\u250C",
+      lineDownRightArc: "\u256D",
+      lineDownBoldRightBold: "\u250F",
+      lineDownBoldRight: "\u250E",
+      lineDownRightBold: "\u250D",
+      lineDownDoubleRightDouble: "\u2554",
+      lineDownDoubleRight: "\u2553",
+      lineDownRightDouble: "\u2552",
+      lineUpLeft: "\u2518",
+      lineUpLeftArc: "\u256F",
+      lineUpBoldLeftBold: "\u251B",
+      lineUpBoldLeft: "\u251A",
+      lineUpLeftBold: "\u2519",
+      lineUpDoubleLeftDouble: "\u255D",
+      lineUpDoubleLeft: "\u255C",
+      lineUpLeftDouble: "\u255B",
+      lineUpRight: "\u2514",
+      lineUpRightArc: "\u2570",
+      lineUpBoldRightBold: "\u2517",
+      lineUpBoldRight: "\u2516",
+      lineUpRightBold: "\u2515",
+      lineUpDoubleRightDouble: "\u255A",
+      lineUpDoubleRight: "\u2559",
+      lineUpRightDouble: "\u2558",
+      lineUpDownLeft: "\u2524",
+      lineUpBoldDownBoldLeftBold: "\u252B",
+      lineUpBoldDownBoldLeft: "\u2528",
+      lineUpDownLeftBold: "\u2525",
+      lineUpBoldDownLeftBold: "\u2529",
+      lineUpDownBoldLeftBold: "\u252A",
+      lineUpDownBoldLeft: "\u2527",
+      lineUpBoldDownLeft: "\u2526",
+      lineUpDoubleDownDoubleLeftDouble: "\u2563",
+      lineUpDoubleDownDoubleLeft: "\u2562",
+      lineUpDownLeftDouble: "\u2561",
+      lineUpDownRight: "\u251C",
+      lineUpBoldDownBoldRightBold: "\u2523",
+      lineUpBoldDownBoldRight: "\u2520",
+      lineUpDownRightBold: "\u251D",
+      lineUpBoldDownRightBold: "\u2521",
+      lineUpDownBoldRightBold: "\u2522",
+      lineUpDownBoldRight: "\u251F",
+      lineUpBoldDownRight: "\u251E",
+      lineUpDoubleDownDoubleRightDouble: "\u2560",
+      lineUpDoubleDownDoubleRight: "\u255F",
+      lineUpDownRightDouble: "\u255E",
+      lineDownLeftRight: "\u252C",
+      lineDownBoldLeftBoldRightBold: "\u2533",
+      lineDownLeftBoldRightBold: "\u252F",
+      lineDownBoldLeftRight: "\u2530",
+      lineDownBoldLeftBoldRight: "\u2531",
+      lineDownBoldLeftRightBold: "\u2532",
+      lineDownLeftRightBold: "\u252E",
+      lineDownLeftBoldRight: "\u252D",
+      lineDownDoubleLeftDoubleRightDouble: "\u2566",
+      lineDownDoubleLeftRight: "\u2565",
+      lineDownLeftDoubleRightDouble: "\u2564",
+      lineUpLeftRight: "\u2534",
+      lineUpBoldLeftBoldRightBold: "\u253B",
+      lineUpLeftBoldRightBold: "\u2537",
+      lineUpBoldLeftRight: "\u2538",
+      lineUpBoldLeftBoldRight: "\u2539",
+      lineUpBoldLeftRightBold: "\u253A",
+      lineUpLeftRightBold: "\u2536",
+      lineUpLeftBoldRight: "\u2535",
+      lineUpDoubleLeftDoubleRightDouble: "\u2569",
+      lineUpDoubleLeftRight: "\u2568",
+      lineUpLeftDoubleRightDouble: "\u2567",
+      lineUpDownLeftRight: "\u253C",
+      lineUpBoldDownBoldLeftBoldRightBold: "\u254B",
+      lineUpDownBoldLeftBoldRightBold: "\u2548",
+      lineUpBoldDownLeftBoldRightBold: "\u2547",
+      lineUpBoldDownBoldLeftRightBold: "\u254A",
+      lineUpBoldDownBoldLeftBoldRight: "\u2549",
+      lineUpBoldDownLeftRight: "\u2540",
+      lineUpDownBoldLeftRight: "\u2541",
+      lineUpDownLeftBoldRight: "\u253D",
+      lineUpDownLeftRightBold: "\u253E",
+      lineUpBoldDownBoldLeftRight: "\u2542",
+      lineUpDownLeftBoldRightBold: "\u253F",
+      lineUpBoldDownLeftBoldRight: "\u2543",
+      lineUpBoldDownLeftRightBold: "\u2544",
+      lineUpDownBoldLeftBoldRight: "\u2545",
+      lineUpDownBoldLeftRightBold: "\u2546",
+      lineUpDoubleDownDoubleLeftDoubleRightDouble: "\u256C",
+      lineUpDoubleDownDoubleLeftRight: "\u256B",
+      lineUpDownLeftDoubleRightDouble: "\u256A",
+      lineCross: "\u2573",
+      lineBackslash: "\u2572",
+      lineSlash: "\u2571"
+    };
+    specialMainSymbols = {
+      tick: "\u2714",
+      info: "\u2139",
+      warning: "\u26A0",
+      cross: "\u2718",
+      squareSmall: "\u25FB",
+      squareSmallFilled: "\u25FC",
+      circle: "\u25EF",
+      circleFilled: "\u25C9",
+      circleDotted: "\u25CC",
+      circleDouble: "\u25CE",
+      circleCircle: "\u24DE",
+      circleCross: "\u24E7",
+      circlePipe: "\u24BE",
+      radioOn: "\u25C9",
+      radioOff: "\u25EF",
+      checkboxOn: "\u2612",
+      checkboxOff: "\u2610",
+      checkboxCircleOn: "\u24E7",
+      checkboxCircleOff: "\u24BE",
+      pointer: "\u276F",
+      triangleUpOutline: "\u25B3",
+      triangleLeft: "\u25C0",
+      triangleRight: "\u25B6",
+      lozenge: "\u25C6",
+      lozengeOutline: "\u25C7",
+      hamburger: "\u2630",
+      smiley: "\u32E1",
+      mustache: "\u0DF4",
+      star: "\u2605",
+      play: "\u25B6",
+      nodejs: "\u2B22",
+      oneSeventh: "\u2150",
+      oneNinth: "\u2151",
+      oneTenth: "\u2152"
+    };
+    specialFallbackSymbols = {
+      tick: "\u221A",
+      info: "i",
+      warning: "\u203C",
+      cross: "\xD7",
+      squareSmall: "\u25A1",
+      squareSmallFilled: "\u25A0",
+      circle: "( )",
+      circleFilled: "(*)",
+      circleDotted: "( )",
+      circleDouble: "( )",
+      circleCircle: "(\u25CB)",
+      circleCross: "(\xD7)",
+      circlePipe: "(\u2502)",
+      radioOn: "(*)",
+      radioOff: "( )",
+      checkboxOn: "[\xD7]",
+      checkboxOff: "[ ]",
+      checkboxCircleOn: "(\xD7)",
+      checkboxCircleOff: "( )",
+      pointer: ">",
+      triangleUpOutline: "\u2206",
+      triangleLeft: "\u25C4",
+      triangleRight: "\u25BA",
+      lozenge: "\u2666",
+      lozengeOutline: "\u25CA",
+      hamburger: "\u2261",
+      smiley: "\u263A",
+      mustache: "\u250C\u2500\u2510",
+      star: "\u2736",
+      play: "\u25BA",
+      nodejs: "\u2666",
+      oneSeventh: "1/7",
+      oneNinth: "1/9",
+      oneTenth: "1/10"
+    };
+    mainSymbols = {
+      ...common,
+      ...specialMainSymbols
+    };
+    fallbackSymbols = {
+      ...common,
+      ...specialFallbackSymbols
+    };
+    shouldUseMain = isUnicodeSupported();
+    figures = shouldUseMain ? mainSymbols : fallbackSymbols;
+    dist_default = figures;
+    replacements = Object.entries(specialMainSymbols);
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/theme.js
+function getDefaultTheme() {
+  return {
+    ...defaultTheme,
+    keybindings: getDefaultKeybindings()
+  };
+}
+var import_node_util, defaultTheme;
+var init_theme = __esm({
+  "node_modules/@inquirer/core/dist/lib/theme.js"() {
+    import_node_util = require("node:util");
+    init_dist();
+    init_key();
+    defaultTheme = {
+      prefix: {
+        idle: (0, import_node_util.styleText)("blue", "?"),
+        done: (0, import_node_util.styleText)("green", dist_default.tick)
+      },
+      spinner: {
+        interval: 80,
+        frames: ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"].map((frame) => (0, import_node_util.styleText)("yellow", frame))
+      },
+      keybindings: [],
+      style: {
+        answer: (text) => (0, import_node_util.styleText)("cyan", text),
+        message: (text) => (0, import_node_util.styleText)("bold", text),
+        error: (text) => (0, import_node_util.styleText)("red", `> ${text}`),
+        defaultAnswer: (text) => (0, import_node_util.styleText)("dim", `(${text})`),
+        help: (text) => (0, import_node_util.styleText)("dim", text),
+        highlight: (text) => (0, import_node_util.styleText)("cyan", text),
+        key: (text) => (0, import_node_util.styleText)("cyan", (0, import_node_util.styleText)("bold", `<${text}>`))
+      }
+    };
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/make-theme.js
+function isPlainObject(value) {
+  if (typeof value !== "object" || value === null)
+    return false;
+  let proto2 = value;
+  while (Object.getPrototypeOf(proto2) !== null) {
+    proto2 = Object.getPrototypeOf(proto2);
+  }
+  return Object.getPrototypeOf(value) === proto2;
+}
+function deepMerge(...objects) {
+  const output = {};
+  for (const obj of objects) {
+    for (const [key, value] of Object.entries(obj)) {
+      const prevValue = output[key];
+      output[key] = isPlainObject(prevValue) && isPlainObject(value) ? deepMerge(prevValue, value) : value;
+    }
+  }
+  return output;
+}
+function makeTheme(...themes) {
+  const themesToMerge = [
+    getDefaultTheme(),
+    ...themes.filter((theme) => theme != null)
+  ];
+  return deepMerge(...themesToMerge);
+}
+var init_make_theme = __esm({
+  "node_modules/@inquirer/core/dist/lib/make-theme.js"() {
+    init_theme();
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/use-prefix.js
+function usePrefix({ status = "idle", theme }) {
+  const [showLoader, setShowLoader] = useState(false);
+  const [tick, setTick] = useState(0);
+  const { prefix, spinner } = makeTheme(theme);
+  useEffect(() => {
+    if (status === "loading") {
+      let tickInterval;
+      let inc = -1;
+      const delayTimeout = setTimeout(() => {
+        setShowLoader(true);
+        tickInterval = setInterval(() => {
+          inc = inc + 1;
+          setTick(inc % spinner.frames.length);
+        }, spinner.interval);
+      }, 300);
+      return () => {
+        clearTimeout(delayTimeout);
+        clearInterval(tickInterval);
+      };
+    } else {
+      setShowLoader(false);
+    }
+  }, [status]);
+  if (showLoader) {
+    return spinner.frames[tick];
+  }
+  const iconName = status === "loading" ? "idle" : status;
+  return typeof prefix === "string" ? prefix : prefix[iconName] ?? prefix["idle"];
+}
+var init_use_prefix = __esm({
+  "node_modules/@inquirer/core/dist/lib/use-prefix.js"() {
+    init_use_state();
+    init_use_effect();
+    init_make_theme();
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/use-memo.js
+function useMemo(fn, dependencies) {
+  return withPointer((pointer) => {
+    const prev = pointer.get();
+    if (!prev || prev.dependencies.length !== dependencies.length || prev.dependencies.some((dep, i) => dep !== dependencies[i])) {
+      const value = fn();
+      pointer.set({ value, dependencies });
+      return value;
+    }
+    return prev.value;
+  });
+}
+var init_use_memo = __esm({
+  "node_modules/@inquirer/core/dist/lib/use-memo.js"() {
+    init_hook_engine();
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/use-ref.js
+function useRef(val) {
+  return useState({ current: val })[0];
+}
+var init_use_ref = __esm({
+  "node_modules/@inquirer/core/dist/lib/use-ref.js"() {
+    init_use_state();
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/use-keypress.js
+function useKeypress(userHandler) {
+  const signal = useRef(userHandler);
+  signal.current = userHandler;
+  useEffect((rl) => {
+    let ignore = false;
+    const handler = withUpdates((_input, event) => {
+      if (ignore)
+        return;
+      void signal.current(event, rl);
+    });
+    rl.input.on("keypress", handler);
+    return () => {
+      ignore = true;
+      rl.input.removeListener("keypress", handler);
+    };
+  }, []);
+}
+var init_use_keypress = __esm({
+  "node_modules/@inquirer/core/dist/lib/use-keypress.js"() {
+    init_use_ref();
+    init_use_effect();
+    init_hook_engine();
+  }
+});
+
+// node_modules/cli-width/index.js
+var require_cli_width = __commonJS({
+  "node_modules/cli-width/index.js"(exports2, module2) {
+    "use strict";
+    module2.exports = cliWidth2;
+    function normalizeOpts(options) {
+      const defaultOpts = {
+        defaultWidth: 0,
+        output: process.stdout,
+        tty: require("tty")
+      };
+      if (!options) {
+        return defaultOpts;
+      }
+      Object.keys(defaultOpts).forEach(function(key) {
+        if (!options[key]) {
+          options[key] = defaultOpts[key];
+        }
+      });
+      return options;
+    }
+    function cliWidth2(options) {
+      const opts = normalizeOpts(options);
+      if (opts.output.getWindowSize) {
+        return opts.output.getWindowSize()[0] || opts.defaultWidth;
+      }
+      if (opts.tty.getWindowSize) {
+        return opts.tty.getWindowSize()[1] || opts.defaultWidth;
+      }
+      if (opts.output.columns) {
+        return opts.output.columns;
+      }
+      if (process.env.CLI_WIDTH) {
+        const width = parseInt(process.env.CLI_WIDTH, 10);
+        if (!isNaN(width) && width !== 0) {
+          return width;
+        }
+      }
+      return opts.defaultWidth;
+    }
+  }
+});
+
+// node_modules/fast-string-truncated-width/dist/utils.js
+var getCodePointsLength, isFullWidth, isWideNotCJKTNotEmoji;
+var init_utils = __esm({
+  "node_modules/fast-string-truncated-width/dist/utils.js"() {
+    getCodePointsLength = /* @__PURE__ */ (() => {
+      const SURROGATE_PAIR_RE = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
+      return (input) => {
+        let surrogatePairsNr = 0;
+        SURROGATE_PAIR_RE.lastIndex = 0;
+        while (SURROGATE_PAIR_RE.test(input)) {
+          surrogatePairsNr += 1;
+        }
+        return input.length - surrogatePairsNr;
+      };
+    })();
+    isFullWidth = (x) => {
+      return x === 12288 || x >= 65281 && x <= 65376 || x >= 65504 && x <= 65510;
+    };
+    isWideNotCJKTNotEmoji = (x) => {
+      return x === 8987 || x === 9001 || x >= 12272 && x <= 12287 || x >= 12289 && x <= 12350 || x >= 12441 && x <= 12543 || x >= 12549 && x <= 12591 || x >= 12593 && x <= 12686 || x >= 12688 && x <= 12771 || x >= 12783 && x <= 12830 || x >= 12832 && x <= 12871 || x >= 12880 && x <= 19903 || x >= 65040 && x <= 65049 || x >= 65072 && x <= 65106 || x >= 65108 && x <= 65126 || x >= 65128 && x <= 65131 || x >= 127488 && x <= 127490 || x >= 127504 && x <= 127547 || x >= 127552 && x <= 127560 || x >= 131072 && x <= 196605 || x >= 196608 && x <= 262141;
+    };
+  }
+});
+
+// node_modules/fast-string-truncated-width/dist/index.js
+var ANSI_RE, CONTROL_RE, CJKT_WIDE_RE, TAB_RE, EMOJI_RE, LATIN_RE, MODIFIER_RE, NO_TRUNCATION, getStringTruncatedWidth, dist_default2;
+var init_dist2 = __esm({
+  "node_modules/fast-string-truncated-width/dist/index.js"() {
+    init_utils();
+    ANSI_RE = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]|\u001b\]8;[^;]*;.*?(?:\u0007|\u001b\u005c)/y;
+    CONTROL_RE = /[\x00-\x08\x0A-\x1F\x7F-\x9F]{1,1000}/y;
+    CJKT_WIDE_RE = /(?:(?![\uFF61-\uFF9F\uFF00-\uFFEF])[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Tangut}]){1,1000}/yu;
+    TAB_RE = /\t{1,1000}/y;
+    EMOJI_RE = new RegExp("[\\u{1F1E6}-\\u{1F1FF}]{2}|\\u{1F3F4}[\\u{E0061}-\\u{E007A}]{2}[\\u{E0030}-\\u{E0039}\\u{E0061}-\\u{E007A}]{1,3}\\u{E007F}|(?:\\p{Emoji}\\uFE0F\\u20E3?|\\p{Emoji_Modifier_Base}\\p{Emoji_Modifier}?|\\p{Emoji_Presentation})(?:\\u200D(?:\\p{Emoji_Modifier_Base}\\p{Emoji_Modifier}?|\\p{Emoji_Presentation}|\\p{Emoji}\\uFE0F\\u20E3?))*", "yu");
+    LATIN_RE = /(?:[\x20-\x7E\xA0-\xFF](?!\uFE0F)){1,1000}/y;
+    MODIFIER_RE = new RegExp("\\p{M}+", "gu");
+    NO_TRUNCATION = { limit: Infinity, ellipsis: "" };
+    getStringTruncatedWidth = (input, truncationOptions = {}, widthOptions = {}) => {
+      const LIMIT = truncationOptions.limit ?? Infinity;
+      const ELLIPSIS = truncationOptions.ellipsis ?? "";
+      const ELLIPSIS_WIDTH = truncationOptions?.ellipsisWidth ?? (ELLIPSIS ? getStringTruncatedWidth(ELLIPSIS, NO_TRUNCATION, widthOptions).width : 0);
+      const ANSI_WIDTH = 0;
+      const CONTROL_WIDTH = widthOptions.controlWidth ?? 0;
+      const TAB_WIDTH = widthOptions.tabWidth ?? 8;
+      const EMOJI_WIDTH = widthOptions.emojiWidth ?? 2;
+      const FULL_WIDTH_WIDTH = 2;
+      const REGULAR_WIDTH = widthOptions.regularWidth ?? 1;
+      const WIDE_WIDTH = widthOptions.wideWidth ?? FULL_WIDTH_WIDTH;
+      const PARSE_BLOCKS = [
+        [LATIN_RE, REGULAR_WIDTH],
+        [ANSI_RE, ANSI_WIDTH],
+        [CONTROL_RE, CONTROL_WIDTH],
+        [TAB_RE, TAB_WIDTH],
+        [EMOJI_RE, EMOJI_WIDTH],
+        [CJKT_WIDE_RE, WIDE_WIDTH]
+      ];
+      let indexPrev = 0;
+      let index = 0;
+      let length = input.length;
+      let lengthExtra = 0;
+      let truncationEnabled = false;
+      let truncationIndex = length;
+      let truncationLimit = Math.max(0, LIMIT - ELLIPSIS_WIDTH);
+      let unmatchedStart = 0;
+      let unmatchedEnd = 0;
+      let width = 0;
+      let widthExtra = 0;
+      outer: while (true) {
+        if (unmatchedEnd > unmatchedStart || index >= length && index > indexPrev) {
+          const unmatched = input.slice(unmatchedStart, unmatchedEnd) || input.slice(indexPrev, index);
+          lengthExtra = 0;
+          for (const char of unmatched.replaceAll(MODIFIER_RE, "")) {
+            const codePoint = char.codePointAt(0) || 0;
+            if (isFullWidth(codePoint)) {
+              widthExtra = FULL_WIDTH_WIDTH;
+            } else if (isWideNotCJKTNotEmoji(codePoint)) {
+              widthExtra = WIDE_WIDTH;
+            } else {
+              widthExtra = REGULAR_WIDTH;
+            }
+            if (width + widthExtra > truncationLimit) {
+              truncationIndex = Math.min(truncationIndex, Math.max(unmatchedStart, indexPrev) + lengthExtra);
+            }
+            if (width + widthExtra > LIMIT) {
+              truncationEnabled = true;
+              break outer;
+            }
+            lengthExtra += char.length;
+            width += widthExtra;
+          }
+          unmatchedStart = unmatchedEnd = 0;
+        }
+        if (index >= length) {
+          break outer;
+        }
+        for (let i = 0, l = PARSE_BLOCKS.length; i < l; i++) {
+          const [BLOCK_RE, BLOCK_WIDTH] = PARSE_BLOCKS[i];
+          BLOCK_RE.lastIndex = index;
+          if (BLOCK_RE.test(input)) {
+            lengthExtra = BLOCK_RE === CJKT_WIDE_RE ? getCodePointsLength(input.slice(index, BLOCK_RE.lastIndex)) : BLOCK_RE === EMOJI_RE ? 1 : BLOCK_RE.lastIndex - index;
+            widthExtra = lengthExtra * BLOCK_WIDTH;
+            if (width + widthExtra > truncationLimit) {
+              truncationIndex = Math.min(truncationIndex, index + Math.floor((truncationLimit - width) / BLOCK_WIDTH));
+            }
+            if (width + widthExtra > LIMIT) {
+              truncationEnabled = true;
+              break outer;
+            }
+            width += widthExtra;
+            unmatchedStart = indexPrev;
+            unmatchedEnd = index;
+            index = indexPrev = BLOCK_RE.lastIndex;
+            continue outer;
+          }
+        }
+        index += 1;
+      }
+      return {
+        width: truncationEnabled ? truncationLimit : width,
+        index: truncationEnabled ? truncationIndex : length,
+        truncated: truncationEnabled,
+        ellipsed: truncationEnabled && LIMIT >= ELLIPSIS_WIDTH
+      };
+    };
+    dist_default2 = getStringTruncatedWidth;
+  }
+});
+
+// node_modules/fast-string-width/dist/index.js
+var NO_TRUNCATION2, fastStringWidth, dist_default3;
+var init_dist3 = __esm({
+  "node_modules/fast-string-width/dist/index.js"() {
+    init_dist2();
+    NO_TRUNCATION2 = {
+      limit: Infinity,
+      ellipsis: "",
+      ellipsisWidth: 0
+    };
+    fastStringWidth = (input, options = {}) => {
+      return dist_default2(input, NO_TRUNCATION2, options).width;
+    };
+    dist_default3 = fastStringWidth;
+  }
+});
+
+// node_modules/fast-wrap-ansi/lib/main.js
+function wrapAnsi(string4, columns, options) {
+  return String(string4).normalize().split(CRLF_OR_LF).map((line) => exec(line, columns, options)).join("\n");
+}
+var ESC, CSI, END_CODE, ANSI_ESCAPE_BELL, ANSI_CSI, ANSI_OSC, ANSI_SGR_TERMINATOR, ANSI_ESCAPE_LINK, GROUP_REGEX, getClosingCode, wrapAnsiCode, wrapAnsiHyperlink, wrapWord, stringVisibleTrimSpacesRight, exec, CRLF_OR_LF;
+var init_main = __esm({
+  "node_modules/fast-wrap-ansi/lib/main.js"() {
+    init_dist3();
+    ESC = "\x1B";
+    CSI = "\x9B";
+    END_CODE = 39;
+    ANSI_ESCAPE_BELL = "\x07";
+    ANSI_CSI = "[";
+    ANSI_OSC = "]";
+    ANSI_SGR_TERMINATOR = "m";
+    ANSI_ESCAPE_LINK = `${ANSI_OSC}8;;`;
+    GROUP_REGEX = new RegExp(`(?:\\${ANSI_CSI}(?<code>\\d+)m|\\${ANSI_ESCAPE_LINK}(?<uri>.*)${ANSI_ESCAPE_BELL})`, "y");
+    getClosingCode = (openingCode) => {
+      if (openingCode >= 30 && openingCode <= 37)
+        return 39;
+      if (openingCode >= 90 && openingCode <= 97)
+        return 39;
+      if (openingCode >= 40 && openingCode <= 47)
+        return 49;
+      if (openingCode >= 100 && openingCode <= 107)
+        return 49;
+      if (openingCode === 1 || openingCode === 2)
+        return 22;
+      if (openingCode === 3)
+        return 23;
+      if (openingCode === 4)
+        return 24;
+      if (openingCode === 7)
+        return 27;
+      if (openingCode === 8)
+        return 28;
+      if (openingCode === 9)
+        return 29;
+      if (openingCode === 0)
+        return 0;
+      return void 0;
+    };
+    wrapAnsiCode = (code) => `${ESC}${ANSI_CSI}${code}${ANSI_SGR_TERMINATOR}`;
+    wrapAnsiHyperlink = (url2) => `${ESC}${ANSI_ESCAPE_LINK}${url2}${ANSI_ESCAPE_BELL}`;
+    wrapWord = (rows, word, columns) => {
+      const characters = word[Symbol.iterator]();
+      let isInsideEscape = false;
+      let isInsideLinkEscape = false;
+      let lastRow = rows.at(-1);
+      let visible = lastRow === void 0 ? 0 : dist_default3(lastRow);
+      let currentCharacter = characters.next();
+      let nextCharacter = characters.next();
+      let rawCharacterIndex = 0;
+      while (!currentCharacter.done) {
+        const character = currentCharacter.value;
+        const characterLength = dist_default3(character);
+        if (visible + characterLength <= columns) {
+          rows[rows.length - 1] += character;
+        } else {
+          rows.push(character);
+          visible = 0;
+        }
+        if (character === ESC || character === CSI) {
+          isInsideEscape = true;
+          isInsideLinkEscape = word.startsWith(ANSI_ESCAPE_LINK, rawCharacterIndex + 1);
+        }
+        if (isInsideEscape) {
+          if (isInsideLinkEscape) {
+            if (character === ANSI_ESCAPE_BELL) {
+              isInsideEscape = false;
+              isInsideLinkEscape = false;
+            }
+          } else if (character === ANSI_SGR_TERMINATOR) {
+            isInsideEscape = false;
+          }
+        } else {
+          visible += characterLength;
+          if (visible === columns && !nextCharacter.done) {
+            rows.push("");
+            visible = 0;
+          }
+        }
+        currentCharacter = nextCharacter;
+        nextCharacter = characters.next();
+        rawCharacterIndex += character.length;
+      }
+      lastRow = rows.at(-1);
+      if (!visible && lastRow !== void 0 && lastRow.length && rows.length > 1) {
+        rows[rows.length - 2] += rows.pop();
+      }
+    };
+    stringVisibleTrimSpacesRight = (string4) => {
+      const words = string4.split(" ");
+      let last = words.length;
+      while (last) {
+        if (dist_default3(words[last - 1])) {
+          break;
+        }
+        last--;
+      }
+      if (last === words.length) {
+        return string4;
+      }
+      return words.slice(0, last).join(" ") + words.slice(last).join("");
+    };
+    exec = (string4, columns, options = {}) => {
+      if (options.trim !== false && string4.trim() === "") {
+        return "";
+      }
+      let returnValue = "";
+      let escapeCode;
+      let escapeUrl;
+      const words = string4.split(" ");
+      let rows = [""];
+      let rowLength = 0;
+      for (let index = 0; index < words.length; index++) {
+        const word = words[index];
+        if (options.trim !== false) {
+          const row = rows.at(-1) ?? "";
+          const trimmed = row.trimStart();
+          if (row.length !== trimmed.length) {
+            rows[rows.length - 1] = trimmed;
+            rowLength = dist_default3(trimmed);
+          }
+        }
+        if (index !== 0) {
+          if (rowLength >= columns && (options.wordWrap === false || options.trim === false)) {
+            rows.push("");
+            rowLength = 0;
+          }
+          if (rowLength || options.trim === false) {
+            rows[rows.length - 1] += " ";
+            rowLength++;
+          }
+        }
+        const wordLength = dist_default3(word);
+        if (options.hard && wordLength > columns) {
+          const remainingColumns = columns - rowLength;
+          const breaksStartingThisLine = 1 + Math.floor((wordLength - remainingColumns - 1) / columns);
+          const breaksStartingNextLine = Math.floor((wordLength - 1) / columns);
+          if (breaksStartingNextLine < breaksStartingThisLine) {
+            rows.push("");
+          }
+          wrapWord(rows, word, columns);
+          rowLength = dist_default3(rows.at(-1) ?? "");
+          continue;
+        }
+        if (rowLength + wordLength > columns && rowLength && wordLength) {
+          if (options.wordWrap === false && rowLength < columns) {
+            wrapWord(rows, word, columns);
+            rowLength = dist_default3(rows.at(-1) ?? "");
+            continue;
+          }
+          rows.push("");
+          rowLength = 0;
+        }
+        if (rowLength + wordLength > columns && options.wordWrap === false) {
+          wrapWord(rows, word, columns);
+          rowLength = dist_default3(rows.at(-1) ?? "");
+          continue;
+        }
+        rows[rows.length - 1] += word;
+        rowLength += wordLength;
+      }
+      if (options.trim !== false) {
+        rows = rows.map((row) => stringVisibleTrimSpacesRight(row));
+      }
+      const preString = rows.join("\n");
+      let inSurrogate = false;
+      for (let i = 0; i < preString.length; i++) {
+        const character = preString[i];
+        returnValue += character;
+        if (!inSurrogate) {
+          inSurrogate = character >= "\uD800" && character <= "\uDBFF";
+          if (inSurrogate) {
+            continue;
+          }
+        } else {
+          inSurrogate = false;
+        }
+        if (character === ESC || character === CSI) {
+          GROUP_REGEX.lastIndex = i + 1;
+          const groupsResult = GROUP_REGEX.exec(preString);
+          const groups = groupsResult?.groups;
+          if (groups?.code !== void 0) {
+            const code = Number.parseFloat(groups.code);
+            escapeCode = code === END_CODE ? void 0 : code;
+          } else if (groups?.uri !== void 0) {
+            escapeUrl = groups.uri.length === 0 ? void 0 : groups.uri;
+          }
+        }
+        if (preString[i + 1] === "\n") {
+          if (escapeUrl) {
+            returnValue += wrapAnsiHyperlink("");
+          }
+          const closingCode = escapeCode ? getClosingCode(escapeCode) : void 0;
+          if (escapeCode && closingCode) {
+            returnValue += wrapAnsiCode(closingCode);
+          }
+        } else if (character === "\n") {
+          if (escapeCode && getClosingCode(escapeCode)) {
+            returnValue += wrapAnsiCode(escapeCode);
+          }
+          if (escapeUrl) {
+            returnValue += wrapAnsiHyperlink(escapeUrl);
+          }
+        }
+      }
+      return returnValue;
+    };
+    CRLF_OR_LF = /\r?\n/;
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/utils.js
+function breakLines(content, width) {
+  return content.split("\n").flatMap((line) => wrapAnsi(line, width, { trim: false, wordWrap: false }).split("\n").map((str) => str.trimEnd())).join("\n");
+}
+function readlineWidth() {
+  return (0, import_cli_width.default)({ defaultWidth: 80, output: readline().output });
+}
+var import_cli_width;
+var init_utils2 = __esm({
+  "node_modules/@inquirer/core/dist/lib/utils.js"() {
+    import_cli_width = __toESM(require_cli_width(), 1);
+    init_main();
+    init_hook_engine();
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/pagination/use-pagination.js
+function usePointerPosition({ active, renderedItems, pageSize, loop }) {
+  const state = useRef({
+    lastPointer: active,
+    lastActive: void 0
+  });
+  const { lastPointer, lastActive } = state.current;
+  const middle = Math.floor(pageSize / 2);
+  const renderedLength = renderedItems.reduce((acc, item) => acc + item.length, 0);
+  const defaultPointerPosition = renderedItems.slice(0, active).reduce((acc, item) => acc + item.length, 0);
+  let pointer = defaultPointerPosition;
+  if (renderedLength > pageSize) {
+    if (loop) {
+      pointer = lastPointer;
+      if (
+        // First render, skip this logic.
+        lastActive != null && // Only move the pointer down when the user moves down.
+        lastActive < active && // Check user didn't move up across page boundary.
+        active - lastActive < pageSize
+      ) {
+        pointer = Math.min(
+          // Furthest allowed position for the pointer is the middle of the list
+          middle,
+          Math.abs(active - lastActive) === 1 ? Math.min(
+            // Move the pointer at most the height of the last active item.
+            lastPointer + (renderedItems[lastActive]?.length ?? 0),
+            // If the user moved by one item, move the pointer to the natural position of the active item as
+            // long as it doesn't move the cursor up.
+            Math.max(defaultPointerPosition, lastPointer)
+          ) : (
+            // Otherwise, move the pointer down by the difference between the active and last active item.
+            lastPointer + active - lastActive
+          )
+        );
+      }
+    } else {
+      const spaceUnderActive = renderedItems.slice(active).reduce((acc, item) => acc + item.length, 0);
+      pointer = spaceUnderActive < pageSize - middle ? (
+        // If the active item is near the end of the list, progressively move the cursor towards the end.
+        pageSize - spaceUnderActive
+      ) : (
+        // Otherwise, progressively move the pointer to the middle of the list.
+        Math.min(defaultPointerPosition, middle)
+      );
+    }
+  }
+  state.current.lastPointer = pointer;
+  state.current.lastActive = active;
+  return pointer;
+}
+function usePagination({ items, active, renderItem, pageSize, loop = true }) {
+  const width = readlineWidth();
+  const bound = (num) => (num % items.length + items.length) % items.length;
+  const renderedItems = items.map((item, index) => {
+    if (item == null)
+      return [];
+    return breakLines(renderItem({ item, index, isActive: index === active }), width).split("\n");
+  });
+  const renderedLength = renderedItems.reduce((acc, item) => acc + item.length, 0);
+  const renderItemAtIndex = (index) => renderedItems[index] ?? [];
+  const pointer = usePointerPosition({ active, renderedItems, pageSize, loop });
+  const activeItem = renderItemAtIndex(active).slice(0, pageSize);
+  const activeItemPosition = pointer + activeItem.length <= pageSize ? pointer : pageSize - activeItem.length;
+  const pageBuffer = Array.from({ length: pageSize });
+  pageBuffer.splice(activeItemPosition, activeItem.length, ...activeItem);
+  const itemVisited = /* @__PURE__ */ new Set([active]);
+  let bufferPointer = activeItemPosition + activeItem.length;
+  let itemPointer = bound(active + 1);
+  while (bufferPointer < pageSize && !itemVisited.has(itemPointer) && (loop && renderedLength > pageSize ? itemPointer !== active : itemPointer > active)) {
+    const lines = renderItemAtIndex(itemPointer);
+    const linesToAdd = lines.slice(0, pageSize - bufferPointer);
+    pageBuffer.splice(bufferPointer, linesToAdd.length, ...linesToAdd);
+    itemVisited.add(itemPointer);
+    bufferPointer += linesToAdd.length;
+    itemPointer = bound(itemPointer + 1);
+  }
+  bufferPointer = activeItemPosition - 1;
+  itemPointer = bound(active - 1);
+  while (bufferPointer >= 0 && !itemVisited.has(itemPointer) && (loop && renderedLength > pageSize ? itemPointer !== active : itemPointer < active)) {
+    const lines = renderItemAtIndex(itemPointer);
+    const linesToAdd = lines.slice(Math.max(0, lines.length - bufferPointer - 1));
+    pageBuffer.splice(bufferPointer - linesToAdd.length + 1, linesToAdd.length, ...linesToAdd);
+    itemVisited.add(itemPointer);
+    bufferPointer -= linesToAdd.length;
+    itemPointer = bound(itemPointer - 1);
+  }
+  return pageBuffer.filter((line) => typeof line === "string").join("\n");
+}
+var init_use_pagination = __esm({
+  "node_modules/@inquirer/core/dist/lib/pagination/use-pagination.js"() {
+    init_use_ref();
+    init_utils2();
+  }
+});
+
+// node_modules/mute-stream/lib/index.js
+var require_lib = __commonJS({
+  "node_modules/mute-stream/lib/index.js"(exports2, module2) {
+    var Stream = require("stream");
+    var MuteStream2 = class extends Stream {
+      #isTTY = null;
+      constructor(opts = {}) {
+        super(opts);
+        this.writable = this.readable = true;
+        this.muted = false;
+        this.on("pipe", this._onpipe);
+        this.replace = opts.replace;
+        this._prompt = opts.prompt || null;
+        this._hadControl = false;
+      }
+      #destSrc(key, def) {
+        if (this._dest) {
+          return this._dest[key];
+        }
+        if (this._src) {
+          return this._src[key];
+        }
+        return def;
+      }
+      #proxy(method, ...args) {
+        if (typeof this._dest?.[method] === "function") {
+          this._dest[method](...args);
+        }
+        if (typeof this._src?.[method] === "function") {
+          this._src[method](...args);
+        }
+      }
+      get isTTY() {
+        if (this.#isTTY !== null) {
+          return this.#isTTY;
+        }
+        return this.#destSrc("isTTY", false);
+      }
+      // basically just get replace the getter/setter with a regular value
+      set isTTY(val) {
+        this.#isTTY = val;
+      }
+      get rows() {
+        return this.#destSrc("rows");
+      }
+      get columns() {
+        return this.#destSrc("columns");
+      }
+      mute() {
+        this.muted = true;
+      }
+      unmute() {
+        this.muted = false;
+      }
+      _onpipe(src) {
+        this._src = src;
+      }
+      pipe(dest, options) {
+        this._dest = dest;
+        return super.pipe(dest, options);
+      }
+      pause() {
+        if (this._src) {
+          return this._src.pause();
+        }
+      }
+      resume() {
+        if (this._src) {
+          return this._src.resume();
+        }
+      }
+      write(c) {
+        if (this.muted) {
+          if (!this.replace) {
+            return true;
+          }
+          if (c.match(/^\u001b/)) {
+            if (c.indexOf(this._prompt) === 0) {
+              c = c.slice(this._prompt.length);
+              c = c.replace(/./g, this.replace);
+              c = this._prompt + c;
+            }
+            this._hadControl = true;
+            return this.emit("data", c);
+          } else {
+            if (this._prompt && this._hadControl && c.indexOf(this._prompt) === 0) {
+              this._hadControl = false;
+              this.emit("data", this._prompt);
+              c = c.slice(this._prompt.length);
+            }
+            c = c.toString().replace(/./g, this.replace);
+          }
+        }
+        this.emit("data", c);
+      }
+      end(c) {
+        if (this.muted) {
+          if (c && this.replace) {
+            c = c.toString().replace(/./g, this.replace);
+          } else {
+            c = null;
+          }
+        }
+        if (c) {
+          this.emit("data", c);
+        }
+        this.emit("end");
+      }
+      destroy(...args) {
+        return this.#proxy("destroy", ...args);
+      }
+      destroySoon(...args) {
+        return this.#proxy("destroySoon", ...args);
+      }
+      close(...args) {
+        return this.#proxy("close", ...args);
+      }
+    };
+    module2.exports = MuteStream2;
+  }
+});
+
+// node_modules/signal-exit/dist/mjs/signals.js
+var signals;
+var init_signals = __esm({
+  "node_modules/signal-exit/dist/mjs/signals.js"() {
+    signals = [];
+    signals.push("SIGHUP", "SIGINT", "SIGTERM");
+    if (process.platform !== "win32") {
+      signals.push(
+        "SIGALRM",
+        "SIGABRT",
+        "SIGVTALRM",
+        "SIGXCPU",
+        "SIGXFSZ",
+        "SIGUSR2",
+        "SIGTRAP",
+        "SIGSYS",
+        "SIGQUIT",
+        "SIGIOT"
+        // should detect profiler and enable/disable accordingly.
+        // see #21
+        // 'SIGPROF'
+      );
+    }
+    if (process.platform === "linux") {
+      signals.push("SIGIO", "SIGPOLL", "SIGPWR", "SIGSTKFLT");
+    }
+  }
+});
+
+// node_modules/signal-exit/dist/mjs/index.js
+var processOk, kExitEmitter, global, ObjectDefineProperty, Emitter, SignalExitBase, signalExitWrap, SignalExitFallback, SignalExit, process3, onExit, load, unload;
+var init_mjs = __esm({
+  "node_modules/signal-exit/dist/mjs/index.js"() {
+    init_signals();
+    processOk = (process11) => !!process11 && typeof process11 === "object" && typeof process11.removeListener === "function" && typeof process11.emit === "function" && typeof process11.reallyExit === "function" && typeof process11.listeners === "function" && typeof process11.kill === "function" && typeof process11.pid === "number" && typeof process11.on === "function";
+    kExitEmitter = Symbol.for("signal-exit emitter");
+    global = globalThis;
+    ObjectDefineProperty = Object.defineProperty.bind(Object);
+    Emitter = class {
+      emitted = {
+        afterExit: false,
+        exit: false
+      };
+      listeners = {
+        afterExit: [],
+        exit: []
+      };
+      count = 0;
+      id = Math.random();
+      constructor() {
+        if (global[kExitEmitter]) {
+          return global[kExitEmitter];
+        }
+        ObjectDefineProperty(global, kExitEmitter, {
+          value: this,
+          writable: false,
+          enumerable: false,
+          configurable: false
+        });
+      }
+      on(ev, fn) {
+        this.listeners[ev].push(fn);
+      }
+      removeListener(ev, fn) {
+        const list = this.listeners[ev];
+        const i = list.indexOf(fn);
+        if (i === -1) {
+          return;
+        }
+        if (i === 0 && list.length === 1) {
+          list.length = 0;
+        } else {
+          list.splice(i, 1);
+        }
+      }
+      emit(ev, code, signal) {
+        if (this.emitted[ev]) {
+          return false;
+        }
+        this.emitted[ev] = true;
+        let ret = false;
+        for (const fn of this.listeners[ev]) {
+          ret = fn(code, signal) === true || ret;
+        }
+        if (ev === "exit") {
+          ret = this.emit("afterExit", code, signal) || ret;
+        }
+        return ret;
+      }
+    };
+    SignalExitBase = class {
+    };
+    signalExitWrap = (handler) => {
+      return {
+        onExit(cb, opts) {
+          return handler.onExit(cb, opts);
+        },
+        load() {
+          return handler.load();
+        },
+        unload() {
+          return handler.unload();
+        }
+      };
+    };
+    SignalExitFallback = class extends SignalExitBase {
+      onExit() {
+        return () => {
+        };
+      }
+      load() {
+      }
+      unload() {
+      }
+    };
+    SignalExit = class extends SignalExitBase {
+      // "SIGHUP" throws an `ENOSYS` error on Windows,
+      // so use a supported signal instead
+      /* c8 ignore start */
+      #hupSig = process3.platform === "win32" ? "SIGINT" : "SIGHUP";
+      /* c8 ignore stop */
+      #emitter = new Emitter();
+      #process;
+      #originalProcessEmit;
+      #originalProcessReallyExit;
+      #sigListeners = {};
+      #loaded = false;
+      constructor(process11) {
+        super();
+        this.#process = process11;
+        this.#sigListeners = {};
+        for (const sig of signals) {
+          this.#sigListeners[sig] = () => {
+            const listeners = this.#process.listeners(sig);
+            let { count } = this.#emitter;
+            const p = process11;
+            if (typeof p.__signal_exit_emitter__ === "object" && typeof p.__signal_exit_emitter__.count === "number") {
+              count += p.__signal_exit_emitter__.count;
+            }
+            if (listeners.length === count) {
+              this.unload();
+              const ret = this.#emitter.emit("exit", null, sig);
+              const s = sig === "SIGHUP" ? this.#hupSig : sig;
+              if (!ret)
+                process11.kill(process11.pid, s);
+            }
+          };
+        }
+        this.#originalProcessReallyExit = process11.reallyExit;
+        this.#originalProcessEmit = process11.emit;
+      }
+      onExit(cb, opts) {
+        if (!processOk(this.#process)) {
+          return () => {
+          };
+        }
+        if (this.#loaded === false) {
+          this.load();
+        }
+        const ev = opts?.alwaysLast ? "afterExit" : "exit";
+        this.#emitter.on(ev, cb);
+        return () => {
+          this.#emitter.removeListener(ev, cb);
+          if (this.#emitter.listeners["exit"].length === 0 && this.#emitter.listeners["afterExit"].length === 0) {
+            this.unload();
+          }
+        };
+      }
+      load() {
+        if (this.#loaded) {
+          return;
+        }
+        this.#loaded = true;
+        this.#emitter.count += 1;
+        for (const sig of signals) {
+          try {
+            const fn = this.#sigListeners[sig];
+            if (fn)
+              this.#process.on(sig, fn);
+          } catch (_) {
+          }
+        }
+        this.#process.emit = (ev, ...a) => {
+          return this.#processEmit(ev, ...a);
+        };
+        this.#process.reallyExit = (code) => {
+          return this.#processReallyExit(code);
+        };
+      }
+      unload() {
+        if (!this.#loaded) {
+          return;
+        }
+        this.#loaded = false;
+        signals.forEach((sig) => {
+          const listener = this.#sigListeners[sig];
+          if (!listener) {
+            throw new Error("Listener not defined for signal: " + sig);
+          }
+          try {
+            this.#process.removeListener(sig, listener);
+          } catch (_) {
+          }
+        });
+        this.#process.emit = this.#originalProcessEmit;
+        this.#process.reallyExit = this.#originalProcessReallyExit;
+        this.#emitter.count -= 1;
+      }
+      #processReallyExit(code) {
+        if (!processOk(this.#process)) {
+          return 0;
+        }
+        this.#process.exitCode = code || 0;
+        this.#emitter.emit("exit", this.#process.exitCode, null);
+        return this.#originalProcessReallyExit.call(this.#process, this.#process.exitCode);
+      }
+      #processEmit(ev, ...args) {
+        const og = this.#originalProcessEmit;
+        if (ev === "exit" && processOk(this.#process)) {
+          if (typeof args[0] === "number") {
+            this.#process.exitCode = args[0];
+          }
+          const ret = og.call(this.#process, ev, ...args);
+          this.#emitter.emit("exit", this.#process.exitCode, null);
+          return ret;
+        } else {
+          return og.call(this.#process, ev, ...args);
+        }
+      }
+    };
+    process3 = globalThis.process;
+    ({
+      onExit: (
+        /**
+         * Called when the process is exiting, whether via signal, explicit
+         * exit, or running out of stuff to do.
+         *
+         * If the global process object is not suitable for instrumentation,
+         * then this will be a no-op.
+         *
+         * Returns a function that may be used to unload signal-exit.
+         */
+        onExit
+      ),
+      load: (
+        /**
+         * Load the listeners.  Likely you never need to call this, unless
+         * doing a rather deep integration with signal-exit functionality.
+         * Mostly exposed for the benefit of testing.
+         *
+         * @internal
+         */
+        load
+      ),
+      unload: (
+        /**
+         * Unload the listeners.  Likely you never need to call this, unless
+         * doing a rather deep integration with signal-exit functionality.
+         * Mostly exposed for the benefit of testing.
+         *
+         * @internal
+         */
+        unload
+      )
+    } = signalExitWrap(processOk(process3) ? new SignalExit(process3) : new SignalExitFallback()));
+  }
+});
+
+// node_modules/@inquirer/ansi/dist/index.js
+var ESC2, cursorLeft, cursorHide, cursorShow, cursorUp, cursorDown, cursorTo, eraseLine, eraseLines;
+var init_dist4 = __esm({
+  "node_modules/@inquirer/ansi/dist/index.js"() {
+    ESC2 = "\x1B[";
+    cursorLeft = ESC2 + "G";
+    cursorHide = ESC2 + "?25l";
+    cursorShow = ESC2 + "?25h";
+    cursorUp = (rows = 1) => rows > 0 ? `${ESC2}${rows}A` : "";
+    cursorDown = (rows = 1) => rows > 0 ? `${ESC2}${rows}B` : "";
+    cursorTo = (x, y) => {
+      if (typeof y === "number" && !Number.isNaN(y)) {
+        return `${ESC2}${y + 1};${x + 1}H`;
+      }
+      return `${ESC2}${x + 1}G`;
+    };
+    eraseLine = ESC2 + "2K";
+    eraseLines = (lines) => lines > 0 ? (eraseLine + cursorUp(1)).repeat(lines - 1) + eraseLine + cursorLeft : "";
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/screen-manager.js
+var import_node_util2, height, lastLine, ScreenManager;
+var init_screen_manager = __esm({
+  "node_modules/@inquirer/core/dist/lib/screen-manager.js"() {
+    import_node_util2 = require("node:util");
+    init_utils2();
+    init_dist4();
+    height = (content) => content.split("\n").length;
+    lastLine = (content) => content.split("\n").pop() ?? "";
+    ScreenManager = class {
+      // These variables are keeping information to allow correct prompt re-rendering
+      height = 0;
+      extraLinesUnderPrompt = 0;
+      cursorPos;
+      rl;
+      constructor(rl) {
+        this.rl = rl;
+        this.cursorPos = rl.getCursorPos();
+      }
+      write(content) {
+        this.rl.output.unmute();
+        this.rl.output.write(content);
+        this.rl.output.mute();
+      }
+      render(content, bottomContent = "") {
+        const promptLine = lastLine(content);
+        const rawPromptLine = (0, import_node_util2.stripVTControlCharacters)(promptLine);
+        let prompt = rawPromptLine;
+        if (this.rl.line.length > 0) {
+          prompt = prompt.slice(0, -this.rl.line.length);
+        }
+        this.rl.setPrompt(prompt);
+        this.cursorPos = this.rl.getCursorPos();
+        const width = readlineWidth();
+        content = breakLines(content, width);
+        bottomContent = breakLines(bottomContent, width);
+        if (rawPromptLine.length % width === 0) {
+          content += "\n";
+        }
+        let output = content + (bottomContent ? "\n" + bottomContent : "");
+        const promptLineUpDiff = Math.floor(rawPromptLine.length / width) - this.cursorPos.rows;
+        const bottomContentHeight = promptLineUpDiff + (bottomContent ? height(bottomContent) : 0);
+        if (bottomContentHeight > 0)
+          output += cursorUp(bottomContentHeight);
+        output += cursorTo(this.cursorPos.cols);
+        this.write(cursorDown(this.extraLinesUnderPrompt) + eraseLines(this.height) + output);
+        this.extraLinesUnderPrompt = bottomContentHeight;
+        this.height = height(output);
+      }
+      checkCursorPos() {
+        const cursorPos = this.rl.getCursorPos();
+        if (cursorPos.cols !== this.cursorPos.cols) {
+          this.write(cursorTo(cursorPos.cols));
+          this.cursorPos = cursorPos;
+        }
+      }
+      done({ clearContent }) {
+        this.rl.setPrompt("");
+        let output = cursorDown(this.extraLinesUnderPrompt);
+        output += clearContent ? eraseLines(this.height) : "\n";
+        output += cursorLeft;
+        output += cursorShow;
+        this.write(output);
+        this.rl.close();
+      }
+    };
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/promise-polyfill.js
+var PromisePolyfill;
+var init_promise_polyfill = __esm({
+  "node_modules/@inquirer/core/dist/lib/promise-polyfill.js"() {
+    PromisePolyfill = class extends Promise {
+      // Available starting from Node 22
+      // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers
+      static withResolver() {
+        let resolve;
+        let reject;
+        const promise2 = new Promise((res, rej) => {
+          resolve = res;
+          reject = rej;
+        });
+        return { promise: promise2, resolve, reject };
+      }
+    };
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/create-prompt.js
+function getCallSites() {
+  const savedPrepareStackTrace = Error.prepareStackTrace;
+  let result = [];
+  try {
+    Error.prepareStackTrace = (_, callSites) => {
+      const callSitesWithoutCurrent = callSites.slice(1);
+      result = callSitesWithoutCurrent;
+      return callSitesWithoutCurrent;
+    };
+    new Error().stack;
+  } catch {
+    return result;
+  }
+  Error.prepareStackTrace = savedPrepareStackTrace;
+  return result;
+}
+function createPrompt(view) {
+  const callSites = getCallSites();
+  const prompt = (config2, context = {}) => {
+    const { input = process.stdin, signal } = context;
+    const cleanups = /* @__PURE__ */ new Set();
+    const output = new import_mute_stream.default();
+    output.pipe(context.output ?? process.stdout);
+    const rl = readline2.createInterface({
+      terminal: true,
+      input,
+      output
+    });
+    output.mute();
+    const screen = new ScreenManager(rl);
+    const { promise: promise2, resolve, reject } = PromisePolyfill.withResolver();
+    const cancel = () => reject(new CancelPromptError());
+    if (signal) {
+      const abort = () => reject(new AbortPromptError({ cause: signal.reason }));
+      if (signal.aborted) {
+        abort();
+        return Object.assign(promise2, { cancel });
+      }
+      signal.addEventListener("abort", abort);
+      cleanups.add(() => signal.removeEventListener("abort", abort));
+    }
+    cleanups.add(onExit((code, signal2) => {
+      reject(new ExitPromptError(`User force closed the prompt with ${code} ${signal2}`));
+    }));
+    const sigint = () => reject(new ExitPromptError(`User force closed the prompt with SIGINT`));
+    rl.on("SIGINT", sigint);
+    cleanups.add(() => rl.removeListener("SIGINT", sigint));
+    return withHooks(rl, (cycle) => {
+      const hooksCleanup = import_node_async_hooks3.AsyncResource.bind(() => effectScheduler.clearAll());
+      rl.on("close", hooksCleanup);
+      cleanups.add(() => rl.removeListener("close", hooksCleanup));
+      const startCycle = () => {
+        const checkCursorPos = () => screen.checkCursorPos();
+        rl.input.on("keypress", checkCursorPos);
+        cleanups.add(() => rl.input.removeListener("keypress", checkCursorPos));
+        let pendingDone = null;
+        cycle(() => {
+          let effectsSettled = false;
+          try {
+            const nextView = view(config2, (value) => {
+              if (effectsSettled) {
+                resolve(value);
+              } else {
+                pendingDone = { value };
+              }
+            });
+            if (nextView === void 0) {
+              let callerFilename = callSites[1]?.getFileName();
+              if (callerFilename && !callerFilename.startsWith("file://")) {
+                callerFilename = import_node_path.default.resolve(callerFilename);
+              }
+              throw new Error(`Prompt functions must return a string.
+    at ${callerFilename}`);
+            }
+            const [content, bottomContent] = typeof nextView === "string" ? [nextView] : nextView;
+            screen.render(content, bottomContent);
+            effectScheduler.run();
+          } catch (error52) {
+            reject(error52);
+          }
+          effectsSettled = true;
+          if (pendingDone !== null) {
+            const { value } = pendingDone;
+            pendingDone = null;
+            resolve(value);
+          }
+        });
+      };
+      if ("readableFlowing" in input) {
+        nativeSetImmediate(startCycle);
+      } else {
+        startCycle();
+      }
+      return Object.assign(promise2.then((answer) => {
+        effectScheduler.clearAll();
+        return answer;
+      }, (error52) => {
+        effectScheduler.clearAll();
+        throw error52;
+      }).finally(() => {
+        cleanups.forEach((cleanup) => cleanup());
+        screen.done({ clearContent: Boolean(context.clearPromptOnDone) });
+        output.end();
+      }).then(() => promise2), { cancel });
+    });
+  };
+  return prompt;
+}
+var readline2, import_node_async_hooks3, import_mute_stream, import_node_path, nativeSetImmediate;
+var init_create_prompt = __esm({
+  "node_modules/@inquirer/core/dist/lib/create-prompt.js"() {
+    readline2 = __toESM(require("node:readline"), 1);
+    import_node_async_hooks3 = require("node:async_hooks");
+    import_mute_stream = __toESM(require_lib(), 1);
+    init_mjs();
+    init_screen_manager();
+    init_promise_polyfill();
+    init_hook_engine();
+    init_errors();
+    import_node_path = __toESM(require("node:path"), 1);
+    nativeSetImmediate = globalThis.setImmediate;
+  }
+});
+
+// node_modules/@inquirer/core/dist/lib/Separator.js
+var import_node_util3, Separator;
+var init_Separator = __esm({
+  "node_modules/@inquirer/core/dist/lib/Separator.js"() {
+    import_node_util3 = require("node:util");
+    init_dist();
+    Separator = class {
+      separator = (0, import_node_util3.styleText)("dim", Array.from({ length: 15 }).join(dist_default.line));
+      type = "separator";
+      constructor(separator) {
+        if (separator) {
+          this.separator = separator;
+        }
+      }
+      static isSeparator(choice) {
+        return Boolean(choice && typeof choice === "object" && "type" in choice && choice.type === "separator");
+      }
+    };
+  }
+});
+
+// node_modules/@inquirer/core/dist/index.js
+var init_dist5 = __esm({
+  "node_modules/@inquirer/core/dist/index.js"() {
+    init_key();
+    init_errors();
+    init_use_prefix();
+    init_use_state();
+    init_use_effect();
+    init_use_memo();
+    init_use_ref();
+    init_use_keypress();
+    init_make_theme();
+    init_use_pagination();
+    init_create_prompt();
+    init_Separator();
+  }
+});
+
+// node_modules/@inquirer/input/dist/index.js
+var inputTheme, dist_default4;
+var init_dist6 = __esm({
+  "node_modules/@inquirer/input/dist/index.js"() {
+    init_dist5();
+    inputTheme = {
+      validationFailureMode: "keep"
+    };
+    dist_default4 = createPrompt((config2, done) => {
+      const { prefill = "tab" } = config2;
+      const theme = makeTheme(inputTheme, config2.theme);
+      const [status, setStatus] = useState("idle");
+      const [defaultValue, setDefaultValue] = useState(String(config2.default ?? ""));
+      const [errorMsg, setError] = useState();
+      const [value, setValue] = useState("");
+      const prefix = usePrefix({ status, theme });
+      async function validate2(value2) {
+        const { required: required2, pattern, patternError = "Invalid input" } = config2;
+        if (required2 && !value2) {
+          return "You must provide a value";
+        }
+        if (pattern && !pattern.test(value2)) {
+          return patternError;
+        }
+        if (typeof config2.validate === "function") {
+          return await config2.validate(value2) || "You must provide a valid value";
+        }
+        return true;
+      }
+      useKeypress(async (key, rl) => {
+        if (status !== "idle") {
+          return;
+        }
+        if (isEnterKey(key)) {
+          const answer = value || defaultValue;
+          setStatus("loading");
+          const isValid = await validate2(answer);
+          if (isValid === true) {
+            setValue(answer);
+            setStatus("done");
+            done(answer);
+          } else {
+            if (theme.validationFailureMode === "clear") {
+              setValue("");
+            } else {
+              rl.write(value);
+            }
+            setError(isValid);
+            setStatus("idle");
+          }
+        } else if (isBackspaceKey(key) && !value) {
+          setDefaultValue("");
+        } else if (isTabKey(key) && !value) {
+          setDefaultValue("");
+          rl.clearLine(0);
+          rl.write(defaultValue);
+          setValue(defaultValue);
+        } else {
+          setValue(rl.line);
+          setError(void 0);
+        }
+      });
+      useEffect((rl) => {
+        if (prefill === "editable" && defaultValue) {
+          rl.write(defaultValue);
+          setValue(defaultValue);
+        }
+      }, []);
+      const message = theme.style.message(config2.message, status);
+      let formattedValue = value;
+      if (typeof config2.transformer === "function") {
+        formattedValue = config2.transformer(value, { isFinal: status === "done" });
+      } else if (status === "done") {
+        formattedValue = theme.style.answer(value);
+      }
+      let defaultStr;
+      if (defaultValue && status !== "done" && !value) {
+        defaultStr = theme.style.defaultAnswer(defaultValue);
+      }
+      let error52 = "";
+      if (errorMsg) {
+        error52 = theme.style.error(errorMsg);
+      }
+      return [
+        [prefix, message, defaultStr, formattedValue].filter((v) => v !== void 0).join(" "),
+        error52
+      ];
+    });
+  }
+});
+
+// node_modules/@inquirer/select/dist/index.js
+function isSelectable(item) {
+  return !Separator.isSeparator(item) && !item.disabled;
+}
+function isNavigable(item) {
+  return !Separator.isSeparator(item);
+}
+function normalizeChoices(choices) {
+  return choices.map((choice) => {
+    if (Separator.isSeparator(choice))
+      return choice;
+    if (typeof choice !== "object" || choice === null || !("value" in choice)) {
+      const name2 = String(choice);
+      return {
+        value: choice,
+        name: name2,
+        short: name2,
+        disabled: false
+      };
+    }
+    const name = choice.name ?? String(choice.value);
+    const normalizedChoice = {
+      value: choice.value,
+      name,
+      short: choice.short ?? name,
+      disabled: choice.disabled ?? false
+    };
+    if (choice.description) {
+      normalizedChoice.description = choice.description;
+    }
+    return normalizedChoice;
+  });
+}
+var import_node_util4, selectTheme, dist_default5;
+var init_dist7 = __esm({
+  "node_modules/@inquirer/select/dist/index.js"() {
+    init_dist5();
+    init_dist4();
+    import_node_util4 = require("node:util");
+    init_dist();
+    selectTheme = {
+      icon: { cursor: dist_default.pointer },
+      style: {
+        disabled: (text) => (0, import_node_util4.styleText)("dim", text),
+        description: (text) => (0, import_node_util4.styleText)("cyan", text),
+        keysHelpTip: (keys) => keys.map(([key, action]) => `${(0, import_node_util4.styleText)("bold", key)} ${(0, import_node_util4.styleText)("dim", action)}`).join((0, import_node_util4.styleText)("dim", " \u2022 "))
+      },
+      i18n: { disabledError: "This option is disabled and cannot be selected." },
+      indexMode: "hidden"
+    };
+    dist_default5 = createPrompt((config2, done) => {
+      const { loop = true, pageSize = 7 } = config2;
+      const theme = makeTheme(selectTheme, config2.theme);
+      const { keybindings: keybindings2 } = theme;
+      const [status, setStatus] = useState("idle");
+      const prefix = usePrefix({ status, theme });
+      const searchTimeoutRef = useRef();
+      const searchEnabled = !keybindings2.includes("vim");
+      const items = useMemo(() => normalizeChoices(config2.choices), [config2.choices]);
+      const bounds = useMemo(() => {
+        const first = items.findIndex(isNavigable);
+        const last = items.findLastIndex(isNavigable);
+        if (first === -1) {
+          throw new ValidationError("[select prompt] No selectable choices. All choices are disabled.");
+        }
+        return { first, last };
+      }, [items]);
+      const defaultItemIndex = useMemo(() => {
+        if (!("default" in config2))
+          return -1;
+        return items.findIndex((item) => isSelectable(item) && item.value === config2.default);
+      }, [config2.default, items]);
+      const [active, setActive] = useState(defaultItemIndex === -1 ? bounds.first : defaultItemIndex);
+      const selectedChoice = items[active];
+      if (selectedChoice == null || Separator.isSeparator(selectedChoice)) {
+        throw new Error("Active index does not point to a choice");
+      }
+      const [errorMsg, setError] = useState();
+      useKeypress((key, rl) => {
+        clearTimeout(searchTimeoutRef.current);
+        if (errorMsg) {
+          setError(void 0);
+        }
+        if (isEnterKey(key)) {
+          if (selectedChoice.disabled) {
+            setError(theme.i18n.disabledError);
+          } else {
+            setStatus("done");
+            done(selectedChoice.value);
+          }
+        } else if (isUpKey(key, keybindings2) || isDownKey(key, keybindings2)) {
+          rl.clearLine(0);
+          if (loop || isUpKey(key, keybindings2) && active !== bounds.first || isDownKey(key, keybindings2) && active !== bounds.last) {
+            const offset = isUpKey(key, keybindings2) ? -1 : 1;
+            let next = active;
+            do {
+              next = (next + offset + items.length) % items.length;
+            } while (!isNavigable(items[next]));
+            setActive(next);
+          }
+        } else if (isNumberKey(key) && !Number.isNaN(Number(rl.line))) {
+          const selectedIndex = Number(rl.line) - 1;
+          let selectableIndex = -1;
+          const position = items.findIndex((item2) => {
+            if (Separator.isSeparator(item2))
+              return false;
+            selectableIndex++;
+            return selectableIndex === selectedIndex;
+          });
+          const item = items[position];
+          if (item != null && isSelectable(item)) {
+            setActive(position);
+          }
+          searchTimeoutRef.current = setTimeout(() => {
+            rl.clearLine(0);
+          }, 700);
+        } else if (isBackspaceKey(key)) {
+          rl.clearLine(0);
+        } else if (searchEnabled) {
+          const searchTerm = rl.line.toLowerCase();
+          const matchIndex = items.findIndex((item) => {
+            if (Separator.isSeparator(item) || !isSelectable(item))
+              return false;
+            return item.name.toLowerCase().startsWith(searchTerm);
+          });
+          if (matchIndex !== -1) {
+            setActive(matchIndex);
+          }
+          searchTimeoutRef.current = setTimeout(() => {
+            rl.clearLine(0);
+          }, 700);
+        }
+      });
+      useEffect(() => () => {
+        clearTimeout(searchTimeoutRef.current);
+      }, []);
+      const message = theme.style.message(config2.message, status);
+      const helpLine = theme.style.keysHelpTip([
+        ["\u2191\u2193", "navigate"],
+        ["\u23CE", "select"]
+      ]);
+      let separatorCount = 0;
+      const page = usePagination({
+        items,
+        active,
+        renderItem({ item, isActive, index }) {
+          if (Separator.isSeparator(item)) {
+            separatorCount++;
+            return ` ${item.separator}`;
+          }
+          const cursor = isActive ? theme.icon.cursor : " ";
+          const indexLabel = theme.indexMode === "number" ? `${index + 1 - separatorCount}. ` : "";
+          if (item.disabled) {
+            const disabledLabel = typeof item.disabled === "string" ? item.disabled : "(disabled)";
+            const disabledCursor = isActive ? theme.icon.cursor : "-";
+            return theme.style.disabled(`${disabledCursor} ${indexLabel}${item.name} ${disabledLabel}`);
+          }
+          const color = isActive ? theme.style.highlight : (x) => x;
+          return color(`${cursor} ${indexLabel}${item.name}`);
+        },
+        pageSize,
+        loop
+      });
+      if (status === "done") {
+        return [prefix, message, theme.style.answer(selectedChoice.short)].filter(Boolean).join(" ");
+      }
+      const { description } = selectedChoice;
+      const lines = [
+        [prefix, message].filter(Boolean).join(" "),
+        page,
+        " ",
+        description ? theme.style.description(description) : "",
+        errorMsg ? theme.style.error(errorMsg) : "",
+        helpLine
+      ].filter(Boolean).join("\n").trimEnd();
+      return `${lines}${cursorHide}`;
+    });
+  }
+});
+
+// node_modules/@inquirer/prompts/dist/index.js
+var init_dist8 = __esm({
+  "node_modules/@inquirer/prompts/dist/index.js"() {
+    init_dist6();
+    init_dist7();
+  }
+});
+
 // src/config/defaults.ts
 function getGlobalDir() {
-  return (0, import_node_path.join)((0, import_node_os.homedir)(), ".bode");
+  return (0, import_node_path2.join)((0, import_node_os.homedir)(), ".bode");
 }
 function getGlobalConfigPath() {
-  return (0, import_node_path.join)(getGlobalDir(), "config.yml");
+  return (0, import_node_path2.join)(getGlobalDir(), "config.yml");
 }
 function getRunsDir() {
-  return (0, import_node_path.join)(getGlobalDir(), "runs");
+  return (0, import_node_path2.join)(getGlobalDir(), "runs");
 }
 function getSkillsDir() {
-  return (0, import_node_path.join)(getGlobalDir(), "skills");
+  return (0, import_node_path2.join)(getGlobalDir(), "skills");
 }
 function getRunDir(taskKey) {
-  return (0, import_node_path.join)(getRunsDir(), taskKey.toUpperCase());
+  return (0, import_node_path2.join)(getRunsDir(), taskKey.toUpperCase());
 }
-var import_node_os, import_node_path, DEFAULT_CONFIG;
+var import_node_os, import_node_path2, DEFAULT_CONFIG;
 var init_defaults = __esm({
   "src/config/defaults.ts"() {
     "use strict";
     import_node_os = require("node:os");
-    import_node_path = require("node:path");
+    import_node_path2 = require("node:path");
     DEFAULT_CONFIG = {
       jira: {
         site: "",
@@ -3596,35 +5730,35 @@ var init_defaults = __esm({
 });
 
 // src/utils/fs.ts
-async function ensureDir(path) {
-  if (!(0, import_node_fs.existsSync)(path)) {
-    await (0, import_promises.mkdir)(path, { recursive: true });
+async function ensureDir(path2) {
+  if (!(0, import_node_fs.existsSync)(path2)) {
+    await (0, import_promises.mkdir)(path2, { recursive: true });
   }
 }
-async function writeJson(path, data) {
-  await ensureDir((0, import_node_path2.dirname)(path));
-  await (0, import_promises.writeFile)(path, JSON.stringify(data, null, 2), "utf-8");
+async function writeJson(path2, data) {
+  await ensureDir((0, import_node_path3.dirname)(path2));
+  await (0, import_promises.writeFile)(path2, JSON.stringify(data, null, 2), "utf-8");
 }
-async function readJson(path) {
-  if (!(0, import_node_fs.existsSync)(path)) return null;
-  const raw = await (0, import_promises.readFile)(path, "utf-8");
+async function readJson(path2) {
+  if (!(0, import_node_fs.existsSync)(path2)) return null;
+  const raw = await (0, import_promises.readFile)(path2, "utf-8");
   return JSON.parse(raw);
 }
-async function writeText(path, content) {
-  await ensureDir((0, import_node_path2.dirname)(path));
-  await (0, import_promises.writeFile)(path, content, "utf-8");
+async function writeText(path2, content) {
+  await ensureDir((0, import_node_path3.dirname)(path2));
+  await (0, import_promises.writeFile)(path2, content, "utf-8");
 }
-async function readText(path) {
-  if (!(0, import_node_fs.existsSync)(path)) return null;
-  return await (0, import_promises.readFile)(path, "utf-8");
+async function readText(path2) {
+  if (!(0, import_node_fs.existsSync)(path2)) return null;
+  return await (0, import_promises.readFile)(path2, "utf-8");
 }
-var import_promises, import_node_fs, import_node_path2;
+var import_promises, import_node_fs, import_node_path3;
 var init_fs = __esm({
   "src/utils/fs.ts"() {
     "use strict";
     import_promises = require("node:fs/promises");
     import_node_fs = require("node:fs");
-    import_node_path2 = require("node:path");
+    import_node_path3 = require("node:path");
   }
 });
 
@@ -3705,17 +5839,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path) {
-      const ctrl = callVisitor(key, node, visitor, path);
+    function visit_(key, node, visitor, path2) {
+      const ctrl = callVisitor(key, node, visitor, path2);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path, ctrl);
-        return visit_(key, ctrl, visitor, path);
+        replaceNode(key, path2, ctrl);
+        return visit_(key, ctrl, visitor, path2);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path = Object.freeze(path.concat(node));
+          path2 = Object.freeze(path2.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path);
+            const ci = visit_(i, node.items[i], visitor, path2);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -3726,13 +5860,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path = Object.freeze(path.concat(node));
-          const ck = visit_("key", node.key, visitor, path);
+          path2 = Object.freeze(path2.concat(node));
+          const ck = visit_("key", node.key, visitor, path2);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path);
+          const cv = visit_("value", node.value, visitor, path2);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -3753,17 +5887,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path) {
-      const ctrl = await callVisitor(key, node, visitor, path);
+    async function visitAsync_(key, node, visitor, path2) {
+      const ctrl = await callVisitor(key, node, visitor, path2);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path, ctrl);
-        return visitAsync_(key, ctrl, visitor, path);
+        replaceNode(key, path2, ctrl);
+        return visitAsync_(key, ctrl, visitor, path2);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path = Object.freeze(path.concat(node));
+          path2 = Object.freeze(path2.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path);
+            const ci = await visitAsync_(i, node.items[i], visitor, path2);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -3774,13 +5908,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path = Object.freeze(path.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path);
+          path2 = Object.freeze(path2.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path2);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path);
+          const cv = await visitAsync_("value", node.value, visitor, path2);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -3807,23 +5941,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path) {
+    function callVisitor(key, node, visitor, path2) {
       if (typeof visitor === "function")
-        return visitor(key, node, path);
+        return visitor(key, node, path2);
       if (identity.isMap(node))
-        return visitor.Map?.(key, node, path);
+        return visitor.Map?.(key, node, path2);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key, node, path);
+        return visitor.Seq?.(key, node, path2);
       if (identity.isPair(node))
-        return visitor.Pair?.(key, node, path);
+        return visitor.Pair?.(key, node, path2);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key, node, path);
+        return visitor.Scalar?.(key, node, path2);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key, node, path);
+        return visitor.Alias?.(key, node, path2);
       return void 0;
     }
-    function replaceNode(key, path, node) {
-      const parent = path[path.length - 1];
+    function replaceNode(key, path2, node) {
+      const parent = path2[path2.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -4433,10 +6567,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path, value) {
+    function collectionFromPath(schema, path2, value) {
       let v = value;
-      for (let i = path.length - 1; i >= 0; --i) {
-        const k = path[i];
+      for (let i = path2.length - 1; i >= 0; --i) {
+        const k = path2[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -4455,7 +6589,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path) => path == null || typeof path === "object" && !!path[Symbol.iterator]().next().done;
+    var isEmptyPath = (path2) => path2 == null || typeof path2 === "object" && !!path2[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -4485,11 +6619,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path, value) {
-        if (isEmptyPath(path))
+      addIn(path2, value) {
+        if (isEmptyPath(path2))
           this.add(value);
         else {
-          const [key, ...rest] = path;
+          const [key, ...rest] = path2;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -4503,8 +6637,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path) {
-        const [key, ...rest] = path;
+      deleteIn(path2) {
+        const [key, ...rest] = path2;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -4518,8 +6652,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path, keepScalar) {
-        const [key, ...rest] = path;
+      getIn(path2, keepScalar) {
+        const [key, ...rest] = path2;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -4537,8 +6671,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path) {
-        const [key, ...rest] = path;
+      hasIn(path2) {
+        const [key, ...rest] = path2;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -4548,8 +6682,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path, value) {
-        const [key, ...rest] = path;
+      setIn(path2, value) {
+        const [key, ...rest] = path2;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -7064,9 +9198,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path, value) {
+      addIn(path2, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path, value);
+          this.contents.addIn(path2, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -7141,14 +9275,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path) {
-        if (Collection.isEmptyPath(path)) {
+      deleteIn(path2) {
+        if (Collection.isEmptyPath(path2)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path2) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -7163,10 +9297,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path, keepScalar) {
-        if (Collection.isEmptyPath(path))
+      getIn(path2, keepScalar) {
+        if (Collection.isEmptyPath(path2))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path2, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -7177,10 +9311,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path) {
-        if (Collection.isEmptyPath(path))
+      hasIn(path2) {
+        if (Collection.isEmptyPath(path2))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path2) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -7197,13 +9331,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path, value) {
-        if (Collection.isEmptyPath(path)) {
+      setIn(path2, value) {
+        if (Collection.isEmptyPath(path2)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path2), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path, value);
+          this.contents.setIn(path2, value);
         }
       }
       /**
@@ -9163,9 +11297,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path) => {
+    visit.itemAtPath = (cst, path2) => {
       let item = cst;
-      for (const [field, index] of path) {
+      for (const [field, index] of path2) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -9174,23 +11308,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path) => {
-      const parent = visit.itemAtPath(cst, path.slice(0, -1));
-      const field = path[path.length - 1][0];
+    visit.parentCollection = (cst, path2) => {
+      const parent = visit.itemAtPath(cst, path2.slice(0, -1));
+      const field = path2[path2.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path, item, visitor) {
-      let ctrl = visitor(item, path);
+    function _visit(path2, item, visitor) {
+      let ctrl = visitor(item, path2);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path2.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -9201,10 +11335,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path);
+            ctrl = ctrl(item, path2);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path2) : ctrl;
     }
     exports2.visit = visit;
   }
@@ -11073,7 +13207,7 @@ __export(util_exports, {
   getSizableOrigin: () => getSizableOrigin,
   hexToUint8Array: () => hexToUint8Array,
   isObject: () => isObject,
-  isPlainObject: () => isPlainObject,
+  isPlainObject: () => isPlainObject2,
   issue: () => issue,
   joinValues: () => joinValues,
   jsonStringifyReplacer: () => jsonStringifyReplacer,
@@ -11202,10 +13336,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path) {
-  if (!path)
+function getElementAtPath(obj, path2) {
+  if (!path2)
     return obj;
-  return path.reduce((acc, key) => acc?.[key], obj);
+  return path2.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -11235,7 +13369,7 @@ function slugify(input) {
 function isObject(data) {
   return typeof data === "object" && data !== null && !Array.isArray(data);
 }
-function isPlainObject(o) {
+function isPlainObject2(o) {
   if (isObject(o) === false)
     return false;
   const ctor = o.constructor;
@@ -11252,7 +13386,7 @@ function isPlainObject(o) {
   return true;
 }
 function shallowClone(o) {
-  if (isPlainObject(o))
+  if (isPlainObject2(o))
     return { ...o };
   if (Array.isArray(o))
     return [...o];
@@ -11392,7 +13526,7 @@ function omit(schema, mask) {
   return clone(schema, def);
 }
 function extend(schema, shape) {
-  if (!isPlainObject(shape)) {
+  if (!isPlainObject2(shape)) {
     throw new Error("Invalid input to extend: expected a plain object");
   }
   const checks = schema._zod.def.checks;
@@ -11415,7 +13549,7 @@ function extend(schema, shape) {
   return clone(schema, def);
 }
 function safeExtend(schema, shape) {
-  if (!isPlainObject(shape)) {
+  if (!isPlainObject2(shape)) {
     throw new Error("Invalid input to safeExtend: expected a plain object");
   }
   const def = mergeDefs(schema._zod.def, {
@@ -11533,11 +13667,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path, issues) {
+function prefixIssues(path2, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path);
+    iss.path.unshift(path2);
     return iss;
   });
 }
@@ -11754,16 +13888,16 @@ function flattenError(error52, mapper = (issue2) => issue2.message) {
 }
 function formatError(error52, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error53, path = []) => {
+  const processError = (error53, path2 = []) => {
     for (const issue2 of error53.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path2, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
       } else {
-        const fullpath = [...path, ...issue2.path];
+        const fullpath = [...path2, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -11790,17 +13924,17 @@ function formatError(error52, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error52, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error53, path = []) => {
+  const processError = (error53, path2 = []) => {
     var _a3, _b;
     for (const issue2 of error53.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path2, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path2, ...issue2.path]);
       } else {
-        const fullpath = [...path, ...issue2.path];
+        const fullpath = [...path2, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -11832,8 +13966,8 @@ function treeifyError(error52, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path) {
+  const path2 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path2) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -11859,7 +13993,7 @@ function prettifyError(error52) {
   return lines.join("\n");
 }
 var initializer, $ZodError, $ZodRealError;
-var init_errors = __esm({
+var init_errors2 = __esm({
   "node_modules/zod/v4/core/errors.js"() {
     init_core();
     init_util();
@@ -11889,7 +14023,7 @@ var _parse, parse, _parseAsync, parseAsync, _safeParse, safeParse, _safeParseAsy
 var init_parse = __esm({
   "node_modules/zod/v4/core/parse.js"() {
     init_core();
-    init_errors();
+    init_errors2();
     init_util();
     _parse = (_Err) => (schema, value, _ctx, _params) => {
       const ctx = _ctx ? { ..._ctx, async: false } : { async: false };
@@ -12933,7 +15067,7 @@ function mergeValues(a, b) {
   if (a instanceof Date && b instanceof Date && +a === +b) {
     return { valid: true, data: a };
   }
-  if (isPlainObject(a) && isPlainObject(b)) {
+  if (isPlainObject2(a) && isPlainObject2(b)) {
     const bKeys = Object.keys(b);
     const sharedKeys = Object.keys(a).filter((key) => bKeys.indexOf(key) !== -1);
     const newObj = { ...a, ...b };
@@ -14200,7 +16334,7 @@ var init_schemas = __esm({
       $ZodType.init(inst, def);
       inst._zod.parse = (payload, ctx) => {
         const input = payload.value;
-        if (!isPlainObject(input)) {
+        if (!isPlainObject2(input)) {
           payload.issues.push({
             expected: "record",
             code: "invalid_type",
@@ -22305,7 +24439,7 @@ function initializeContext(params) {
     external: params?.external ?? void 0
   };
 }
-function process2(schema, ctx, _params = { path: [], schemaPath: [] }) {
+function process4(schema, ctx, _params = { path: [], schemaPath: [] }) {
   var _a3;
   const def = schema._zod.def;
   const seen = ctx.seen.get(schema);
@@ -22342,7 +24476,7 @@ function process2(schema, ctx, _params = { path: [], schemaPath: [] }) {
     if (parent) {
       if (!result.ref)
         result.ref = parent;
-      process2(parent, ctx, params);
+      process4(parent, ctx, params);
       ctx.seen.get(parent).isParent = true;
     }
   }
@@ -22634,14 +24768,14 @@ var init_to_json_schema = __esm({
     init_registries();
     createToJSONSchemaMethod = (schema, processors = {}) => (params) => {
       const ctx = initializeContext({ ...params, processors });
-      process2(schema, ctx);
+      process4(schema, ctx);
       extractDefs(ctx, schema);
       return finalize(ctx, schema);
     };
     createStandardJSONSchemaMethod = (schema, io, processors = {}) => (params) => {
       const { libraryOptions, target } = params ?? {};
       const ctx = initializeContext({ ...libraryOptions ?? {}, target, io, processors });
-      process2(schema, ctx);
+      process4(schema, ctx);
       extractDefs(ctx, schema);
       return finalize(ctx, schema);
     };
@@ -22656,7 +24790,7 @@ function toJSONSchema(input, params) {
     const defs = {};
     for (const entry of registry2._idmap.entries()) {
       const [_, schema] = entry;
-      process2(schema, ctx2);
+      process4(schema, ctx2);
     }
     const schemas = {};
     const external = {
@@ -22679,7 +24813,7 @@ function toJSONSchema(input, params) {
     return { schemas };
   }
   const ctx = initializeContext({ ...params, processors: allProcessors });
-  process2(input, ctx);
+  process4(input, ctx);
   extractDefs(ctx, input);
   return finalize(ctx, input);
 }
@@ -22928,7 +25062,7 @@ var init_json_schema_processors = __esm({
       if (typeof maximum === "number")
         json2.maxItems = maximum;
       json2.type = "array";
-      json2.items = process2(def.element, ctx, {
+      json2.items = process4(def.element, ctx, {
         ...params,
         path: [...params.path, "items"]
       });
@@ -22940,7 +25074,7 @@ var init_json_schema_processors = __esm({
       json2.properties = {};
       const shape = def.shape;
       for (const key in shape) {
-        json2.properties[key] = process2(shape[key], ctx, {
+        json2.properties[key] = process4(shape[key], ctx, {
           ...params,
           path: [...params.path, "properties", key]
         });
@@ -22963,7 +25097,7 @@ var init_json_schema_processors = __esm({
         if (ctx.io === "output")
           json2.additionalProperties = false;
       } else if (def.catchall) {
-        json2.additionalProperties = process2(def.catchall, ctx, {
+        json2.additionalProperties = process4(def.catchall, ctx, {
           ...params,
           path: [...params.path, "additionalProperties"]
         });
@@ -22972,7 +25106,7 @@ var init_json_schema_processors = __esm({
     unionProcessor = (schema, ctx, json2, params) => {
       const def = schema._zod.def;
       const isExclusive = def.inclusive === false;
-      const options = def.options.map((x, i) => process2(x, ctx, {
+      const options = def.options.map((x, i) => process4(x, ctx, {
         ...params,
         path: [...params.path, isExclusive ? "oneOf" : "anyOf", i]
       }));
@@ -22984,11 +25118,11 @@ var init_json_schema_processors = __esm({
     };
     intersectionProcessor = (schema, ctx, json2, params) => {
       const def = schema._zod.def;
-      const a = process2(def.left, ctx, {
+      const a = process4(def.left, ctx, {
         ...params,
         path: [...params.path, "allOf", 0]
       });
-      const b = process2(def.right, ctx, {
+      const b = process4(def.right, ctx, {
         ...params,
         path: [...params.path, "allOf", 1]
       });
@@ -23005,11 +25139,11 @@ var init_json_schema_processors = __esm({
       json2.type = "array";
       const prefixPath = ctx.target === "draft-2020-12" ? "prefixItems" : "items";
       const restPath = ctx.target === "draft-2020-12" ? "items" : ctx.target === "openapi-3.0" ? "items" : "additionalItems";
-      const prefixItems = def.items.map((x, i) => process2(x, ctx, {
+      const prefixItems = def.items.map((x, i) => process4(x, ctx, {
         ...params,
         path: [...params.path, prefixPath, i]
       }));
-      const rest = def.rest ? process2(def.rest, ctx, {
+      const rest = def.rest ? process4(def.rest, ctx, {
         ...params,
         path: [...params.path, restPath, ...ctx.target === "openapi-3.0" ? [def.items.length] : []]
       }) : null;
@@ -23049,7 +25183,7 @@ var init_json_schema_processors = __esm({
       const keyBag = keyType._zod.bag;
       const patterns = keyBag?.patterns;
       if (def.mode === "loose" && patterns && patterns.size > 0) {
-        const valueSchema = process2(def.valueType, ctx, {
+        const valueSchema = process4(def.valueType, ctx, {
           ...params,
           path: [...params.path, "patternProperties", "*"]
         });
@@ -23059,12 +25193,12 @@ var init_json_schema_processors = __esm({
         }
       } else {
         if (ctx.target === "draft-07" || ctx.target === "draft-2020-12") {
-          json2.propertyNames = process2(def.keyType, ctx, {
+          json2.propertyNames = process4(def.keyType, ctx, {
             ...params,
             path: [...params.path, "propertyNames"]
           });
         }
-        json2.additionalProperties = process2(def.valueType, ctx, {
+        json2.additionalProperties = process4(def.valueType, ctx, {
           ...params,
           path: [...params.path, "additionalProperties"]
         });
@@ -23079,7 +25213,7 @@ var init_json_schema_processors = __esm({
     };
     nullableProcessor = (schema, ctx, json2, params) => {
       const def = schema._zod.def;
-      const inner = process2(def.innerType, ctx, params);
+      const inner = process4(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       if (ctx.target === "openapi-3.0") {
         seen.ref = def.innerType;
@@ -23090,20 +25224,20 @@ var init_json_schema_processors = __esm({
     };
     nonoptionalProcessor = (schema, ctx, _json, params) => {
       const def = schema._zod.def;
-      process2(def.innerType, ctx, params);
+      process4(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
     };
     defaultProcessor = (schema, ctx, json2, params) => {
       const def = schema._zod.def;
-      process2(def.innerType, ctx, params);
+      process4(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
       json2.default = JSON.parse(JSON.stringify(def.defaultValue));
     };
     prefaultProcessor = (schema, ctx, json2, params) => {
       const def = schema._zod.def;
-      process2(def.innerType, ctx, params);
+      process4(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
       if (ctx.io === "input")
@@ -23111,7 +25245,7 @@ var init_json_schema_processors = __esm({
     };
     catchProcessor = (schema, ctx, json2, params) => {
       const def = schema._zod.def;
-      process2(def.innerType, ctx, params);
+      process4(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
       let catchValue;
@@ -23126,32 +25260,32 @@ var init_json_schema_processors = __esm({
       const def = schema._zod.def;
       const inIsTransform = def.in._zod.traits.has("$ZodTransform");
       const innerType = ctx.io === "input" ? inIsTransform ? def.out : def.in : def.out;
-      process2(innerType, ctx, params);
+      process4(innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = innerType;
     };
     readonlyProcessor = (schema, ctx, json2, params) => {
       const def = schema._zod.def;
-      process2(def.innerType, ctx, params);
+      process4(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
       json2.readOnly = true;
     };
     promiseProcessor = (schema, ctx, _json, params) => {
       const def = schema._zod.def;
-      process2(def.innerType, ctx, params);
+      process4(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
     };
     optionalProcessor = (schema, ctx, _json, params) => {
       const def = schema._zod.def;
-      process2(def.innerType, ctx, params);
+      process4(def.innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = def.innerType;
     };
     lazyProcessor = (schema, ctx, _json, params) => {
       const innerType = schema._zod.innerType;
-      process2(innerType, ctx, params);
+      process4(innerType, ctx, params);
       const seen = ctx.seen.get(schema);
       seen.ref = innerType;
     };
@@ -23257,7 +25391,7 @@ var init_json_schema_generator = __esm({
        * This must be called before emit().
        */
       process(schema, _params = { path: [], schemaPath: [] }) {
-        return process2(schema, this.ctx, _params);
+        return process4(schema, this.ctx, _params);
       }
       /**
        * Emit the final JSON Schema after processing.
@@ -23551,7 +25685,7 @@ __export(core_exports2, {
   parse: () => parse,
   parseAsync: () => parseAsync,
   prettifyError: () => prettifyError,
-  process: () => process2,
+  process: () => process4,
   regexes: () => regexes_exports,
   registry: () => registry,
   safeDecode: () => safeDecode,
@@ -23570,7 +25704,7 @@ var init_core2 = __esm({
   "node_modules/zod/v4/core/index.js"() {
     init_core();
     init_parse();
-    init_errors();
+    init_errors2();
     init_schemas();
     init_checks();
     init_versions();
@@ -23676,7 +25810,7 @@ var init_iso = __esm({
 
 // node_modules/zod/v4/classic/errors.js
 var initializer2, ZodError, ZodRealError;
-var init_errors2 = __esm({
+var init_errors3 = __esm({
   "node_modules/zod/v4/classic/errors.js"() {
     init_core2();
     init_core2();
@@ -23727,7 +25861,7 @@ var parse2, parseAsync2, safeParse2, safeParseAsync2, encode2, decode2, encodeAs
 var init_parse2 = __esm({
   "node_modules/zod/v4/classic/parse.js"() {
     init_core2();
-    init_errors2();
+    init_errors3();
     parse2 = /* @__PURE__ */ _parse(ZodRealError);
     parseAsync2 = /* @__PURE__ */ _parseAsync(ZodRealError);
     safeParse2 = /* @__PURE__ */ _safeParse(ZodRealError);
@@ -25263,13 +27397,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path = ref.slice(1).split("/").filter(Boolean);
-  if (path.length === 0) {
+  const path2 = ref.slice(1).split("/").filter(Boolean);
+  if (path2.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path[0] === defsKey) {
-    const key = path[1];
+  if (path2[0] === defsKey) {
+    const key = path2[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -26012,7 +28146,7 @@ var init_external = __esm({
     init_core2();
     init_schemas2();
     init_checks2();
-    init_errors2();
+    init_errors3();
     init_parse2();
     init_compat();
     init_core2();
@@ -26082,7 +28216,7 @@ var init_schema = __esm({
 });
 
 // src/utils/merge.ts
-function deepMerge(target, source) {
+function deepMerge2(target, source) {
   if (typeof target !== "object" || target === null) return source;
   if (typeof source !== "object" || source === null) return source;
   const result = { ...target };
@@ -26090,7 +28224,7 @@ function deepMerge(target, source) {
     const src = source[key];
     const tgt = result[key];
     if (typeof src === "object" && src !== null && typeof tgt === "object" && tgt !== null) {
-      result[key] = deepMerge(tgt, src);
+      result[key] = deepMerge2(tgt, src);
     } else {
       result[key] = src;
     }
@@ -26111,14 +28245,14 @@ async function loadConfig(projectRoot) {
     if ((0, import_node_fs2.existsSync)(globalPath)) {
       const raw = await (0, import_promises2.readFile)(globalPath, "utf-8");
       const parsed = (0, import_yaml.parse)(raw);
-      config2 = deepMerge(DEFAULT_CONFIG, parsed);
+      config2 = deepMerge2(DEFAULT_CONFIG, parsed);
     }
     if (projectRoot) {
-      const projectPath = (0, import_node_path3.join)(projectRoot, ".bode.yml");
+      const projectPath = (0, import_node_path4.join)(projectRoot, ".bode.yml");
       if ((0, import_node_fs2.existsSync)(projectPath)) {
         const raw = await (0, import_promises2.readFile)(projectPath, "utf-8");
         const parsed = (0, import_yaml.parse)(raw);
-        config2 = deepMerge(config2, parsed);
+        config2 = deepMerge2(config2, parsed);
       }
     }
     const validated = bodeConfigSchema.safeParse(config2);
@@ -26131,13 +28265,13 @@ async function loadConfig(projectRoot) {
     return { ok: false, error: error52 };
   }
 }
-var import_promises2, import_node_fs2, import_node_path3, import_yaml;
+var import_promises2, import_node_fs2, import_node_path4, import_yaml;
 var init_loader = __esm({
   "src/config/loader.ts"() {
     "use strict";
     import_promises2 = require("node:fs/promises");
     import_node_fs2 = require("node:fs");
-    import_node_path3 = require("node:path");
+    import_node_path4 = require("node:path");
     import_yaml = __toESM(require_dist());
     init_schema();
     init_defaults();
@@ -26152,9 +28286,9 @@ var init_base = __esm({
     "use strict";
     import_node_child_process = require("node:child_process");
     BaseCliAdapter = class {
-      async invoke(prompt2, config2, signal) {
+      async invoke(prompt, config2, signal) {
         const start = Date.now();
-        const args = this.buildArgs(prompt2, config2);
+        const args = this.buildArgs(prompt, config2);
         const command = this.getCommand();
         try {
           const result = await new Promise((resolve, reject) => {
@@ -26179,7 +28313,7 @@ var init_base = __esm({
               });
             });
             proc.on("error", reject);
-            proc.stdin.write(prompt2);
+            proc.stdin.write(prompt);
             proc.stdin.end();
             const timeoutMs = config2.timeout_minutes * 60 * 1e3;
             const timer = setTimeout(() => {
@@ -26268,11 +28402,30 @@ var init_codex = __esm({
   }
 });
 
+// src/adapters/cli/zai.ts
+var ZaiAdapter;
+var init_zai = __esm({
+  "src/adapters/cli/zai.ts"() {
+    "use strict";
+    init_base();
+    ZaiAdapter = class extends BaseCliAdapter {
+      name = "zai";
+      getCommand() {
+        return "zai-coding";
+      }
+      buildArgs(_prompt, config2) {
+        return ["--model", config2.model, "--prompt-file", "/dev/stdin"];
+      }
+    };
+  }
+});
+
 // src/adapters/cli/registry.ts
 function registerDefaults() {
   adapters.set("claude-code", () => new ClaudeCodeAdapter());
   adapters.set("opencode", () => new OpenCodeAdapter());
   adapters.set("codex", () => new CodexAdapter());
+  adapters.set("zai", () => new ZaiAdapter());
 }
 function getAdapter(name) {
   const factory = adapters.get(name);
@@ -26295,8 +28448,70 @@ var init_registry = __esm({
     init_claude_code();
     init_opencode();
     init_codex();
+    init_zai();
     adapters = /* @__PURE__ */ new Map();
     registerDefaults();
+  }
+});
+
+// src/adapters/cli/models.ts
+function getModelsForCli(cliName) {
+  const entry = CLI_MODELS.find((c) => c.name === cliName);
+  return entry?.models ?? [];
+}
+var CLI_MODELS;
+var init_models = __esm({
+  "src/adapters/cli/models.ts"() {
+    "use strict";
+    CLI_MODELS = [
+      {
+        name: "claude-code",
+        models: [
+          "claude-opus-4-7",
+          "claude-sonnet-4-6",
+          "claude-sonnet-4-20250514",
+          "claude-haiku-4-20250414",
+          "claude-3-7-sonnet-20250219",
+          "claude-3-5-sonnet-20241022"
+        ]
+      },
+      {
+        name: "opencode",
+        models: [
+          "claude-opus-4-7",
+          "claude-sonnet-4-6",
+          "claude-sonnet-4-20250514",
+          "claude-haiku-4-20250414",
+          "gpt-4.1",
+          "gpt-4.1-mini",
+          "gpt-4.1-nano",
+          "o3",
+          "o4-mini",
+          "gemini-2.5-pro",
+          "gemini-2.5-flash"
+        ]
+      },
+      {
+        name: "codex",
+        models: [
+          "o3",
+          "o4-mini",
+          "gpt-4.1",
+          "gpt-4.1-mini",
+          "gpt-4.1-nano"
+        ]
+      },
+      {
+        name: "zai",
+        models: [
+          "glm-5.1",
+          "glm-4.1",
+          "glm-4.1-thinking",
+          "glm-4.1v",
+          "glm-4.1v-thinking"
+        ]
+      }
+    ];
   }
 });
 
@@ -26305,35 +28520,60 @@ var setup_exports = {};
 __export(setup_exports, {
   setupAction: () => setupAction
 });
-function prompt(question) {
-  return new Promise((resolve) => {
-    process.stdout.write(question);
-    process.stdin.resume();
-    process.stdin.setEncoding("utf-8");
-    process.stdin.once("data", (data) => {
-      process.stdin.pause();
-      resolve(data.trim());
-    });
+async function selectCli(question, defaultCli) {
+  const adapters2 = listAdapterNames();
+  return dist_default5({
+    message: question,
+    default: defaultCli,
+    choices: adapters2.map((name) => ({
+      name,
+      value: name,
+      description: cliDescription(name)
+    }))
   });
 }
-function promptDefault(question, defaultValue) {
-  return prompt(`${question} ${import_picocolors.default.dim(`(${defaultValue})`)}: `);
+async function selectModel(cliName, currentModel) {
+  const models = getModelsForCli(cliName);
+  if (models.length === 0) {
+    return dist_default4({
+      message: "Model:",
+      default: currentModel
+    });
+  }
+  const choices = models.map((m) => ({
+    name: m,
+    value: m
+  }));
+  choices.push({
+    name: import_picocolors.default.dim("(other \u2014 type manually)"),
+    value: "__custom__"
+  });
+  const chosen = await dist_default5({
+    message: "Model:",
+    default: currentModel,
+    choices
+  });
+  if (chosen === "__custom__") {
+    return dist_default4({
+      message: "Custom model name:",
+      default: currentModel
+    });
+  }
+  return chosen;
 }
-async function selectFromList(question, options, defaultOption) {
-  console.log(`
-${question}`);
-  for (let i = 0; i < options.length; i++) {
-    const marker = options[i] === defaultOption ? import_picocolors.default.green(" \u2190 default") : "";
-    console.log(`  ${import_picocolors.default.bold(String(i + 1))}. ${options[i]}${marker}`);
+function cliDescription(name) {
+  switch (name) {
+    case "claude-code":
+      return "Anthropic Claude Code CLI";
+    case "opencode":
+      return "OpenCode (multi-provider)";
+    case "codex":
+      return "OpenAI Codex CLI";
+    case "zai":
+      return "Z.AI Coding CLI";
+    default:
+      return "";
   }
-  const answer = await prompt("Choose (number or name): ");
-  if (!answer) return defaultOption;
-  const num = parseInt(answer, 10);
-  if (!isNaN(num) && num >= 1 && num <= options.length) {
-    return options[num - 1] ?? defaultOption;
-  }
-  if (options.includes(answer)) return answer;
-  return defaultOption;
 }
 async function setupAction() {
   console.log(import_picocolors.default.bold("\n\u{1F410} Bode Setup Wizard\n"));
@@ -26343,7 +28583,6 @@ async function setupAction() {
   await ensureDir(`${globalDir}/skills`);
   console.log(import_picocolors.default.green(`\u2713 Created ${globalDir}
 `));
-  const adapters2 = listAdapterNames();
   const existingConfig = (0, import_node_fs3.existsSync)(getGlobalConfigPath());
   let currentJiraSite = "";
   let currentProject = "";
@@ -26372,22 +28611,40 @@ async function setupAction() {
 `));
   }
   console.log(import_picocolors.default.bold("\u2500\u2500 Jira \u2500\u2500"));
-  const jiraSite = await promptDefault("Jira site (e.g. mycompany.atlassian.net)", currentJiraSite || "yourcompany.atlassian.net");
-  const jiraProject = await promptDefault("Default project key (e.g. KD)", currentProject || "KD");
+  const jiraSite = await dist_default4({
+    message: "Jira site (e.g. mycompany.atlassian.net):",
+    default: currentJiraSite || "yourcompany.atlassian.net"
+  });
+  const jiraProject = await dist_default4({
+    message: "Default project key (e.g. KD):",
+    default: currentProject || "KD"
+  });
   console.log(import_picocolors.default.bold("\n\u2500\u2500 GitHub \u2500\u2500"));
-  const githubOrg = await promptDefault("Default GitHub org", currentGithubOrg || "myorg");
+  const githubOrg = await dist_default4({
+    message: "Default GitHub org:",
+    default: currentGithubOrg || "myorg"
+  });
   console.log(import_picocolors.default.bold("\n\u2500\u2500 Planning Phase \u2500\u2500"));
-  const planningCli = await selectFromList("CLI for planning:", adapters2, currentPlanningCli);
-  const planningModel = await promptDefault("Model", currentPlanningModel);
-  const planningTimeout = await promptDefault("Timeout (minutes)", "15");
+  const planningCli = await selectCli("CLI for planning:", currentPlanningCli);
+  const planningModel = await selectModel(planningCli, currentPlanningModel);
+  const planningTimeout = await dist_default4({
+    message: "Timeout (minutes):",
+    default: "15"
+  });
   console.log(import_picocolors.default.bold("\n\u2500\u2500 Implementation Phase \u2500\u2500"));
-  const implCli = await selectFromList("CLI for implementation:", adapters2, currentImplCli);
-  const implModel = await promptDefault("Model", currentImplModel);
-  const implTimeout = await promptDefault("Timeout (minutes)", "60");
+  const implCli = await selectCli("CLI for implementation:", currentImplCli);
+  const implModel = await selectModel(implCli, currentImplModel);
+  const implTimeout = await dist_default4({
+    message: "Timeout (minutes):",
+    default: "60"
+  });
   console.log(import_picocolors.default.bold("\n\u2500\u2500 Review Phase \u2500\u2500"));
-  const reviewCli = await selectFromList("CLI for review:", adapters2, currentReviewCli);
-  const reviewModel = await promptDefault("Model", currentReviewModel);
-  const reviewTimeout = await promptDefault("Timeout (minutes)", "10");
+  const reviewCli = await selectCli("CLI for review:", currentReviewCli);
+  const reviewModel = await selectModel(reviewCli, currentReviewModel);
+  const reviewTimeout = await dist_default4({
+    message: "Timeout (minutes):",
+    default: "10"
+  });
   const configYaml = `jira:
   site: ${jiraSite || currentJiraSite}
   default_project: ${jiraProject || currentProject}
@@ -26438,19 +28695,21 @@ var init_setup = __esm({
   "src/cli/actions/setup.ts"() {
     "use strict";
     import_picocolors = __toESM(require_picocolors());
+    init_dist8();
     init_defaults();
     import_node_fs3 = require("node:fs");
     init_fs();
     init_loader();
     init_registry();
+    init_models();
   }
 });
 
 // src/storage/run-meta.ts
 async function loadRunMeta(taskKey) {
   try {
-    const path = (0, import_node_path4.join)(getRunDir(taskKey), "meta.json");
-    const data = await readJson(path);
+    const path2 = (0, import_node_path5.join)(getRunDir(taskKey), "meta.json");
+    const data = await readJson(path2);
     return { ok: true, value: data };
   } catch (error52) {
     return { ok: false, error: error52 };
@@ -26460,8 +28719,8 @@ async function saveRunMeta(meta3) {
   try {
     const dir = getRunDir(meta3.taskKey);
     await ensureDir(dir);
-    const path = (0, import_node_path4.join)(dir, "meta.json");
-    await writeJson(path, { ...meta3, updatedAt: Date.now() });
+    const path2 = (0, import_node_path5.join)(dir, "meta.json");
+    await writeJson(path2, { ...meta3, updatedAt: Date.now() });
     return { ok: true, value: void 0 };
   } catch (error52) {
     return { ok: false, error: error52 };
@@ -26479,13 +28738,13 @@ async function createRun(taskKey, summary) {
   if (!result.ok) return result;
   return { ok: true, value: meta3 };
 }
-var import_node_path4;
+var import_node_path5;
 var init_run_meta = __esm({
   "src/storage/run-meta.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_node_path4 = require("node:path");
+    import_node_path5 = require("node:path");
   }
 });
 
@@ -26593,9 +28852,9 @@ var init_phase = __esm({
 
 // src/skills/resolver.ts
 async function resolveSkillPath(phase, options) {
-  const projectSkill = options.projectRoot ? (0, import_node_path5.join)(options.projectRoot, ".bode", "skills", `${phase}.md`) : null;
-  const globalSkill = (0, import_node_path5.join)(options.globalDir ?? getSkillsDir(), `${phase}.md`);
-  const bundledSkill = (0, import_node_path5.join)(BUNDLED_SKILLS_DIR, `${phase}.md`);
+  const projectSkill = options.projectRoot ? (0, import_node_path6.join)(options.projectRoot, ".bode", "skills", `${phase}.md`) : null;
+  const globalSkill = (0, import_node_path6.join)(options.globalDir ?? getSkillsDir(), `${phase}.md`);
+  const bundledSkill = (0, import_node_path6.join)(BUNDLED_SKILLS_DIR, `${phase}.md`);
   if (projectSkill && (0, import_node_fs4.existsSync)(projectSkill)) {
     return { ok: true, value: projectSkill };
   }
@@ -26617,15 +28876,15 @@ async function loadSkillPrompt(phase, options) {
     return { ok: false, error: error52 };
   }
 }
-var import_node_fs4, import_node_path5, import_promises3, BUNDLED_SKILLS_DIR;
+var import_node_fs4, import_node_path6, import_promises3, BUNDLED_SKILLS_DIR;
 var init_resolver = __esm({
   "src/skills/resolver.ts"() {
     "use strict";
     import_node_fs4 = require("node:fs");
-    import_node_path5 = require("node:path");
+    import_node_path6 = require("node:path");
     import_promises3 = require("node:fs/promises");
     init_defaults();
-    BUNDLED_SKILLS_DIR = (0, import_node_path5.join)(
+    BUNDLED_SKILLS_DIR = (0, import_node_path6.join)(
       typeof __dirname !== "undefined" ? __dirname : process.cwd(),
       "skills",
       "defaults"
@@ -26687,17 +28946,17 @@ async function runPhase(taskKey, status, config2, jira, options) {
   const issueResult = await jira.getIssue(taskKey, options.signal);
   if (!issueResult.ok) return issueResult;
   const issue2 = issueResult.value;
-  const priorArtifactPath = (0, import_node_path6.join)(getRunDir(taskKey), `${getPriorPhaseFile(phaseName)}`);
+  const priorArtifactPath = (0, import_node_path7.join)(getRunDir(taskKey), `${getPriorPhaseFile(phaseName)}`);
   const priorArtifact = await readText(priorArtifactPath) ?? void 0;
-  const prompt2 = buildPrompt(skillResult.value, {
+  const prompt = buildPrompt(skillResult.value, {
     jiraIssue: issue2,
     projectAgentsMd: void 0,
     repoFileTree: void 0,
     priorArtifact
   });
   const runDir = getRunDir(taskKey);
-  const logPath = (0, import_node_path6.join)(runDir, `${phaseName}.log`);
-  const artifactPath = (0, import_node_path6.join)(runDir, `${phaseName}.md`);
+  const logPath = (0, import_node_path7.join)(runDir, `${phaseName}.log`);
+  const artifactPath = (0, import_node_path7.join)(runDir, `${phaseName}.md`);
   const cliConfig = {
     cli: phaseConfig.cli,
     model: phaseConfig.model,
@@ -26707,7 +28966,7 @@ async function runPhase(taskKey, status, config2, jira, options) {
   if (labels) {
     await jira.addLabel(taskKey, labels[phaseName] ?? `bode:${phaseName}`);
   }
-  const invokeResult = await adapterResult.value.invoke(prompt2, cliConfig, options.signal);
+  const invokeResult = await adapterResult.value.invoke(prompt, cliConfig, options.signal);
   if (!invokeResult.ok) {
     const failLog = `Phase ${phaseName} failed: ${invokeResult.error.message}`;
     await writeText(logPath, failLog);
@@ -26774,7 +29033,7 @@ function getNextLabelKey(phase) {
       return null;
   }
 }
-var import_node_path6;
+var import_node_path7;
 var init_phase_runner = __esm({
   "src/orchestrator/phase-runner.ts"() {
     "use strict";
@@ -26785,7 +29044,7 @@ var init_phase_runner = __esm({
     init_run_meta();
     init_defaults();
     init_fs();
-    import_node_path6 = require("node:path");
+    import_node_path7 = require("node:path");
   }
 });
 
@@ -26981,7 +29240,7 @@ var init_ansi_styles = __esm({
 });
 
 // node_modules/chalk/source/vendor/supports-color/index.js
-function hasFlag(flag, argv = globalThis.Deno ? globalThis.Deno.args : import_node_process.default.argv) {
+function hasFlag(flag, argv = globalThis.Deno ? globalThis.Deno.args : import_node_process2.default.argv) {
   const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
   const position = argv.indexOf(prefix + flag);
   const terminatorPosition = argv.indexOf("--");
@@ -27036,7 +29295,7 @@ function _supportsColor(haveStream, { streamIsTTY, sniffFlags = true } = {}) {
   if (env.TERM === "dumb") {
     return min;
   }
-  if (import_node_process.default.platform === "win32") {
+  if (import_node_process2.default.platform === "win32") {
     const osRelease = import_node_os2.default.release().split(".");
     if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
       return Number(osRelease[2]) >= 14931 ? 3 : 2;
@@ -27096,13 +29355,13 @@ function createSupportsColor(stream, options = {}) {
   });
   return translateLevel(level);
 }
-var import_node_process, import_node_os2, import_node_tty, env, flagForceColor, supportsColor, supports_color_default;
+var import_node_process2, import_node_os2, import_node_tty, env, flagForceColor, supportsColor, supports_color_default;
 var init_supports_color = __esm({
   "node_modules/chalk/source/vendor/supports-color/index.js"() {
-    import_node_process = __toESM(require("node:process"), 1);
+    import_node_process2 = __toESM(require("node:process"), 1);
     import_node_os2 = __toESM(require("node:os"), 1);
     import_node_tty = __toESM(require("node:tty"), 1);
-    ({ env } = import_node_process.default);
+    ({ env } = import_node_process2.default);
     if (hasFlag("no-color") || hasFlag("no-colors") || hasFlag("color=false") || hasFlag("color=never")) {
       flagForceColor = 0;
     } else if (hasFlag("color") || hasFlag("colors") || hasFlag("color=true") || hasFlag("color=always")) {
@@ -27393,282 +29652,14 @@ var init_onetime = __esm({
   }
 });
 
-// node_modules/signal-exit/dist/mjs/signals.js
-var signals;
-var init_signals = __esm({
-  "node_modules/signal-exit/dist/mjs/signals.js"() {
-    signals = [];
-    signals.push("SIGHUP", "SIGINT", "SIGTERM");
-    if (process.platform !== "win32") {
-      signals.push(
-        "SIGALRM",
-        "SIGABRT",
-        "SIGVTALRM",
-        "SIGXCPU",
-        "SIGXFSZ",
-        "SIGUSR2",
-        "SIGTRAP",
-        "SIGSYS",
-        "SIGQUIT",
-        "SIGIOT"
-        // should detect profiler and enable/disable accordingly.
-        // see #21
-        // 'SIGPROF'
-      );
-    }
-    if (process.platform === "linux") {
-      signals.push("SIGIO", "SIGPOLL", "SIGPWR", "SIGSTKFLT");
-    }
-  }
-});
-
-// node_modules/signal-exit/dist/mjs/index.js
-var processOk, kExitEmitter, global, ObjectDefineProperty, Emitter, SignalExitBase, signalExitWrap, SignalExitFallback, SignalExit, process4, onExit, load, unload;
-var init_mjs = __esm({
-  "node_modules/signal-exit/dist/mjs/index.js"() {
-    init_signals();
-    processOk = (process10) => !!process10 && typeof process10 === "object" && typeof process10.removeListener === "function" && typeof process10.emit === "function" && typeof process10.reallyExit === "function" && typeof process10.listeners === "function" && typeof process10.kill === "function" && typeof process10.pid === "number" && typeof process10.on === "function";
-    kExitEmitter = Symbol.for("signal-exit emitter");
-    global = globalThis;
-    ObjectDefineProperty = Object.defineProperty.bind(Object);
-    Emitter = class {
-      emitted = {
-        afterExit: false,
-        exit: false
-      };
-      listeners = {
-        afterExit: [],
-        exit: []
-      };
-      count = 0;
-      id = Math.random();
-      constructor() {
-        if (global[kExitEmitter]) {
-          return global[kExitEmitter];
-        }
-        ObjectDefineProperty(global, kExitEmitter, {
-          value: this,
-          writable: false,
-          enumerable: false,
-          configurable: false
-        });
-      }
-      on(ev, fn) {
-        this.listeners[ev].push(fn);
-      }
-      removeListener(ev, fn) {
-        const list = this.listeners[ev];
-        const i = list.indexOf(fn);
-        if (i === -1) {
-          return;
-        }
-        if (i === 0 && list.length === 1) {
-          list.length = 0;
-        } else {
-          list.splice(i, 1);
-        }
-      }
-      emit(ev, code, signal) {
-        if (this.emitted[ev]) {
-          return false;
-        }
-        this.emitted[ev] = true;
-        let ret = false;
-        for (const fn of this.listeners[ev]) {
-          ret = fn(code, signal) === true || ret;
-        }
-        if (ev === "exit") {
-          ret = this.emit("afterExit", code, signal) || ret;
-        }
-        return ret;
-      }
-    };
-    SignalExitBase = class {
-    };
-    signalExitWrap = (handler) => {
-      return {
-        onExit(cb, opts) {
-          return handler.onExit(cb, opts);
-        },
-        load() {
-          return handler.load();
-        },
-        unload() {
-          return handler.unload();
-        }
-      };
-    };
-    SignalExitFallback = class extends SignalExitBase {
-      onExit() {
-        return () => {
-        };
-      }
-      load() {
-      }
-      unload() {
-      }
-    };
-    SignalExit = class extends SignalExitBase {
-      // "SIGHUP" throws an `ENOSYS` error on Windows,
-      // so use a supported signal instead
-      /* c8 ignore start */
-      #hupSig = process4.platform === "win32" ? "SIGINT" : "SIGHUP";
-      /* c8 ignore stop */
-      #emitter = new Emitter();
-      #process;
-      #originalProcessEmit;
-      #originalProcessReallyExit;
-      #sigListeners = {};
-      #loaded = false;
-      constructor(process10) {
-        super();
-        this.#process = process10;
-        this.#sigListeners = {};
-        for (const sig of signals) {
-          this.#sigListeners[sig] = () => {
-            const listeners = this.#process.listeners(sig);
-            let { count } = this.#emitter;
-            const p = process10;
-            if (typeof p.__signal_exit_emitter__ === "object" && typeof p.__signal_exit_emitter__.count === "number") {
-              count += p.__signal_exit_emitter__.count;
-            }
-            if (listeners.length === count) {
-              this.unload();
-              const ret = this.#emitter.emit("exit", null, sig);
-              const s = sig === "SIGHUP" ? this.#hupSig : sig;
-              if (!ret)
-                process10.kill(process10.pid, s);
-            }
-          };
-        }
-        this.#originalProcessReallyExit = process10.reallyExit;
-        this.#originalProcessEmit = process10.emit;
-      }
-      onExit(cb, opts) {
-        if (!processOk(this.#process)) {
-          return () => {
-          };
-        }
-        if (this.#loaded === false) {
-          this.load();
-        }
-        const ev = opts?.alwaysLast ? "afterExit" : "exit";
-        this.#emitter.on(ev, cb);
-        return () => {
-          this.#emitter.removeListener(ev, cb);
-          if (this.#emitter.listeners["exit"].length === 0 && this.#emitter.listeners["afterExit"].length === 0) {
-            this.unload();
-          }
-        };
-      }
-      load() {
-        if (this.#loaded) {
-          return;
-        }
-        this.#loaded = true;
-        this.#emitter.count += 1;
-        for (const sig of signals) {
-          try {
-            const fn = this.#sigListeners[sig];
-            if (fn)
-              this.#process.on(sig, fn);
-          } catch (_) {
-          }
-        }
-        this.#process.emit = (ev, ...a) => {
-          return this.#processEmit(ev, ...a);
-        };
-        this.#process.reallyExit = (code) => {
-          return this.#processReallyExit(code);
-        };
-      }
-      unload() {
-        if (!this.#loaded) {
-          return;
-        }
-        this.#loaded = false;
-        signals.forEach((sig) => {
-          const listener = this.#sigListeners[sig];
-          if (!listener) {
-            throw new Error("Listener not defined for signal: " + sig);
-          }
-          try {
-            this.#process.removeListener(sig, listener);
-          } catch (_) {
-          }
-        });
-        this.#process.emit = this.#originalProcessEmit;
-        this.#process.reallyExit = this.#originalProcessReallyExit;
-        this.#emitter.count -= 1;
-      }
-      #processReallyExit(code) {
-        if (!processOk(this.#process)) {
-          return 0;
-        }
-        this.#process.exitCode = code || 0;
-        this.#emitter.emit("exit", this.#process.exitCode, null);
-        return this.#originalProcessReallyExit.call(this.#process, this.#process.exitCode);
-      }
-      #processEmit(ev, ...args) {
-        const og = this.#originalProcessEmit;
-        if (ev === "exit" && processOk(this.#process)) {
-          if (typeof args[0] === "number") {
-            this.#process.exitCode = args[0];
-          }
-          const ret = og.call(this.#process, ev, ...args);
-          this.#emitter.emit("exit", this.#process.exitCode, null);
-          return ret;
-        } else {
-          return og.call(this.#process, ev, ...args);
-        }
-      }
-    };
-    process4 = globalThis.process;
-    ({
-      onExit: (
-        /**
-         * Called when the process is exiting, whether via signal, explicit
-         * exit, or running out of stuff to do.
-         *
-         * If the global process object is not suitable for instrumentation,
-         * then this will be a no-op.
-         *
-         * Returns a function that may be used to unload signal-exit.
-         */
-        onExit
-      ),
-      load: (
-        /**
-         * Load the listeners.  Likely you never need to call this, unless
-         * doing a rather deep integration with signal-exit functionality.
-         * Mostly exposed for the benefit of testing.
-         *
-         * @internal
-         */
-        load
-      ),
-      unload: (
-        /**
-         * Unload the listeners.  Likely you never need to call this, unless
-         * doing a rather deep integration with signal-exit functionality.
-         * Mostly exposed for the benefit of testing.
-         *
-         * @internal
-         */
-        unload
-      )
-    } = signalExitWrap(processOk(process4) ? new SignalExit(process4) : new SignalExitFallback()));
-  }
-});
-
 // node_modules/restore-cursor/index.js
-var import_node_process2, terminal, restoreCursor, restore_cursor_default;
+var import_node_process3, terminal, restoreCursor, restore_cursor_default;
 var init_restore_cursor = __esm({
   "node_modules/restore-cursor/index.js"() {
-    import_node_process2 = __toESM(require("node:process"), 1);
+    import_node_process3 = __toESM(require("node:process"), 1);
     init_onetime();
     init_mjs();
-    terminal = import_node_process2.default.stderr.isTTY ? import_node_process2.default.stderr : import_node_process2.default.stdout.isTTY ? import_node_process2.default.stdout : void 0;
+    terminal = import_node_process3.default.stderr.isTTY ? import_node_process3.default.stderr : import_node_process3.default.stdout.isTTY ? import_node_process3.default.stdout : void 0;
     restoreCursor = terminal ? onetime_default(() => {
       onExit(() => {
         terminal.write("\x1B[?25h");
@@ -27680,21 +29671,21 @@ var init_restore_cursor = __esm({
 });
 
 // node_modules/cli-cursor/index.js
-var import_node_process3, isHidden, cliCursor, cli_cursor_default;
+var import_node_process4, isHidden, cliCursor, cli_cursor_default;
 var init_cli_cursor = __esm({
   "node_modules/cli-cursor/index.js"() {
-    import_node_process3 = __toESM(require("node:process"), 1);
+    import_node_process4 = __toESM(require("node:process"), 1);
     init_restore_cursor();
     isHidden = false;
     cliCursor = {};
-    cliCursor.show = (writableStream = import_node_process3.default.stderr) => {
+    cliCursor.show = (writableStream = import_node_process4.default.stderr) => {
       if (!writableStream.isTTY) {
         return;
       }
       isHidden = false;
       writableStream.write("\x1B[?25h");
     };
-    cliCursor.hide = (writableStream = import_node_process3.default.stderr) => {
+    cliCursor.hide = (writableStream = import_node_process4.default.stderr) => {
       if (!writableStream.isTTY) {
         return;
       }
@@ -29514,18 +31505,18 @@ var init_yoctocolors = __esm({
 });
 
 // node_modules/is-unicode-supported/index.js
-function isUnicodeSupported() {
-  const { env: env2 } = import_node_process4.default;
+function isUnicodeSupported2() {
+  const { env: env2 } = import_node_process5.default;
   const { TERM, TERM_PROGRAM } = env2;
-  if (import_node_process4.default.platform !== "win32") {
+  if (import_node_process5.default.platform !== "win32") {
     return TERM !== "linux";
   }
   return Boolean(env2.WT_SESSION) || Boolean(env2.TERMINUS_SUBLIME) || env2.ConEmuTask === "{cmd::Cmder}" || TERM_PROGRAM === "Terminus-Sublime" || TERM_PROGRAM === "vscode" || TERM === "xterm-256color" || TERM === "alacritty" || TERM === "rxvt-unicode" || TERM === "rxvt-unicode-256color" || env2.TERMINAL_EMULATOR === "JetBrains-JediTerm";
 }
-var import_node_process4;
+var import_node_process5;
 var init_is_unicode_supported = __esm({
   "node_modules/is-unicode-supported/index.js"() {
-    import_node_process4 = __toESM(require("node:process"), 1);
+    import_node_process5 = __toESM(require("node:process"), 1);
   }
 });
 
@@ -29542,7 +31533,7 @@ var init_symbols = __esm({
   "node_modules/log-symbols/symbols.js"() {
     init_yoctocolors();
     init_is_unicode_supported();
-    _isUnicodeSupported = isUnicodeSupported();
+    _isUnicodeSupported = isUnicodeSupported2();
     info = blue(_isUnicodeSupported ? "\u2139" : "i");
     success2 = green(_isUnicodeSupported ? "\u2714" : "\u221A");
     warning = yellow(_isUnicodeSupported ? "\u26A0" : "\u203C");
@@ -29644,7 +31635,7 @@ function findWideFastPathRange(ranges) {
   }
   return [fastPathStart, fastPathEnd];
 }
-var commonCjkCodePoint, wideFastPathStart, wideFastPathEnd, isAmbiguous, isFullWidth, isWide;
+var commonCjkCodePoint, wideFastPathStart, wideFastPathEnd, isAmbiguous, isFullWidth2, isWide;
 var init_lookup = __esm({
   "node_modules/get-east-asian-width/lookup.js"() {
     init_lookup_data();
@@ -29657,7 +31648,7 @@ var init_lookup = __esm({
       }
       return isInRange(ambiguousRanges, codePoint);
     };
-    isFullWidth = (codePoint) => {
+    isFullWidth2 = (codePoint) => {
       if (codePoint < fullwidthMinimalCodePoint || codePoint > fullwidthMaximumCodePoint) {
         return false;
       }
@@ -29683,7 +31674,7 @@ function validate(codePoint) {
 }
 function eastAsianWidth(codePoint, { ambiguousAsWide = false } = {}) {
   validate(codePoint);
-  if (isFullWidth(codePoint) || isWide(codePoint) || ambiguousAsWide && isAmbiguous(codePoint)) {
+  if (isFullWidth2(codePoint) || isWide(codePoint) || ambiguousAsWide && isAmbiguous(codePoint)) {
     return 2;
   }
   return 1;
@@ -29838,10 +31829,10 @@ var init_is_interactive = __esm({
 });
 
 // node_modules/stdin-discarder/index.js
-var import_node_process5, ASCII_ETX_CODE, StdinDiscarder, stdinDiscarder, stdin_discarder_default;
+var import_node_process6, ASCII_ETX_CODE, StdinDiscarder, stdinDiscarder, stdin_discarder_default;
 var init_stdin_discarder = __esm({
   "node_modules/stdin-discarder/index.js"() {
-    import_node_process5 = __toESM(require("node:process"), 1);
+    import_node_process6 = __toESM(require("node:process"), 1);
     ASCII_ETX_CODE = 3;
     StdinDiscarder = class {
       #activeCount = 0;
@@ -29854,7 +31845,7 @@ var init_stdin_discarder = __esm({
         }
         const code = typeof chunk === "string" ? chunk.codePointAt(0) : chunk[0];
         if (code === ASCII_ETX_CODE) {
-          import_node_process5.default.kill(import_node_process5.default.pid, "SIGINT");
+          import_node_process6.default.kill(import_node_process6.default.pid, "SIGINT");
         }
       };
       start() {
@@ -29872,8 +31863,8 @@ var init_stdin_discarder = __esm({
         }
       }
       #realStart() {
-        const { stdin } = import_node_process5.default;
-        if (import_node_process5.default.platform === "win32" || !stdin?.isTTY || typeof stdin.setRawMode !== "function") {
+        const { stdin } = import_node_process6.default;
+        if (import_node_process6.default.platform === "win32" || !stdin?.isTTY || typeof stdin.setRawMode !== "function") {
           this.#stdin = void 0;
           return;
         }
@@ -29912,11 +31903,11 @@ var init_stdin_discarder = __esm({
 function ora(options) {
   return new Ora(options);
 }
-var import_node_process6, import_node_util, RENDER_DEFERRAL_TIMEOUT, SYNCHRONIZED_OUTPUT_ENABLE, SYNCHRONIZED_OUTPUT_DISABLE, activeHooksPerStream, validColors, Ora;
+var import_node_process7, import_node_util5, RENDER_DEFERRAL_TIMEOUT, SYNCHRONIZED_OUTPUT_ENABLE, SYNCHRONIZED_OUTPUT_DISABLE, activeHooksPerStream, validColors, Ora;
 var init_ora = __esm({
   "node_modules/ora/index.js"() {
-    import_node_process6 = __toESM(require("node:process"), 1);
-    import_node_util = require("node:util");
+    import_node_process7 = __toESM(require("node:process"), 1);
+    import_node_util5 = require("node:util");
     init_source();
     init_cli_cursor();
     init_cli_spinners();
@@ -30015,7 +32006,7 @@ var init_ora = __esm({
         }
         this.#options = {
           color: "cyan",
-          stream: import_node_process6.default.stderr,
+          stream: import_node_process7.default.stderr,
           discardStdin: true,
           hideCursor: true,
           ...options
@@ -30038,7 +32029,7 @@ var init_ora = __esm({
         this.prefixText = this.#options.prefixText;
         this.suffixText = this.#options.suffixText;
         this.indent = this.#options.indent;
-        if (import_node_process6.default.env.NODE_ENV === "test") {
+        if (import_node_process7.default.env.NODE_ENV === "test") {
           this._stream = this.#stream;
           this._isEnabled = this.#options.isEnabled;
           Object.defineProperty(this, "_linesToClear", {
@@ -30094,7 +32085,7 @@ var init_ora = __esm({
             throw new Error("`spinner.interval` must be a positive integer if provided");
           }
           this.#spinner = spinner;
-        } else if (!isUnicodeSupported()) {
+        } else if (!isUnicodeSupported2()) {
           this.#spinner = cli_spinners_default.line;
         } else if (spinner === void 0) {
           this.#spinner = cli_spinners_default.dots;
@@ -30140,7 +32131,7 @@ var init_ora = __esm({
       }
       #computeLineCountFrom(text, columns) {
         let count = 0;
-        for (const line of (0, import_node_util.stripVTControlCharacters)(text).split("\n")) {
+        for (const line of (0, import_node_util5.stripVTControlCharacters)(text).split("\n")) {
           count += Math.max(1, Math.ceil(stringWidth(line) / columns));
         }
         return count;
@@ -30228,7 +32219,7 @@ var init_ora = __esm({
         if (!this.isEnabled || this.#hookedStreams.size > 0) {
           return;
         }
-        const streamsToHook = /* @__PURE__ */ new Set([this.#stream, import_node_process6.default.stdout, import_node_process6.default.stderr]);
+        const streamsToHook = /* @__PURE__ */ new Set([this.#stream, import_node_process7.default.stdout, import_node_process7.default.stderr]);
         for (const stream of streamsToHook) {
           this.#hookStream(stream);
         }
@@ -30323,7 +32314,7 @@ var init_ora = __esm({
         if (this.#options.hideCursor) {
           cli_cursor_default.hide(this.#stream);
         }
-        if (this.#options.discardStdin && import_node_process6.default.stdin.isTTY) {
+        if (this.#options.discardStdin && import_node_process7.default.stdin.isTTY) {
           stdin_discarder_default.start();
           this.#isDiscardingStdin = true;
         }
@@ -30613,8 +32604,8 @@ async function showAction(artifact, taskKey) {
     default:
       filename = `${normalized}.md`;
   }
-  const path = `${getRunDir(taskKey)}/${filename}`;
-  const content = await readText(path);
+  const path2 = `${getRunDir(taskKey)}/${filename}`;
+  const content = await readText(path2);
   if (!content) {
     console.error(import_picocolors5.default.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
     process.exit(1);
@@ -30858,7 +32849,7 @@ function createCommands(program3) {
 // src/cli/program.ts
 function createProgram() {
   const program3 = new Command();
-  program3.name("bode").description("Orchestrate AI coding work through configurable phases").version("0.1.0");
+  program3.name("bode").description("Orchestrate AI coding work through configurable phases").version("0.2.0");
   createCommands(program3);
   return program3;
 }

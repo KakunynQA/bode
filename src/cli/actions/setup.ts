@@ -1,40 +1,73 @@
 import pc from 'picocolors';
+import { select, input } from '@inquirer/prompts';
 import { getGlobalDir, getGlobalConfigPath } from '~/config/defaults.ts';
 import { existsSync } from 'node:fs';
 import { ensureDir, writeText } from '~/utils/fs.ts';
 import { loadConfig } from '~/config/loader.ts';
 import { listAdapterNames } from '~/adapters/cli/registry.ts';
+import { getModelsForCli } from '~/adapters/cli/models.ts';
 
-function prompt(question: string): Promise<string> {
-  return new Promise((resolve) => {
-    process.stdout.write(question);
-    process.stdin.resume();
-    process.stdin.setEncoding('utf-8');
-    process.stdin.once('data', (data: string) => {
-      process.stdin.pause();
-      resolve(data.trim());
-    });
+async function selectCli(question: string, defaultCli: string): Promise<string> {
+  const adapters = listAdapterNames();
+  return select({
+    message: question,
+    default: defaultCli,
+    choices: adapters.map((name) => ({
+      name,
+      value: name,
+      description: cliDescription(name),
+    })),
   });
 }
 
-function promptDefault(question: string, defaultValue: string): Promise<string> {
-  return prompt(`${question} ${pc.dim(`(${defaultValue})`)}: `);
+async function selectModel(cliName: string, currentModel: string): Promise<string> {
+  const models = getModelsForCli(cliName);
+  if (models.length === 0) {
+    return input({
+      message: 'Model:',
+      default: currentModel,
+    });
+  }
+
+  const choices = models.map((m) => ({
+    name: m,
+    value: m,
+  }));
+
+  choices.push({
+    name: pc.dim('(other — type manually)'),
+    value: '__custom__',
+  });
+
+  const chosen = await select({
+    message: 'Model:',
+    default: currentModel,
+    choices,
+  });
+
+  if (chosen === '__custom__') {
+    return input({
+      message: 'Custom model name:',
+      default: currentModel,
+    });
+  }
+
+  return chosen;
 }
 
-async function selectFromList(question: string, options: string[], defaultOption: string): Promise<string> {
-  console.log(`\n${question}`);
-  for (let i = 0; i < options.length; i++) {
-    const marker = options[i] === defaultOption ? pc.green(' ← default') : '';
-    console.log(`  ${pc.bold(String(i + 1))}. ${options[i]}${marker}`);
+function cliDescription(name: string): string {
+  switch (name) {
+    case 'claude-code':
+      return 'Anthropic Claude Code CLI';
+    case 'opencode':
+      return 'OpenCode (multi-provider)';
+    case 'codex':
+      return 'OpenAI Codex CLI';
+    case 'zai':
+      return 'Z.AI Coding CLI';
+    default:
+      return '';
   }
-  const answer = await prompt('Choose (number or name): ');
-  if (!answer) return defaultOption;
-  const num = parseInt(answer, 10);
-  if (!isNaN(num) && num >= 1 && num <= options.length) {
-    return options[num - 1] ?? defaultOption;
-  }
-  if (options.includes(answer)) return answer;
-  return defaultOption;
 }
 
 export async function setupAction(): Promise<void> {
@@ -46,7 +79,6 @@ export async function setupAction(): Promise<void> {
   await ensureDir(`${globalDir}/skills`);
   console.log(pc.green(`✓ Created ${globalDir}\n`));
 
-  const adapters = listAdapterNames();
   const existingConfig = existsSync(getGlobalConfigPath());
 
   let currentJiraSite = '';
@@ -76,34 +108,46 @@ export async function setupAction(): Promise<void> {
     console.log(pc.dim(`Found existing config at ${getGlobalConfigPath()}. Press Enter to keep current values.\n`));
   }
 
-  // --- Jira ---
   console.log(pc.bold('── Jira ──'));
-  const jiraSite = await promptDefault('Jira site (e.g. mycompany.atlassian.net)', currentJiraSite || 'yourcompany.atlassian.net');
-  const jiraProject = await promptDefault('Default project key (e.g. KD)', currentProject || 'KD');
+  const jiraSite = await input({
+    message: 'Jira site (e.g. mycompany.atlassian.net):',
+    default: currentJiraSite || 'yourcompany.atlassian.net',
+  });
+  const jiraProject = await input({
+    message: 'Default project key (e.g. KD):',
+    default: currentProject || 'KD',
+  });
 
-  // --- GitHub ---
   console.log(pc.bold('\n── GitHub ──'));
-  const githubOrg = await promptDefault('Default GitHub org', currentGithubOrg || 'myorg');
+  const githubOrg = await input({
+    message: 'Default GitHub org:',
+    default: currentGithubOrg || 'myorg',
+  });
 
-  // --- Planning Phase ---
   console.log(pc.bold('\n── Planning Phase ──'));
-  const planningCli = await selectFromList('CLI for planning:', adapters, currentPlanningCli);
-  const planningModel = await promptDefault('Model', currentPlanningModel);
-  const planningTimeout = await promptDefault('Timeout (minutes)', '15');
+  const planningCli = await selectCli('CLI for planning:', currentPlanningCli);
+  const planningModel = await selectModel(planningCli, currentPlanningModel);
+  const planningTimeout = await input({
+    message: 'Timeout (minutes):',
+    default: '15',
+  });
 
-  // --- Implementation Phase ---
   console.log(pc.bold('\n── Implementation Phase ──'));
-  const implCli = await selectFromList('CLI for implementation:', adapters, currentImplCli);
-  const implModel = await promptDefault('Model', currentImplModel);
-  const implTimeout = await promptDefault('Timeout (minutes)', '60');
+  const implCli = await selectCli('CLI for implementation:', currentImplCli);
+  const implModel = await selectModel(implCli, currentImplModel);
+  const implTimeout = await input({
+    message: 'Timeout (minutes):',
+    default: '60',
+  });
 
-  // --- Review Phase ---
   console.log(pc.bold('\n── Review Phase ──'));
-  const reviewCli = await selectFromList('CLI for review:', adapters, currentReviewCli);
-  const reviewModel = await promptDefault('Model', currentReviewModel);
-  const reviewTimeout = await promptDefault('Timeout (minutes)', '10');
+  const reviewCli = await selectCli('CLI for review:', currentReviewCli);
+  const reviewModel = await selectModel(reviewCli, currentReviewModel);
+  const reviewTimeout = await input({
+    message: 'Timeout (minutes):',
+    default: '10',
+  });
 
-  // --- Build config YAML ---
   const configYaml = `jira:
   site: ${jiraSite || currentJiraSite}
   default_project: ${jiraProject || currentProject}

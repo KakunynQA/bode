@@ -3,6 +3,7 @@ import type { Result } from '~/types/result.ts';
 import { ClaudeCodeAdapter } from './claude-code.ts';
 import { OpenCodeAdapter } from './opencode.ts';
 import { CodexAdapter } from './codex.ts';
+import { ZaiAdapter } from './zai.ts';
 
 const adapters = new Map<string, () => CliAdapter>();
 
@@ -10,6 +11,7 @@ function registerDefaults(): void {
   adapters.set('claude-code', () => new ClaudeCodeAdapter());
   adapters.set('opencode', () => new OpenCodeAdapter());
   adapters.set('codex', () => new CodexAdapter());
+  adapters.set('zai', () => new ZaiAdapter());
 }
 
 registerDefaults();
