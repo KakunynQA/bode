@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.1] — 2026-05-27
+
+**Closes #30 — interactive transition picker.** Last open work item besides #36 (Wave 6, gated).
+
+### Added
+
+- `bode setup-transitions` — fetches available transitions from the active tracker, asks interactively which to use for each bode phase event (`planning`, `implementation`, `review`, `awaiting_merge`, `done`), saves to `.bode.yml`.
+- Each phase can be set to `(skip)` — no tracker move at that event.
+
+Roadmap status: zero open issues except #36 (gated). Waves 0-5 functionally complete.
+
 ## [0.28.0] — 2026-05-27
 
 Closes Wave 4 + the doable parts of Wave 5. After this, only items that need human/external action remain open (publish to npm, demo video, launch post, GitHub App, skill marketplace).

@@ -188,4 +188,13 @@ export function createCommands(program: Command): void {
 			const { compareAction } = await import('./actions/compare.ts');
 			await compareAction(taskKey, options);
 		});
+
+	program
+		.command('setup-transitions')
+		.description('Interactively map bode phases to your tracker workflow states')
+		.option('--project <name>', 'Project name from ~/.bode/projects/')
+		.action(async (options: { project?: string }) => {
+			const { setupTransitionsAction } = await import('./actions/setup-transitions.ts');
+			await setupTransitionsAction(options);
+		});
 }

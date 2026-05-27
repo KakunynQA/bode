@@ -46749,8 +46749,8 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.28.0") {
-    return "0.28.0";
+  if ("0.28.1") {
+    return "0.28.1";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -47678,7 +47678,7 @@ __export(log_exports, {
 });
 async function logAction(taskKey) {
   const { readdir: readdir4 } = await import("node:fs/promises");
-  const { join: join18 } = await import("node:path");
+  const { join: join19 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
     const files = await readdir4(runDir);
@@ -47692,7 +47692,7 @@ async function logAction(taskKey) {
       console.error(import_picocolors15.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join18(runDir, latest));
+    const content = await readText(join19(runDir, latest));
     if (content) {
       console.log(content);
     }
@@ -48319,6 +48319,126 @@ var init_compare = __esm({
   }
 });
 
+// src/cli/actions/setup-transitions.ts
+var setup_transitions_exports = {};
+__export(setup_transitions_exports, {
+  setupTransitionsAction: () => setupTransitionsAction
+});
+async function setupTransitionsAction(options) {
+  const configResult = await loadConfig();
+  if (!configResult.ok) {
+    console.error(import_picocolors22.default.red(`Configuration error: ${configResult.error.message}`));
+    process.exit(1);
+  }
+  const projectResult = await resolveProject(configResult.value, { projectName: options.project });
+  if (!projectResult.ok) {
+    console.error(import_picocolors22.default.red(projectResult.error.message));
+    process.exit(1);
+  }
+  const { config: config2, projectConfig } = projectResult.value;
+  const tracker = selectTracker({
+    jira: config2.jira,
+    workdir: projectConfig.workdir,
+    ...config2.linear ? { linear: config2.linear } : {},
+    ...config2.notion ? { notion: config2.notion } : {},
+    ...config2.trello ? { trello: config2.trello } : {},
+    ...projectConfig.tracker ? { tracker: projectConfig.tracker } : config2.tracker ? { tracker: config2.tracker } : {}
+  });
+  console.log(import_picocolors22.default.bold(`Configuring transitions for project "${projectConfig.name}"`));
+  console.log(import_picocolors22.default.dim(`  Tracker: ${tracker.kind}`));
+  const sampleKey = tracker.kind === "jira" ? config2.jira.default_project ? `${config2.jira.default_project}-1` : void 0 : void 0;
+  const transitionsResult = await tracker.adapter.listStatuses(sampleKey ?? "sample");
+  if (!transitionsResult.ok || transitionsResult.value.length === 0) {
+    console.log(
+      import_picocolors22.default.yellow(
+        `Could not load transitions from ${tracker.kind}. Falling back to manual config \u2014 edit .bode.yml by hand.`
+      )
+    );
+    process.exit(1);
+  }
+  const available = transitionsResult.value;
+  console.log("");
+  console.log(import_picocolors22.default.dim("Available transitions:"));
+  for (const t of available) {
+    const label = t.toStatusName ?? t.name;
+    const arrow = t.name !== label ? ` \u2192 ${label}` : "";
+    console.log(import_picocolors22.default.dim(`  - ${t.name}${arrow}`));
+  }
+  console.log("");
+  const phases = [
+    { key: "planning", label: "When planning starts", defaultName: "In Progress" },
+    { key: "implementation", label: "When implementation starts", defaultName: "In Progress" },
+    { key: "review", label: "When AI review starts", defaultName: "In Progress" },
+    {
+      key: "awaiting_merge",
+      label: "When PR is opened (ready for human)",
+      defaultName: "Code Review"
+    },
+    { key: "done", label: "When task is done", defaultName: "Done" }
+  ];
+  const skipValue = "__skip__";
+  const picks = {};
+  try {
+    for (const phase of phases) {
+      const choices = [
+        {
+          name: import_picocolors22.default.dim("(skip \u2014 no Jira move at this event)"),
+          value: skipValue
+        },
+        ...available.map((t) => ({
+          name: t.toStatusName ? `${t.name} \u2192 ${t.toStatusName}` : t.name,
+          value: t.toStatusName ?? t.name
+        }))
+      ];
+      const def = phase.defaultName && available.some((t) => (t.toStatusName ?? t.name) === phase.defaultName) ? phase.defaultName : skipValue;
+      const picked = await dist_default13({
+        message: `${phase.label}:`,
+        choices,
+        default: def
+      });
+      picks[phase.key] = picked === skipValue ? "" : picked;
+    }
+  } catch (err) {
+    handlePromptError(err);
+    process.exit(1);
+  }
+  const target = (0, import_node_path21.join)(projectConfig.workdir, ".bode.yml");
+  const existing = (0, import_node_fs19.existsSync)(target) ? (0, import_yaml5.parse)(await (0, import_promises15.readFile)(target, "utf-8")) ?? {} : {};
+  const existingJira = existing["jira"] ?? {};
+  const updated = {
+    ...existing,
+    jira: {
+      ...existingJira,
+      transitions: picks
+    }
+  };
+  await (0, import_promises15.mkdir)((0, import_node_path21.dirname)(target), { recursive: true });
+  await (0, import_promises15.writeFile)(target, (0, import_yaml5.stringify)(updated), "utf-8");
+  console.log("");
+  console.log(import_picocolors22.default.green(`\u2713 Saved transitions to ${target}`));
+  console.log("");
+  console.log(import_picocolors22.default.dim("Picks:"));
+  for (const [k, v] of Object.entries(picks)) {
+    console.log(import_picocolors22.default.dim(`  ${k.padEnd(18)} ${v || "(skip)"}`));
+  }
+}
+var import_picocolors22, import_promises15, import_node_fs19, import_node_path21, import_yaml5;
+var init_setup_transitions = __esm({
+  "src/cli/actions/setup-transitions.ts"() {
+    "use strict";
+    import_picocolors22 = __toESM(require_picocolors());
+    init_dist17();
+    import_promises15 = require("node:fs/promises");
+    import_node_fs19 = require("node:fs");
+    import_node_path21 = require("node:path");
+    import_yaml5 = __toESM(require_dist());
+    init_loader();
+    init_project_resolver();
+    init_factory();
+    init_prompt();
+  }
+});
+
 // node_modules/commander/esm.mjs
 var import_index = __toESM(require_commander(), 1);
 var {
@@ -48423,6 +48543,10 @@ function createCommands(program3) {
   program3.command("compare <taskKey>").description("Run planning phase across multiple agents (headless) and compare outputs").requiredOption("--agents <list>", "Comma-separated agents (e.g. claude-code,codex)").option("--project <name>", "Project name from ~/.bode/projects/").action(async (taskKey, options) => {
     const { compareAction: compareAction2 } = await Promise.resolve().then(() => (init_compare(), compare_exports));
     await compareAction2(taskKey, options);
+  });
+  program3.command("setup-transitions").description("Interactively map bode phases to your tracker workflow states").option("--project <name>", "Project name from ~/.bode/projects/").action(async (options) => {
+    const { setupTransitionsAction: setupTransitionsAction2 } = await Promise.resolve().then(() => (init_setup_transitions(), setup_transitions_exports));
+    await setupTransitionsAction2(options);
   });
 }
 
