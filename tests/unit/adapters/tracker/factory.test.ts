@@ -69,4 +69,82 @@ describe('selectTracker', () => {
 		});
 		assert.equal(sel.kind, 'mock');
 	});
+
+	it('plain-markdown is an alias for local', () => {
+		const sel = selectTracker({ workdir: '/tmp', tracker: 'plain-markdown' });
+		assert.equal(sel.kind, 'local');
+		assert.ok(sel.adapter instanceof LocalTrackerAdapter);
+	});
+
+	it('linear requires an api key (throws otherwise)', () => {
+		const prevEnv = process.env['LINEAR_API_KEY'];
+		delete process.env['LINEAR_API_KEY'];
+		try {
+			assert.throws(
+				() => selectTracker({ workdir: '/tmp', tracker: 'linear' }),
+				/Linear tracker selected but no API key/
+			);
+		} finally {
+			if (prevEnv !== undefined) process.env['LINEAR_API_KEY'] = prevEnv;
+		}
+	});
+
+	it('linear resolves api key from config', () => {
+		const sel = selectTracker({
+			workdir: '/tmp',
+			tracker: 'linear',
+			linear: { api_key: 'lin_api_xxx' },
+		});
+		assert.equal(sel.kind, 'linear');
+	});
+
+	it('notion requires token + database_id', () => {
+		const prevToken = process.env['NOTION_TOKEN'];
+		const prevDb = process.env['NOTION_DATABASE_ID'];
+		delete process.env['NOTION_TOKEN'];
+		delete process.env['NOTION_DATABASE_ID'];
+		try {
+			assert.throws(
+				() => selectTracker({ workdir: '/tmp', tracker: 'notion' }),
+				/Notion tracker selected but missing config/
+			);
+		} finally {
+			if (prevToken !== undefined) process.env['NOTION_TOKEN'] = prevToken;
+			if (prevDb !== undefined) process.env['NOTION_DATABASE_ID'] = prevDb;
+		}
+	});
+
+	it('notion resolves from config', () => {
+		const sel = selectTracker({
+			workdir: '/tmp',
+			tracker: 'notion',
+			notion: { api_token: 'ntn_xxx', database_id: 'abc123' },
+		});
+		assert.equal(sel.kind, 'notion');
+	});
+
+	it('trello requires both key and token', () => {
+		const prevK = process.env['TRELLO_KEY'];
+		const prevT = process.env['TRELLO_TOKEN'];
+		delete process.env['TRELLO_KEY'];
+		delete process.env['TRELLO_TOKEN'];
+		try {
+			assert.throws(
+				() => selectTracker({ workdir: '/tmp', tracker: 'trello' }),
+				/Trello tracker selected but missing credentials/
+			);
+		} finally {
+			if (prevK !== undefined) process.env['TRELLO_KEY'] = prevK;
+			if (prevT !== undefined) process.env['TRELLO_TOKEN'] = prevT;
+		}
+	});
+
+	it('trello resolves from config', () => {
+		const sel = selectTracker({
+			workdir: '/tmp',
+			tracker: 'trello',
+			trello: { api_key: 'k', token: 't' },
+		});
+		assert.equal(sel.kind, 'trello');
+	});
 });

@@ -44,6 +44,9 @@ export async function startAction(
 	const tracker = selectTracker({
 		jira: config.jira,
 		workdir: projectConfig.workdir,
+		...(config.linear ? { linear: config.linear } : {}),
+		...(config.notion ? { notion: config.notion } : {}),
+		...(config.trello ? { trello: config.trello } : {}),
 		...(projectConfig.tracker
 			? { tracker: projectConfig.tracker }
 			: config.tracker
@@ -52,7 +55,9 @@ export async function startAction(
 	});
 	const jira = tracker.adapter;
 	if (tracker.kind === 'local') {
-		console.log(pc.dim(`Tracker: local (.bode/tasks/) — no Jira configured`));
+		console.log(pc.dim(`Tracker: local (.bode/tasks/) — no external tracker configured`));
+	} else if (tracker.kind !== 'jira') {
+		console.log(pc.dim(`Tracker: ${tracker.kind}`));
 	}
 
 	// Acquire exclusive lock on this task key (issue #4). Prevents two

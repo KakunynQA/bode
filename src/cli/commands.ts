@@ -35,6 +35,15 @@ export function createCommands(program: Command): void {
 		);
 
 	program
+		.command('new <summary...>')
+		.description('Create a local task (.bode/tasks/<key>.md) without running the AI yet')
+		.option('--project <name>', 'Project name from ~/.bode/projects/')
+		.action(async (summary: string[], options: { project?: string }) => {
+			const { newAction } = await import('./actions/new.ts');
+			await newAction(summary.join(' '), options);
+		});
+
+	program
 		.command('setup')
 		.description(
 			'Configure Jira OAuth, default CLIs per phase, VCS provider, and validate connections'

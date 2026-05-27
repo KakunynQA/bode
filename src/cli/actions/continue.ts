@@ -30,6 +30,9 @@ export async function continueAction(
 	const tracker = selectTracker({
 		jira: config.jira,
 		workdir: projectConfig.workdir,
+		...(config.linear ? { linear: config.linear } : {}),
+		...(config.notion ? { notion: config.notion } : {}),
+		...(config.trello ? { trello: config.trello } : {}),
 		...(projectConfig.tracker
 			? { tracker: projectConfig.tracker }
 			: config.tracker

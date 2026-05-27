@@ -42,7 +42,50 @@ export const bodeConfigSchema = z.object({
 	 *
 	 * Values: `jira` | `github-issues` | `local` | `mock`.
 	 */
-	tracker: z.enum(['jira', 'github-issues', 'local', 'mock']).optional(),
+	tracker: z
+		.enum([
+			'jira',
+			'github-issues',
+			'linear',
+			'notion',
+			'trello',
+			'local',
+			'plain-markdown',
+			'mock',
+		])
+		.optional(),
+	linear: z
+		.object({
+			/** Linear API key. Prefer the LINEAR_API_KEY env var over storing here. */
+			api_key: z.string().optional(),
+		})
+		.optional(),
+	notion: z
+		.object({
+			/** Notion integration token. Prefer NOTION_TOKEN env var. */
+			api_token: z.string().optional(),
+			/** Notion database ID where bode tasks live. */
+			database_id: z.string().optional(),
+			/** Optional property name overrides. Defaults: Name / Status / Tags. */
+			properties: z
+				.object({
+					title: z.string().optional(),
+					status: z.string().optional(),
+					tags: z.string().optional(),
+				})
+				.optional(),
+		})
+		.optional(),
+	trello: z
+		.object({
+			/** Trello API key. Get one at trello.com/app-key. */
+			api_key: z.string().optional(),
+			/** Trello API token. Generated alongside the api_key. */
+			token: z.string().optional(),
+			/** Trello board ID where bode tasks live. */
+			board_id: z.string().optional(),
+		})
+		.optional(),
 	vcs: z
 		.object({
 			provider: z.enum(['github', 'gitlab']).default('github'),
@@ -112,7 +155,18 @@ export const projectConfigSchema = z.object({
 		.optional(),
 	branch_tool: z.string().optional(),
 	repos: z.array(reposItemSchema).optional(),
-	tracker: z.enum(['jira', 'github-issues', 'local', 'mock']).optional(),
+	tracker: z
+		.enum([
+			'jira',
+			'github-issues',
+			'linear',
+			'notion',
+			'trello',
+			'local',
+			'plain-markdown',
+			'mock',
+		])
+		.optional(),
 });
 
 export type ProjectConfig = z.infer<typeof projectConfigSchema>;

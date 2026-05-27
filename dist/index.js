@@ -38827,7 +38827,40 @@ var init_schema = __esm({
        *
        * Values: `jira` | `github-issues` | `local` | `mock`.
        */
-      tracker: external_exports.enum(["jira", "github-issues", "local", "mock"]).optional(),
+      tracker: external_exports.enum([
+        "jira",
+        "github-issues",
+        "linear",
+        "notion",
+        "trello",
+        "local",
+        "plain-markdown",
+        "mock"
+      ]).optional(),
+      linear: external_exports.object({
+        /** Linear API key. Prefer the LINEAR_API_KEY env var over storing here. */
+        api_key: external_exports.string().optional()
+      }).optional(),
+      notion: external_exports.object({
+        /** Notion integration token. Prefer NOTION_TOKEN env var. */
+        api_token: external_exports.string().optional(),
+        /** Notion database ID where bode tasks live. */
+        database_id: external_exports.string().optional(),
+        /** Optional property name overrides. Defaults: Name / Status / Tags. */
+        properties: external_exports.object({
+          title: external_exports.string().optional(),
+          status: external_exports.string().optional(),
+          tags: external_exports.string().optional()
+        }).optional()
+      }).optional(),
+      trello: external_exports.object({
+        /** Trello API key. Get one at trello.com/app-key. */
+        api_key: external_exports.string().optional(),
+        /** Trello API token. Generated alongside the api_key. */
+        token: external_exports.string().optional(),
+        /** Trello board ID where bode tasks live. */
+        board_id: external_exports.string().optional()
+      }).optional(),
       vcs: external_exports.object({
         provider: external_exports.enum(["github", "gitlab"]).default("github")
       }).optional(),
@@ -38879,7 +38912,16 @@ var init_schema = __esm({
       }).optional(),
       branch_tool: external_exports.string().optional(),
       repos: external_exports.array(reposItemSchema).optional(),
-      tracker: external_exports.enum(["jira", "github-issues", "local", "mock"]).optional()
+      tracker: external_exports.enum([
+        "jira",
+        "github-issues",
+        "linear",
+        "notion",
+        "trello",
+        "local",
+        "plain-markdown",
+        "mock"
+      ]).optional()
     });
   }
 });
@@ -39642,6 +39684,693 @@ var init_github_issues = __esm({
   }
 });
 
+// src/adapters/tracker/linear.ts
+var LINEAR_ENDPOINT, DEFAULT_TIMEOUT_MS, LinearAdapter;
+var init_linear = __esm({
+  "src/adapters/tracker/linear.ts"() {
+    "use strict";
+    LINEAR_ENDPOINT = "https://api.linear.app/graphql";
+    DEFAULT_TIMEOUT_MS = 3e4;
+    LinearAdapter = class {
+      apiKey;
+      timeoutMs;
+      constructor(options) {
+        this.apiKey = options.apiKey;
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+      }
+      async gql(query, variables, signal) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+        const composedSignal = signal ?? controller.signal;
+        try {
+          const response = await fetch(LINEAR_ENDPOINT, {
+            method: "POST",
+            headers: {
+              Authorization: this.apiKey,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ query, variables }),
+            signal: composedSignal
+          });
+          if (!response.ok) {
+            const body = await response.text().catch(() => "");
+            return {
+              ok: false,
+              error: new Error(`Linear API ${response.status}: ${body || response.statusText}`)
+            };
+          }
+          const json2 = await response.json();
+          if (json2.errors?.length) {
+            return {
+              ok: false,
+              error: new Error(
+                `Linear GraphQL errors: ${json2.errors.map((e) => e.message).join("; ")}`
+              )
+            };
+          }
+          return { ok: true, value: json2.data };
+        } catch (err) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err : new Error(String(err))
+          };
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      async fetchTask(key, signal) {
+        const query = `
+			query Issue($id: String!) {
+				issue(id: $id) {
+					id
+					identifier
+					title
+					description
+					state { name type }
+					labels { nodes { name } }
+					assignee { name }
+					url
+				}
+			}
+		`;
+        const r = await this.gql(query, { id: key }, signal);
+        if (!r.ok) return r;
+        if (!r.value.issue) {
+          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
+        }
+        const issue2 = r.value.issue;
+        return {
+          ok: true,
+          value: {
+            key: issue2.identifier,
+            summary: issue2.title,
+            description: issue2.description ?? "",
+            status: issue2.state.name,
+            issueType: issue2.state.type,
+            assignee: issue2.assignee?.name ?? null,
+            labels: issue2.labels.nodes.map((l) => l.name),
+            url: issue2.url
+          }
+        };
+      }
+      async postComment(key, body, signal) {
+        const issueR = await this.gql(
+          `query Issue($id: String!) { issue(id: $id) { id } }`,
+          { id: key },
+          signal
+        );
+        if (!issueR.ok) return issueR;
+        if (!issueR.value.issue) {
+          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
+        }
+        const id = issueR.value.issue.id;
+        const mutation = `
+			mutation Comment($issueId: String!, $body: String!) {
+				commentCreate(input: { issueId: $issueId, body: $body }) {
+					success
+					comment { id body createdAt }
+				}
+			}
+		`;
+        const r = await this.gql(mutation, { issueId: id, body }, signal);
+        if (!r.ok) return r;
+        if (!r.value.commentCreate.success) {
+          return { ok: false, error: new Error("Linear commentCreate returned success=false") };
+        }
+        return {
+          ok: true,
+          value: {
+            id: r.value.commentCreate.comment.id,
+            body: r.value.commentCreate.comment.body,
+            created: r.value.commentCreate.comment.createdAt
+          }
+        };
+      }
+      async setStatus(key, statusName, signal) {
+        if (statusName.trim() === "") return { ok: true, value: void 0 };
+        const issueR = await this.gql(
+          `query Issue($id: String!) {
+				issue(id: $id) {
+					id
+					team {
+						id
+						states { nodes { id name } }
+					}
+				}
+			}`,
+          { id: key },
+          signal
+        );
+        if (!issueR.ok) return issueR;
+        if (!issueR.value.issue) {
+          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
+        }
+        const states = issueR.value.issue.team.states.nodes;
+        const target = states.find((s) => s.name.toLowerCase() === statusName.toLowerCase());
+        if (!target) {
+          return {
+            ok: false,
+            error: new Error(
+              `Linear state "${statusName}" not found. Available: ${states.map((s) => s.name).join(", ")}`
+            )
+          };
+        }
+        const r = await this.gql(
+          `mutation U($id: String!, $stateId: String!) {
+				issueUpdate(id: $id, input: { stateId: $stateId }) { success }
+			}`,
+          { id: issueR.value.issue.id, stateId: target.id },
+          signal
+        );
+        if (!r.ok) return r;
+        if (!r.value.issueUpdate.success) {
+          return { ok: false, error: new Error("Linear issueUpdate returned success=false") };
+        }
+        return { ok: true, value: void 0 };
+      }
+      async addTag(key, tag, signal) {
+        return this.toggleLabel(key, tag, "add", signal);
+      }
+      async removeTag(key, tag, signal) {
+        return this.toggleLabel(key, tag, "remove", signal);
+      }
+      async toggleLabel(key, tag, mode, signal) {
+        const issueR = await this.gql(
+          `query Issue($id: String!) {
+				issue(id: $id) {
+					id
+					team {
+						id
+						labels { nodes { id name } }
+					}
+					labels { nodes { id name } }
+				}
+			}`,
+          { id: key },
+          signal
+        );
+        if (!issueR.ok) return issueR;
+        if (!issueR.value.issue) {
+          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
+        }
+        const currentIds = issueR.value.issue.labels.nodes.map((l) => l.id);
+        const teamLabel = issueR.value.issue.team.labels.nodes.find(
+          (l) => l.name.toLowerCase() === tag.toLowerCase()
+        );
+        if (!teamLabel && mode === "add") {
+          return {
+            ok: false,
+            error: new Error(
+              `Linear label "${tag}" does not exist on the team. Create it in Linear first.`
+            )
+          };
+        }
+        if (!teamLabel && mode === "remove") {
+          return { ok: true, value: void 0 };
+        }
+        const nextIds = mode === "add" ? Array.from(/* @__PURE__ */ new Set([...currentIds, teamLabel.id])) : currentIds.filter((id) => id !== teamLabel.id);
+        const r = await this.gql(
+          `mutation U($id: String!, $ids: [String!]!) {
+				issueUpdate(id: $id, input: { labelIds: $ids }) { success }
+			}`,
+          { id: issueR.value.issue.id, ids: nextIds },
+          signal
+        );
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async attachFile() {
+        return { ok: true, value: void 0 };
+      }
+      async listStatuses(key, signal) {
+        const r = await this.gql(
+          `query Issue($id: String!) {
+				issue(id: $id) { team { states { nodes { id name } } } }
+			}`,
+          { id: key },
+          signal
+        );
+        if (!r.ok) return r;
+        if (!r.value.issue) return { ok: true, value: [] };
+        return {
+          ok: true,
+          value: r.value.issue.team.states.nodes.map((s) => ({
+            id: s.id,
+            name: s.name,
+            toStatusName: s.name
+          }))
+        };
+      }
+      // ─── v0.25.0 deprecated aliases ──────────────────────────────────────
+      async getIssue(key, signal) {
+        return this.fetchTask(key, signal);
+      }
+      async addComment(key, body, signal) {
+        return this.postComment(key, body, signal);
+      }
+      async transitionStatus(key, name, signal) {
+        return this.setStatus(key, name, signal);
+      }
+      async addLabel(key, label, signal) {
+        return this.addTag(key, label, signal);
+      }
+      async removeLabel(key, label, signal) {
+        return this.removeTag(key, label, signal);
+      }
+      async getTransitions(key, signal) {
+        return this.listStatuses(key, signal);
+      }
+    };
+  }
+});
+
+// src/adapters/tracker/notion.ts
+function extractTitle(prop) {
+  if (!prop || prop.type !== "title") return null;
+  const p = prop;
+  return p.title.map((t) => t.plain_text).join("") || null;
+}
+function extractStatus(prop) {
+  if (!prop) return null;
+  if (prop.type === "status") {
+    return prop.status?.name ?? null;
+  }
+  if (prop.type === "select") {
+    return prop.select?.name ?? null;
+  }
+  return null;
+}
+function extractTags(prop) {
+  if (!prop || prop.type !== "multi_select") return [];
+  return prop.multi_select.map(
+    (t) => t.name
+  );
+}
+var NOTION_BASE, NOTION_VERSION, DEFAULT_TIMEOUT_MS2, NotionAdapter;
+var init_notion = __esm({
+  "src/adapters/tracker/notion.ts"() {
+    "use strict";
+    NOTION_BASE = "https://api.notion.com/v1";
+    NOTION_VERSION = "2022-06-28";
+    DEFAULT_TIMEOUT_MS2 = 3e4;
+    NotionAdapter = class {
+      token;
+      databaseId;
+      titleProp;
+      statusProp;
+      tagsProp;
+      timeoutMs;
+      constructor(options) {
+        this.token = options.apiToken;
+        this.databaseId = options.databaseId;
+        this.titleProp = options.properties?.title ?? "Name";
+        this.statusProp = options.properties?.status ?? "Status";
+        this.tagsProp = options.properties?.tags ?? "Tags";
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS2;
+      }
+      async request(method, path3, body, signal) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+        const composedSignal = signal ?? controller.signal;
+        try {
+          const init = {
+            method,
+            headers: {
+              Authorization: `Bearer ${this.token}`,
+              "Notion-Version": NOTION_VERSION,
+              "Content-Type": "application/json"
+            },
+            signal: composedSignal
+          };
+          if (body !== void 0) init.body = JSON.stringify(body);
+          const response = await fetch(`${NOTION_BASE}${path3}`, init);
+          if (!response.ok) {
+            const text = await response.text().catch(() => "");
+            return {
+              ok: false,
+              error: new Error(`Notion API ${response.status}: ${text || response.statusText}`)
+            };
+          }
+          const data = await response.json();
+          return { ok: true, value: data };
+        } catch (err) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err : new Error(String(err))
+          };
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      async fetchTask(key, signal) {
+        const r = await this.request("GET", `/pages/${key}`, void 0, signal);
+        if (!r.ok) return r;
+        const props = r.value.properties;
+        const titleProp = props[this.titleProp];
+        const statusProp = props[this.statusProp];
+        const tagsProp = props[this.tagsProp];
+        return {
+          ok: true,
+          value: {
+            key: r.value.id,
+            summary: extractTitle(titleProp) ?? "(no title)",
+            description: "",
+            status: extractStatus(statusProp) ?? "pending",
+            issueType: "Task",
+            assignee: null,
+            labels: extractTags(tagsProp),
+            url: r.value.url
+          }
+        };
+      }
+      async postComment(key, body, signal) {
+        const r = await this.request(
+          "POST",
+          `/comments`,
+          {
+            parent: { page_id: key },
+            rich_text: [{ type: "text", text: { content: body } }]
+          },
+          signal
+        );
+        if (!r.ok) return r;
+        return {
+          ok: true,
+          value: { id: r.value.id, body, created: r.value.created_time }
+        };
+      }
+      async setStatus(key, statusName, signal) {
+        if (statusName.trim() === "") return { ok: true, value: void 0 };
+        const r = await this.request(
+          "PATCH",
+          `/pages/${key}`,
+          {
+            properties: {
+              [this.statusProp]: { status: { name: statusName } }
+            }
+          },
+          signal
+        );
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async addTag(key, tag, signal) {
+        return this.modifyTags(key, tag, "add", signal);
+      }
+      async removeTag(key, tag, signal) {
+        return this.modifyTags(key, tag, "remove", signal);
+      }
+      async modifyTags(key, tag, mode, signal) {
+        const issue2 = await this.fetchTask(key, signal);
+        if (!issue2.ok) return issue2;
+        const next = mode === "add" ? Array.from(/* @__PURE__ */ new Set([...issue2.value.labels, tag])) : issue2.value.labels.filter((t) => t !== tag);
+        const r = await this.request(
+          "PATCH",
+          `/pages/${key}`,
+          {
+            properties: {
+              [this.tagsProp]: { multi_select: next.map((name) => ({ name })) }
+            }
+          },
+          signal
+        );
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async attachFile() {
+        return { ok: true, value: void 0 };
+      }
+      async listStatuses(_key, signal) {
+        const r = await this.request("GET", `/databases/${this.databaseId}`, void 0, signal);
+        if (!r.ok) return r;
+        const prop = r.value.properties[this.statusProp];
+        const options = prop?.status?.options ?? prop?.select?.options ?? [];
+        return {
+          ok: true,
+          value: options.map((o) => ({ id: o.id, name: o.name, toStatusName: o.name }))
+        };
+      }
+      // ─── v0.25.0 deprecated aliases ──────────────────────────────────────
+      async getIssue(key, signal) {
+        return this.fetchTask(key, signal);
+      }
+      async addComment(key, body, signal) {
+        return this.postComment(key, body, signal);
+      }
+      async transitionStatus(key, name, signal) {
+        return this.setStatus(key, name, signal);
+      }
+      async addLabel(key, label, signal) {
+        return this.addTag(key, label, signal);
+      }
+      async removeLabel(key, label, signal) {
+        return this.removeTag(key, label, signal);
+      }
+      async getTransitions(key, signal) {
+        return this.listStatuses(key, signal);
+      }
+    };
+  }
+});
+
+// src/adapters/tracker/trello.ts
+var TRELLO_BASE, DEFAULT_TIMEOUT_MS3, TrelloAdapter;
+var init_trello = __esm({
+  "src/adapters/tracker/trello.ts"() {
+    "use strict";
+    TRELLO_BASE = "https://api.trello.com/1";
+    DEFAULT_TIMEOUT_MS3 = 3e4;
+    TrelloAdapter = class {
+      apiKey;
+      token;
+      timeoutMs;
+      constructor(options) {
+        this.apiKey = options.apiKey;
+        this.token = options.token;
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS3;
+      }
+      authQS(extra = {}) {
+        const params = new URLSearchParams({ key: this.apiKey, token: this.token, ...extra });
+        return params.toString();
+      }
+      async request(method, path3, body, signal, extraQS = {}) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+        const composedSignal = signal ?? controller.signal;
+        try {
+          const url2 = `${TRELLO_BASE}${path3}?${this.authQS(extraQS)}`;
+          const init = {
+            method,
+            headers: { "Content-Type": "application/json" },
+            signal: composedSignal
+          };
+          if (body !== void 0) init.body = JSON.stringify(body);
+          const response = await fetch(url2, init);
+          if (!response.ok) {
+            const text = await response.text().catch(() => "");
+            return {
+              ok: false,
+              error: new Error(`Trello API ${response.status}: ${text || response.statusText}`)
+            };
+          }
+          const ct = response.headers.get("content-type") ?? "";
+          if (!ct.includes("application/json")) {
+            return { ok: true, value: void 0 };
+          }
+          const data = await response.json();
+          return { ok: true, value: data };
+        } catch (err) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err : new Error(String(err))
+          };
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      async fetchTask(key, signal) {
+        const card = await this.request("GET", `/cards/${key}`, void 0, signal, {
+          fields: "name,desc,shortUrl,idList,idLabels",
+          labels: "true"
+        });
+        if (!card.ok) return card;
+        const list = await this.request(
+          "GET",
+          `/lists/${card.value.idList}`,
+          void 0,
+          signal,
+          { fields: "name" }
+        );
+        const status = list.ok ? list.value.name : "unknown";
+        return {
+          ok: true,
+          value: {
+            key: card.value.id,
+            summary: card.value.name,
+            description: card.value.desc,
+            status,
+            issueType: "Task",
+            assignee: null,
+            labels: card.value.labels.map((l) => l.name || l.color),
+            url: card.value.shortUrl
+          }
+        };
+      }
+      async postComment(key, body, signal) {
+        const r = await this.request(
+          "POST",
+          `/cards/${key}/actions/comments`,
+          void 0,
+          signal,
+          { text: body }
+        );
+        if (!r.ok) return r;
+        return { ok: true, value: { id: r.value.id, body, created: r.value.date } };
+      }
+      async setStatus(key, statusName, signal) {
+        if (statusName.trim() === "") return { ok: true, value: void 0 };
+        const card = await this.request(
+          "GET",
+          `/cards/${key}`,
+          void 0,
+          signal,
+          { fields: "idBoard" }
+        );
+        if (!card.ok) return card;
+        const lists = await this.request(
+          "GET",
+          `/boards/${card.value.idBoard}/lists`,
+          void 0,
+          signal,
+          { fields: "name" }
+        );
+        if (!lists.ok) return lists;
+        const target = lists.value.find((l) => l.name.toLowerCase() === statusName.toLowerCase());
+        if (!target) {
+          return {
+            ok: false,
+            error: new Error(
+              `Trello list "${statusName}" not found on board. Available: ${lists.value.map((l) => l.name).join(", ")}`
+            )
+          };
+        }
+        const r = await this.request("PUT", `/cards/${key}`, void 0, signal, {
+          idList: target.id
+        });
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async addTag(key, tag, signal) {
+        const card = await this.request(
+          "GET",
+          `/cards/${key}`,
+          void 0,
+          signal,
+          { fields: "idBoard" }
+        );
+        if (!card.ok) return card;
+        const labels = await this.request(
+          "GET",
+          `/boards/${card.value.idBoard}/labels`,
+          void 0,
+          signal,
+          { fields: "name" }
+        );
+        if (!labels.ok) return labels;
+        let labelId = labels.value.find((l) => l.name === tag)?.id;
+        if (!labelId) {
+          const created = await this.request(
+            "POST",
+            `/boards/${card.value.idBoard}/labels`,
+            void 0,
+            signal,
+            { name: tag, color: "sky" }
+          );
+          if (!created.ok) return created;
+          labelId = created.value.id;
+        }
+        const r = await this.request("POST", `/cards/${key}/idLabels`, void 0, signal, {
+          value: labelId
+        });
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async removeTag(key, tag, signal) {
+        const card = await this.request(
+          "GET",
+          `/cards/${key}`,
+          void 0,
+          signal,
+          { fields: "idBoard" }
+        );
+        if (!card.ok) return card;
+        const labels = await this.request(
+          "GET",
+          `/boards/${card.value.idBoard}/labels`,
+          void 0,
+          signal,
+          { fields: "name" }
+        );
+        if (!labels.ok) return labels;
+        const labelId = labels.value.find((l) => l.name === tag)?.id;
+        if (!labelId) return { ok: true, value: void 0 };
+        const r = await this.request(
+          "DELETE",
+          `/cards/${key}/idLabels/${labelId}`,
+          void 0,
+          signal
+        );
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async attachFile() {
+        return { ok: true, value: void 0 };
+      }
+      async listStatuses(key, signal) {
+        const card = await this.request(
+          "GET",
+          `/cards/${key}`,
+          void 0,
+          signal,
+          { fields: "idBoard" }
+        );
+        if (!card.ok) return card;
+        const lists = await this.request(
+          "GET",
+          `/boards/${card.value.idBoard}/lists`,
+          void 0,
+          signal,
+          { fields: "name" }
+        );
+        if (!lists.ok) return lists;
+        return {
+          ok: true,
+          value: lists.value.map((l) => ({ id: l.id, name: l.name, toStatusName: l.name }))
+        };
+      }
+      // ─── v0.25.0 deprecated aliases ──────────────────────────────────────
+      async getIssue(key, signal) {
+        return this.fetchTask(key, signal);
+      }
+      async addComment(key, body, signal) {
+        return this.postComment(key, body, signal);
+      }
+      async transitionStatus(key, name, signal) {
+        return this.setStatus(key, name, signal);
+      }
+      async addLabel(key, label, signal) {
+        return this.addTag(key, label, signal);
+      }
+      async removeLabel(key, label, signal) {
+        return this.removeTag(key, label, signal);
+      }
+      async getTransitions(key, signal) {
+        return this.listStatuses(key, signal);
+      }
+    };
+  }
+});
+
 // src/adapters/jira/adf.ts
 function textToAdf(text) {
   const paragraphs = text.split(/\n{2,}/);
@@ -39696,7 +40425,7 @@ function withTimeout(signal, timeoutMs) {
   }
   return { signal: controller.signal, cleanup };
 }
-async function testJiraConnection(site, email3, apiToken, signal, timeoutMs = DEFAULT_TIMEOUT_MS) {
+async function testJiraConnection(site, email3, apiToken, signal, timeoutMs = DEFAULT_TIMEOUT_MS4) {
   const { signal: timeoutSignal, cleanup } = withTimeout(signal, timeoutMs);
   try {
     const auth = Buffer.from(`${email3}:${apiToken}`).toString("base64");
@@ -39729,17 +40458,17 @@ async function testJiraConnection(site, email3, apiToken, signal, timeoutMs = DE
     cleanup();
   }
 }
-var DEFAULT_TIMEOUT_MS, RealJiraAdapter;
+var DEFAULT_TIMEOUT_MS4, RealJiraAdapter;
 var init_rest = __esm({
   "src/adapters/jira/rest.ts"() {
     "use strict";
     init_adf();
-    DEFAULT_TIMEOUT_MS = 3e4;
+    DEFAULT_TIMEOUT_MS4 = 3e4;
     RealJiraAdapter = class {
       site;
       auth;
       timeoutMs;
-      constructor(site, email3, apiToken, timeoutMs = DEFAULT_TIMEOUT_MS) {
+      constructor(site, email3, apiToken, timeoutMs = DEFAULT_TIMEOUT_MS4) {
         this.site = normalizeJiraSite(site);
         this.auth = Buffer.from(`${email3}:${apiToken}`).toString("base64");
         this.timeoutMs = timeoutMs;
@@ -40018,8 +40747,45 @@ function materialize(kind, options) {
         kind: "github-issues",
         adapter: new GitHubIssuesAdapter({ workdir: options.workdir })
       };
+    case "linear": {
+      const apiKey = options.linear?.api_key ?? process.env["LINEAR_API_KEY"];
+      if (!apiKey) {
+        throw new Error(
+          "Linear tracker selected but no API key found. Set linear.api_key in config or LINEAR_API_KEY env var."
+        );
+      }
+      return { kind: "linear", adapter: new LinearAdapter({ apiKey }) };
+    }
+    case "notion": {
+      const apiToken = options.notion?.api_token ?? process.env["NOTION_TOKEN"];
+      const databaseId = options.notion?.database_id ?? process.env["NOTION_DATABASE_ID"];
+      if (!apiToken || !databaseId) {
+        throw new Error(
+          "Notion tracker selected but missing config. Set notion.api_token (or NOTION_TOKEN) and notion.database_id (or NOTION_DATABASE_ID)."
+        );
+      }
+      return {
+        kind: "notion",
+        adapter: new NotionAdapter({
+          apiToken,
+          databaseId,
+          ...options.notion?.properties ? { properties: options.notion.properties } : {}
+        })
+      };
+    }
+    case "trello": {
+      const apiKey = options.trello?.api_key ?? process.env["TRELLO_KEY"];
+      const token = options.trello?.token ?? process.env["TRELLO_TOKEN"];
+      if (!apiKey || !token) {
+        throw new Error(
+          "Trello tracker selected but missing credentials. Set trello.api_key + trello.token in config, or TRELLO_KEY + TRELLO_TOKEN env vars."
+        );
+      }
+      return { kind: "trello", adapter: new TrelloAdapter({ apiKey, token }) };
+    }
     case "mock":
       return { kind: "mock", adapter: new MockJiraAdapter() };
+    case "plain-markdown":
     case "local":
     default:
       return { kind: "local", adapter: new LocalTrackerAdapter(options.workdir) };
@@ -40030,6 +40796,9 @@ var init_factory = __esm({
     "use strict";
     init_local();
     init_github_issues();
+    init_linear();
+    init_notion();
+    init_trello();
     init_rest();
     init_mock();
   }
@@ -45411,11 +46180,16 @@ async function startAction(taskKey, options) {
   const tracker = selectTracker({
     jira: config2.jira,
     workdir: projectConfig.workdir,
+    ...config2.linear ? { linear: config2.linear } : {},
+    ...config2.notion ? { notion: config2.notion } : {},
+    ...config2.trello ? { trello: config2.trello } : {},
     ...projectConfig.tracker ? { tracker: projectConfig.tracker } : config2.tracker ? { tracker: config2.tracker } : {}
   });
   const jira = tracker.adapter;
   if (tracker.kind === "local") {
-    console.log(import_picocolors7.default.dim(`Tracker: local (.bode/tasks/) \u2014 no Jira configured`));
+    console.log(import_picocolors7.default.dim(`Tracker: local (.bode/tasks/) \u2014 no external tracker configured`));
+  } else if (tracker.kind !== "jira") {
+    console.log(import_picocolors7.default.dim(`Tracker: ${tracker.kind}`));
   }
   const lockResult = await acquireLock(taskKey, `start ${taskKey}`);
   if (!lockResult.ok) {
@@ -45757,6 +46531,61 @@ var init_fast = __esm({
   }
 });
 
+// src/cli/actions/new.ts
+var new_exports = {};
+__export(new_exports, {
+  newAction: () => newAction
+});
+async function newAction(summary, options) {
+  const trimmed = summary.trim();
+  if (!trimmed) {
+    console.error(import_picocolors9.default.red('Usage: bode new "<task summary>"'));
+    process.exit(1);
+  }
+  const configResult = await loadConfig();
+  if (!configResult.ok) {
+    console.error(import_picocolors9.default.red(`Configuration error: ${configResult.error.message}`));
+    process.exit(1);
+  }
+  const projectResult = await resolveProject(configResult.value, {
+    projectName: options.project
+  });
+  if (!projectResult.ok) {
+    console.error(import_picocolors9.default.red(projectResult.error.message));
+    process.exit(1);
+  }
+  const { projectConfig } = projectResult.value;
+  const key = generateKey2(trimmed);
+  const tracker = new LocalTrackerAdapter(projectConfig.workdir);
+  const created = await tracker.createTask(key, trimmed, {
+    description: `# ${trimmed}
+
+_Created by bode new at ${(/* @__PURE__ */ new Date()).toISOString()}._
+`,
+    type: "Task"
+  });
+  if (!created.ok) {
+    console.error(import_picocolors9.default.red(`Could not create local task: ${created.error.message}`));
+    process.exit(1);
+  }
+  console.log(import_picocolors9.default.green(`\u2713 Created task ${import_picocolors9.default.bold(key)}`));
+  console.log(import_picocolors9.default.dim(`  File: ${projectConfig.workdir}/.bode/tasks/${key}.md`));
+  console.log("");
+  console.log(import_picocolors9.default.dim(`To run it now: ${import_picocolors9.default.bold(`bode ${key}`)}`));
+}
+var import_picocolors9, generateKey2;
+var init_new = __esm({
+  "src/cli/actions/new.ts"() {
+    "use strict";
+    import_picocolors9 = __toESM(require_picocolors());
+    init_local();
+    init_project_resolver();
+    init_loader();
+    init_fast();
+    ({ generateKey: generateKey2 } = __testing2);
+  }
+});
+
 // src/adapters/cli/models.ts
 function getModelsForCli(cliName) {
   const entry = CLI_MODELS.find((c) => c.name === cliName);
@@ -45807,8 +46636,8 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.25.0") {
-    return "0.25.0";
+  if ("0.26.0") {
+    return "0.26.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -45873,7 +46702,7 @@ async function selectCli(question, defaultCli, signal) {
     value: name,
     description: cliDescription(name)
   }));
-  choices.push({ name: import_picocolors9.default.dim("\u2190 Back"), value: BACK, description: "Go to previous question" });
+  choices.push({ name: import_picocolors10.default.dim("\u2190 Back"), value: BACK, description: "Go to previous question" });
   return dist_default13(
     {
       message: question,
@@ -45901,11 +46730,11 @@ async function selectModel(cliName, currentModel, signal) {
     })
   );
   choices.push({
-    name: import_picocolors9.default.dim("(other \u2014 type manually)"),
+    name: import_picocolors10.default.dim("(other \u2014 type manually)"),
     value: "__custom__"
   });
   choices.push({
-    name: import_picocolors9.default.dim("\u2190 Back"),
+    name: import_picocolors10.default.dim("\u2190 Back"),
     value: BACK,
     description: "Go to previous question"
   });
@@ -45947,14 +46776,14 @@ async function setupAction(subcommand) {
     return;
   }
   console.log("\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28A0\u28E4\u28C0\u2800\u2800\u2800\u28B0\u2876\u28E6\u2800\u2800\u2800\u28F0\u28FE\u28FF\u2844\u2800\u2800\u28E0\u28F4\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2800\u2800\u2800\u2800\u2880\u28FF\u2809\u28BB\u28F7\u2844\u2880\u28FF\u2837\u283B\u28FF\u2801\u2838\u280B\u2809\u28B9\u2847\u2800\u287E\u281B\u28BB\u287F\u2800\u28E4\u287E\u28FB\u2807\u2800\u2800\u28A0\u2876\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E0\u28E4\u28E4\u28E4\u28E4\u2840\u2800\u2800\u2800\u28FF\u287F\u28E6\u28C4\u2840\u28F4\u287F\u281F\u280B\u2819\u283F\u2819\u2809\u2800\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2801\u281B\u2809\u28BB\u285F\u2800\u2820\u28F4\u28FF\u2840\u28E0\u285E\u2801\u2880\u28F4\u2806\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F4\u28FF\u280B\u2801\u2800\u28E0\u285F\u2801\u2800\u2800\u2800\u28FD\u28FF\u281F\u283B\u2876\u2808\u2817\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u28F4\u28EA\u28E1\u28FE\u28F7\u287F\u28F7\u28FE\u28FF\u28FF\u28DF\u28C3\u2800\u2800\u2800\u2808\u2800\u2800\u28FE\u280F\u28E8\u28FF\u280B\u2880\u28F4\u281F\u2801\u28C0\u28F4\u281E\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u283B\u28F7\u28F4\u283F\u281B\u281B\u281B\u281B\u28F7\u2844\u2838\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28A7\u28FF\u28FF\u281B\u28DF\u28FF\u28CF\u28E4\u283E\u283F\u283E\u2837\u28F6\u28CC\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u281F\u2801\u2800\u281B\u2801\u28E0\u287E\u280B\u2801\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u28FF\u2844\u2800\u2800\u2800\u2800\u28FC\u285F\u2800\u2801\u2800\u2800\u2800\u2800\u2880\u28E4\u2874\u2836\u281B\u281B\u280B\u2809\u2809\u2800\u2800\u2800\u2800\u2811\u2804\u2880\u2800\u2800\u2809\u28B3\u28C4\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2810\u281F\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BF\u28FF\u28C0\u28C0\u28E0\u28FC\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u2803\u2880\u2840\u28C0\u28E4\u2824\u2824\u28A4\u28C0\u2800\u2800\u2800\u28C0\u287F\u28A7\u2824\u28C4\u281B\u281B\u281B\u281B\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u281B\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2830\u283E\u283F\u281B\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u28B0\u28FF\u28C3\u28F4\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2808\u2818\u28A6\u2848\u2801\u2800\u2800\u2810\u2812\u2800\u2820\u28F4\u2813\u281B\u281B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B6\u28FF\u2847\u2801\u2801\u2864\u2890\u28F4\u28E6\u28E4\u2840\u2800\u2800\u2800\u2808\u283B\u28C4\u2800\u2800\u2800\u2800\u2801\u2800\u2808\u28BB\u285F\u28BB\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u28E4\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2874\u281E\u28BB\u2847\u2800\u2800\u28F4\u28E1\u28E4\u28E4\u28EE\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u28B9\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28BE\u2877\u2866\u28E4\u28C4\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u2864\u281E\u2809\u28FB\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28C0\u28E0\u28E4\u2824\u2836\u281A\u281B\u2809\u2800\u2800\u2800\u28B8\u2847\u2800\u2820\u28FF\u281B\u281B\u281B\u2889\u28F8\u2807\u2800\u2800\u2800\u2800\u2800\u2800\u2838\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28AE\u280A\u2800\u2809\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u28F0\u2847\n\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u28E4\u28E4\u2864\u2834\u2836\u281A\u281B\u280B\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28B7\u2800\u2800\u2808\u28BB\u28D2\u28D2\u28EB\u280F\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2876\u281B\u281B\u281B\u281B\u28BF\u281B\u2809\u28F7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F8\u280B\u2800\n\u28ED\u28FF\u280D\u2809\u2809\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2840\u2804\u2810\u282B\u2800\u28B8\u2847\u2800\u283B\u283D\u2801\u2808\u2801\u2800\u2800\u2800\u2800\u2880\u2876\u2826\u2800\u2838\u28E4\u281E\u28FB\u2806\u2800\u2808\u2840\u28F4\u281F\u28B3\u28C0\u28C0\u2800\u2800\u2880\u28E0\u281C\u2803\u2800\u2800\n\u287C\u283B\u28E6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E4\u28BE\u2865\u2824\u28E4\u28C0\u2800\u2800\u2818\u28E7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28DE\u2801\u2800\u2800\u2800\u2800\u2808\u2819\u28A6\u28C0\u28C0\u28E1\u280F\u2800\u28A8\u2807\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u2800\u2800\n\u2800\u2800\u2808\u281B\u28A6\u28C0\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2834\u280B\u2801\u2800\u2800\u2800\u28FF\u2808\u2800\u2800\u2800\u2800\u2809\u281B\u28E6\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28C0\u28C0\u2800\u2800\u2800\u2800\u2809\u28BD\u2801\u2800\u28E0\u281E\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2808\u2809\u281B\u281B\u281B\u281B\u281B\u281B\u281B\u280B\u2809\u2809\u2801\u2800\u2800\u2800\u2800\u2800\u28B8\u28FF\u2800\u2800\u2800\u28B0\u2840\u2800\u2800\u280F\u282B\u2800\u2800\u2800\u2800\u2880\u2800\u28F4\u28CB\u28FD\u28FF\u28C9\u28F9\u285F\u2812\u2836\u2824\u28A4\u2836\u28FA\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u287F\u2800\u2800\u2800\u2800\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u285E\u28F8\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28F7\u28F6\u28F6\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u28FF\u2807\u2800\u2800\u2800\u2800\u2839\u28F7\u2840\u2800\u2800\u2800\u2800\u28A0\u28CE\u2800\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u2843\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FB\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u2840\u2800\u2800\u2800\u2800\u2819\u2846\u28BF\u287F\u28BF\u28FB\u288D\u2809\u2809\u2819\u2832\u28C4\u2809\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28B8\u28E7\u285F\u28B9\u28E6\u2860\u2800\u2800\u2800\u2808\u28A3\u2800\u2819\u28A6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FD\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28A3\u28F3\u28DE\u2880\u285F\u28A7\u2844\u2800\u2800\u2800\u281B\u2842\u2800\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28BF\u28E6\u2840\u2800\u2800\u2800\u2800\u2819\u28BF\u28FF\u2867\u28EF\u28D9\u287E\u28D7\u2864\u2824\u28C0\u28C0\u28C0\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28E7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FF\u28FF\u28E6\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28B3\u28EE\u28E5\u28E5\u28ED\u28FF\u28FF\u28FF\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28F7\u28E6\u2840\u2880\u28C0\u2880\u2880\u28F4\u28BE\u28F7\u2876\u281E\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FB\u2886\u281E\u2830\u28FD\u28BF\u28CD\u28A2\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u283B\u28C6\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u287F\u28BF\u28FF\u28FF\u2819\u28FF\u287E\u2846\u2803\u2808\u28A7\u285F\u2847\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28A7\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u281E\u2801\u2800\u28B8\u287F\u2803\u2800\u284F\u2887\u285F\u2844\u28A0\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u2833\u28A4\u28C0\u2800\u2800\u2830\u280A\u2800\u2800\u2800\u28A0\u287F\u2803\u2800\u2818\u2800\u287F\u28F8\u2843\u283B\u28B7\u28F6\u28D2\u2832\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2811\u2822\u28C4\u2800\u2800\u2800\u28A0\u285F\u2801\u2800\u2800\u2800\u2800\u2837\u28FF\u28F7\u28F6\u28D6\u2852\u28FF\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u2810\u28F0\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u280B\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n");
-  console.log(import_picocolors9.default.bold(import_picocolors9.default.cyan(`  Bode Setup Wizard v${getVersion()}
+  console.log(import_picocolors10.default.bold(import_picocolors10.default.cyan(`  Bode Setup Wizard v${getVersion()}
 `)));
   const globalDir = getGlobalDir();
   await ensureDir(globalDir);
   await ensureDir(`${globalDir}/runs`);
   await ensureDir(`${globalDir}/skills`);
   await ensureDir(`${globalDir}/projects`);
-  console.log(import_picocolors9.default.green(`\u2713 Created ${globalDir}
+  console.log(import_picocolors10.default.green(`\u2713 Created ${globalDir}
 `));
   const existingConfig = (0, import_node_fs16.existsSync)(getGlobalConfigPath());
   let currentJiraSite = "";
@@ -45985,14 +46814,14 @@ async function setupAction(subcommand) {
       currentReviewModel = cfg.phases.review.model;
     }
     console.log(
-      import_picocolors9.default.dim(
+      import_picocolors10.default.dim(
         `Found existing config at ${getGlobalConfigPath()}. Press Enter to keep current values.
 `
       )
     );
   }
   await withSignal(async (signal) => {
-    console.log(import_picocolors9.default.bold("\u2500\u2500 Jira \u2500\u2500"));
+    console.log(import_picocolors10.default.bold("\u2500\u2500 Jira \u2500\u2500"));
     const jiraSite = await dist_default7(
       {
         message: "Jira site (e.g. mycompany.atlassian.net):",
@@ -46057,12 +46886,12 @@ async function setupAction(subcommand) {
           if (newEmail && newToken) {
             const retryResult = await testJiraConnection(jiraSite, newEmail, newToken, signal);
             if (retryResult.ok) {
-              console.log(import_picocolors9.default.green("\u2713 Connection successful!"));
+              console.log(import_picocolors10.default.green("\u2713 Connection successful!"));
               jiraEmail = newEmail;
               jiraToken = newToken;
             } else {
-              console.log(import_picocolors9.default.yellow(`\u26A0 Still failing: ${retryResult.error.message}`));
-              console.log(import_picocolors9.default.dim('Continuing with mock adapter. Run "bode setup" to reconfigure.'));
+              console.log(import_picocolors10.default.yellow(`\u26A0 Still failing: ${retryResult.error.message}`));
+              console.log(import_picocolors10.default.dim('Continuing with mock adapter. Run "bode setup" to reconfigure.'));
               jiraToken = "";
             }
           }
@@ -46071,7 +46900,7 @@ async function setupAction(subcommand) {
         }
       }
     }
-    console.log(import_picocolors9.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
+    console.log(import_picocolors10.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
     const vcsProvider = await dist_default13(
       {
         message: "VCS provider:",
@@ -46101,7 +46930,7 @@ async function setupAction(subcommand) {
     const results = [];
     const phaseSteps = [
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 Planning Phase \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Planning Phase \u2500\u2500"));
         return selectCli("CLI for planning:", currentPlanningCli, signal);
       },
       async () => {
@@ -46117,7 +46946,7 @@ async function setupAction(subcommand) {
         { signal }
       ),
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 Implementation Phase \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Implementation Phase \u2500\u2500"));
         return selectCli("CLI for implementation:", currentImplCli, signal);
       },
       async () => {
@@ -46133,7 +46962,7 @@ async function setupAction(subcommand) {
         { signal }
       ),
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 Review Phase \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Review Phase \u2500\u2500"));
         return selectCli("CLI for review:", currentReviewCli, signal);
       },
       async () => {
@@ -46196,23 +47025,23 @@ comment_format:
 `;
     await writeText(getGlobalConfigPath(), configYaml);
     await chmodSensitive(getGlobalConfigPath());
-    console.log(import_picocolors9.default.green(`
+    console.log(import_picocolors10.default.green(`
 \u2713 Config saved to ${getGlobalConfigPath()}`));
     if (jiraToken) {
       console.log(
-        import_picocolors9.default.dim(
+        import_picocolors10.default.dim(
           process.platform === "win32" ? "  (Windows: ensure your user profile is not world-readable; consider DPAPI-encrypted storage.)" : "  (Permissions tightened to 0600.)"
         )
       );
     }
-    console.log(import_picocolors9.default.green("\u2713 Setup complete!\n"));
+    console.log(import_picocolors10.default.green("\u2713 Setup complete!\n"));
     console.log(
-      import_picocolors9.default.dim('Next: Run "bode setup project" to configure a project, then "bode start <TASK-KEY>".')
+      import_picocolors10.default.dim('Next: Run "bode setup project" to configure a project, then "bode start <TASK-KEY>".')
     );
   });
 }
 async function setupProjectAction() {
-  console.log(import_picocolors9.default.bold(import_picocolors9.default.cyan("Bode Project Setup\n")));
+  console.log(import_picocolors10.default.bold(import_picocolors10.default.cyan("Bode Project Setup\n")));
   await withSignal(async (signal) => {
     const projectsResult = await listProjects();
     const existingProjects = projectsResult.ok ? projectsResult.value : [];
@@ -46220,10 +47049,10 @@ async function setupProjectAction() {
     let existingProject = null;
     if (existingProjects.length > 0) {
       const projectChoices = existingProjects.map((p) => ({
-        name: `${p.name}  ${import_picocolors9.default.dim(`(${p.workdir})`)}`,
+        name: `${p.name}  ${import_picocolors10.default.dim(`(${p.workdir})`)}`,
         value: p.name
       }));
-      projectChoices.push({ name: import_picocolors9.default.green("+ Create new project"), value: "__new__" });
+      projectChoices.push({ name: import_picocolors10.default.green("+ Create new project"), value: "__new__" });
       const picked = await dist_default13(
         {
           message: "Select project or create new:",
@@ -46285,21 +47114,21 @@ async function setupProjectAction() {
         );
         const workdirPath = wd || defaultWorkdir;
         if (!workdirPath) {
-          console.error(import_picocolors9.default.red("Working directory is required."));
+          console.error(import_picocolors10.default.red("Working directory is required."));
           process.exit(1);
         }
         if (!(0, import_node_fs16.existsSync)(workdirPath)) {
-          console.error(import_picocolors9.default.red(`Directory does not exist: ${workdirPath}`));
+          console.error(import_picocolors10.default.red(`Directory does not exist: ${workdirPath}`));
           process.exit(1);
         }
         return workdirPath;
       },
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
         const vcsChoices = [
           { name: "GitHub (gh)", value: "github", description: "Uses gh CLI for PR creation" },
           { name: "GitLab (glab)", value: "gitlab", description: "Uses glab CLI for MR creation" },
-          { name: import_picocolors9.default.dim("\u2190 Back"), value: BACK, description: "Go back" }
+          { name: import_picocolors10.default.dim("\u2190 Back"), value: BACK, description: "Go back" }
         ];
         return dist_default13(
           {
@@ -46311,7 +47140,7 @@ async function setupProjectAction() {
         );
       },
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 Jira (per-project override, Enter to use global) \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Jira (per-project override, Enter to use global) \u2500\u2500"));
         const jiraSite = await dist_default7(
           {
             message: "Jira site:",
@@ -46329,7 +47158,7 @@ async function setupProjectAction() {
         return { site: jiraSite, project: jiraProject };
       },
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 Context \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Context \u2500\u2500"));
         const branch = await dist_default7(
           {
             message: "Default branch:",
@@ -46354,7 +47183,7 @@ async function setupProjectAction() {
         return { branch, paths: pathsRaw, files: filesRaw };
       },
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 Additional Repositories \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Additional Repositories \u2500\u2500"));
         return dist_default7(
           {
             message: "Number of additional repos (0-10):",
@@ -46393,7 +47222,7 @@ async function setupProjectAction() {
         return repos2;
       },
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 Branch Tool \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Branch Tool \u2500\u2500"));
         return dist_default7(
           {
             message: "Tool for AI to create branches (e.g. git):",
@@ -46405,7 +47234,7 @@ async function setupProjectAction() {
     ];
     const phaseSteps = [
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 Planning Phase (override) \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Planning Phase (override) \u2500\u2500"));
         return selectCli("CLI:", basePlanningCli, signal);
       },
       async () => {
@@ -46414,7 +47243,7 @@ async function setupProjectAction() {
         return selectModel(cli, basePlanningModel, signal);
       },
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 Implementation Phase (override) \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Implementation Phase (override) \u2500\u2500"));
         return selectCli("CLI:", baseImplCli, signal);
       },
       async () => {
@@ -46423,7 +47252,7 @@ async function setupProjectAction() {
         return selectModel(cli, baseImplModel, signal);
       },
       async () => {
-        console.log(import_picocolors9.default.bold("\n\u2500\u2500 Review Phase (override) \u2500\u2500"));
+        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Review Phase (override) \u2500\u2500"));
         return selectCli("CLI:", baseReviewCli, signal);
       },
       async () => {
@@ -46491,30 +47320,30 @@ async function setupProjectAction() {
     };
     const saveResult = await saveProjectConfig(project);
     if (!saveResult.ok) {
-      console.error(import_picocolors9.default.red(`Failed to save project: ${saveResult.error.message}`));
+      console.error(import_picocolors10.default.red(`Failed to save project: ${saveResult.error.message}`));
       process.exit(1);
     }
     if (existingProject) {
       console.log(
-        import_picocolors9.default.green(`
+        import_picocolors10.default.green(`
 \u2713 Project "${selectedName}" updated in ~/.bode/projects/${selectedName}.yml`)
       );
     } else {
       console.log(
-        import_picocolors9.default.green(`
+        import_picocolors10.default.green(`
 \u2713 Project "${selectedName}" saved to ~/.bode/projects/${selectedName}.yml`)
       );
     }
     console.log(
-      import_picocolors9.default.dim(`Now run "bode start <TASK-KEY> --project ${selectedName}" to use this project.`)
+      import_picocolors10.default.dim(`Now run "bode start <TASK-KEY> --project ${selectedName}" to use this project.`)
     );
   });
 }
-var import_picocolors9, import_node_fs16;
+var import_picocolors10, import_node_fs16;
 var init_setup = __esm({
   "src/cli/actions/setup.ts"() {
     "use strict";
-    import_picocolors9 = __toESM(require_picocolors());
+    import_picocolors10 = __toESM(require_picocolors());
     init_ora();
     init_dist17();
     init_defaults();
@@ -46539,25 +47368,28 @@ __export(continue_exports, {
 async function continueAction(taskKey, options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors10.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors11.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const baseConfig = configResult.value;
   const projectResult = await resolveProject(baseConfig, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors10.default.red(projectResult.error.message));
+    console.error(import_picocolors11.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
   const tracker = selectTracker({
     jira: config2.jira,
     workdir: projectConfig.workdir,
+    ...config2.linear ? { linear: config2.linear } : {},
+    ...config2.notion ? { notion: config2.notion } : {},
+    ...config2.trello ? { trello: config2.trello } : {},
     ...projectConfig.tracker ? { tracker: projectConfig.tracker } : config2.tracker ? { tracker: config2.tracker } : {}
   });
   const jira = tracker.adapter;
   const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);
   if (!lockResult.ok) {
-    console.error(import_picocolors10.default.red(lockResult.error.message));
+    console.error(import_picocolors11.default.red(lockResult.error.message));
     process.exit(1);
   }
   registerLockReleaseHandlers(lockResult.value.release);
@@ -46565,7 +47397,7 @@ async function continueAction(taskKey, options) {
   if (options.dangerouslyApproveAll) {
     const plan = await planDangerousMode(config2);
     if (!plan.approved) {
-      console.log(import_picocolors10.default.dim("Aborted by user."));
+      console.log(import_picocolors11.default.dim("Aborted by user."));
       process.exit(0);
     }
     dangerousBypass = true;
@@ -46579,38 +47411,38 @@ async function continueAction(taskKey, options) {
     dangerousBypass
   });
   if (!result.ok) {
-    console.error(import_picocolors10.default.red(`Error: ${result.error.message}`));
+    console.error(import_picocolors11.default.red(`Error: ${result.error.message}`));
     process.exit(1);
   }
   const advanceVal = result.value;
   if (advanceVal.kind === "conflict") {
-    console.error(import_picocolors10.default.yellow("\nConflicts detected with base branch!"));
-    console.error(import_picocolors10.default.dim('Resolve conflicts manually, then run "bode continue" again.'));
-    console.error(import_picocolors10.default.dim(`Jira label "bode:conflict" added to ${taskKey}.`));
+    console.error(import_picocolors11.default.yellow("\nConflicts detected with base branch!"));
+    console.error(import_picocolors11.default.dim('Resolve conflicts manually, then run "bode continue" again.'));
+    console.error(import_picocolors11.default.dim(`Jira label "bode:conflict" added to ${taskKey}.`));
     process.exit(1);
   }
   if (advanceVal.kind === "pr-created") {
-    console.log(import_picocolors10.default.green(`
-PR created: ${import_picocolors10.default.bold(advanceVal.prUrl)}`));
-    console.log(import_picocolors10.default.dim('Review the PR manually. Run "bode done" when ready to finalize.'));
+    console.log(import_picocolors11.default.green(`
+PR created: ${import_picocolors11.default.bold(advanceVal.prUrl)}`));
+    console.log(import_picocolors11.default.dim('Review the PR manually. Run "bode done" when ready to finalize.'));
     return;
   }
   if (advanceVal.kind === "phase") {
     const { meta: meta3, phaseResult } = advanceVal;
     if (phaseResult.kind === "success") {
-      console.log(import_picocolors10.default.green(`
+      console.log(import_picocolors11.default.green(`
 Phase complete. Status: ${meta3.status}`));
       if (meta3.status === "reviewed") {
-        console.log(import_picocolors10.default.dim('Run "bode continue" to create PR and move to awaiting-merge.'));
+        console.log(import_picocolors11.default.dim('Run "bode continue" to create PR and move to awaiting-merge.'));
       } else {
-        console.log(import_picocolors10.default.dim(`Run "bode continue ${taskKey}" to advance.`));
+        console.log(import_picocolors11.default.dim(`Run "bode continue ${taskKey}" to advance.`));
       }
     } else if (phaseResult.kind === "missing-artifact") {
       const decision = await handleMissingArtifact("phase", taskKey);
       if (decision === "abort") process.exit(1);
     } else {
       console.error(
-        import_picocolors10.default.red(
+        import_picocolors11.default.red(
           `
 Phase failed: ${phaseResult.kind === "failed" ? phaseResult.reason : "timed out"}`
         )
@@ -46619,7 +47451,7 @@ Phase failed: ${phaseResult.kind === "failed" ? phaseResult.reason : "timed out"
     }
   }
 }
-var import_picocolors10;
+var import_picocolors11;
 var init_continue = __esm({
   "src/cli/actions/continue.ts"() {
     "use strict";
@@ -46631,7 +47463,7 @@ var init_continue = __esm({
     init_missing_artifact();
     init_lockfile();
     init_lock_release();
-    import_picocolors10 = __toESM(require_picocolors());
+    import_picocolors11 = __toESM(require_picocolors());
   }
 });
 
@@ -46643,41 +47475,41 @@ __export(status_exports, {
 async function statusAction(taskKey) {
   const result = await loadRunMeta(taskKey);
   if (!result.ok) {
-    console.error(import_picocolors11.default.red(`Error: ${result.error.message}`));
+    console.error(import_picocolors12.default.red(`Error: ${result.error.message}`));
     process.exit(1);
   }
   if (!result.value) {
-    console.error(import_picocolors11.default.yellow(`No run found for ${taskKey}`));
+    console.error(import_picocolors12.default.yellow(`No run found for ${taskKey}`));
     process.exit(1);
   }
   const meta3 = result.value;
-  console.log(`Task: ${import_picocolors11.default.bold(meta3.taskKey)} - ${meta3.jiraSummary}`);
-  console.log(`Status: ${import_picocolors11.default.cyan(getPhaseStatusLabel(meta3.status))}`);
+  console.log(`Task: ${import_picocolors12.default.bold(meta3.taskKey)} - ${meta3.jiraSummary}`);
+  console.log(`Status: ${import_picocolors12.default.cyan(getPhaseStatusLabel(meta3.status))}`);
   if (meta3.branch) {
-    console.log(`Branch: ${import_picocolors11.default.dim(meta3.branch)} (from ${meta3.baseBranch ?? "unknown"})`);
+    console.log(`Branch: ${import_picocolors12.default.dim(meta3.branch)} (from ${meta3.baseBranch ?? "unknown"})`);
   }
   if (meta3.prUrl) {
-    console.log(`PR: ${import_picocolors11.default.cyan(meta3.prUrl)}`);
+    console.log(`PR: ${import_picocolors12.default.cyan(meta3.prUrl)}`);
   }
   if (meta3.conflict) {
-    console.log(`Conflict: ${import_picocolors11.default.red("YES")}`);
+    console.log(`Conflict: ${import_picocolors12.default.red("YES")}`);
   }
   if (meta3.projectName) {
-    console.log(`Project: ${import_picocolors11.default.dim(meta3.projectName)}`);
+    console.log(`Project: ${import_picocolors12.default.dim(meta3.projectName)}`);
   }
   console.log(`Started: ${new Date(meta3.startedAt).toLocaleString()}`);
   console.log(`Updated: ${new Date(meta3.updatedAt).toLocaleString()}`);
   if (meta3.error) {
-    console.log(`Error: ${import_picocolors11.default.red(meta3.error)}`);
+    console.log(`Error: ${import_picocolors12.default.red(meta3.error)}`);
   }
 }
-var import_picocolors11;
+var import_picocolors12;
 var init_status = __esm({
   "src/cli/actions/status.ts"() {
     "use strict";
     init_run_meta();
     init_phase();
-    import_picocolors11 = __toESM(require_picocolors());
+    import_picocolors12 = __toESM(require_picocolors());
   }
 });
 
@@ -46689,7 +47521,7 @@ __export(show_exports, {
 async function showAction(artifact, taskKey) {
   const normalized = artifact.toLowerCase();
   if (!VALID_ARTIFACTS.includes(normalized)) {
-    console.error(import_picocolors12.default.red(`Invalid artifact: "${artifact}". Valid: ${VALID_ARTIFACTS.join(", ")}`));
+    console.error(import_picocolors13.default.red(`Invalid artifact: "${artifact}". Valid: ${VALID_ARTIFACTS.join(", ")}`));
     process.exit(1);
   }
   let filename;
@@ -46710,18 +47542,18 @@ async function showAction(artifact, taskKey) {
   const path3 = `${getRunDir(taskKey)}/${filename}`;
   const content = await readText(path3);
   if (!content) {
-    console.error(import_picocolors12.default.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
+    console.error(import_picocolors13.default.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
     process.exit(1);
   }
   console.log(content);
 }
-var import_picocolors12, VALID_ARTIFACTS;
+var import_picocolors13, VALID_ARTIFACTS;
 var init_show = __esm({
   "src/cli/actions/show.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_picocolors12 = __toESM(require_picocolors());
+    import_picocolors13 = __toESM(require_picocolors());
     VALID_ARTIFACTS = ["plan", "planning", "implementation", "review"];
   }
 });
@@ -46739,12 +47571,12 @@ async function logAction(taskKey) {
     const files = await readdir4(runDir);
     const logFiles = files.filter((f) => f.endsWith(".log")).sort();
     if (logFiles.length === 0) {
-      console.error(import_picocolors13.default.yellow(`No logs found for ${taskKey}`));
+      console.error(import_picocolors14.default.yellow(`No logs found for ${taskKey}`));
       return;
     }
     const latest = logFiles[logFiles.length - 1];
     if (!latest) {
-      console.error(import_picocolors13.default.yellow("No log file available"));
+      console.error(import_picocolors14.default.yellow("No log file available"));
       return;
     }
     const content = await readText(join16(runDir, latest));
@@ -46752,16 +47584,16 @@ async function logAction(taskKey) {
       console.log(content);
     }
   } catch {
-    console.error(import_picocolors13.default.yellow(`No run directory found for ${taskKey}`));
+    console.error(import_picocolors14.default.yellow(`No run directory found for ${taskKey}`));
   }
 }
-var import_picocolors13;
+var import_picocolors14;
 var init_log = __esm({
   "src/cli/actions/log.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_picocolors13 = __toESM(require_picocolors());
+    import_picocolors14 = __toESM(require_picocolors());
   }
 });
 
@@ -46772,12 +47604,12 @@ __export(done_exports, {
 });
 async function doneAction(taskKey, options) {
   if (!options.yes) {
-    console.log(import_picocolors14.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
+    console.log(import_picocolors15.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
     return;
   }
   const result = await loadRunMeta(taskKey);
   if (!result.ok || !result.value) {
-    console.error(import_picocolors14.default.red(`No run found for ${taskKey}`));
+    console.error(import_picocolors15.default.red(`No run found for ${taskKey}`));
     process.exit(1);
   }
   const meta3 = result.value;
@@ -46804,22 +47636,22 @@ async function doneAction(taskKey, options) {
   }
   if (options.autoApprovePrMerge && meta3.prNumber) {
     console.log(
-      import_picocolors14.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
+      import_picocolors15.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
     );
     const mergeResult = await mergePR(meta3.prNumber, provider);
     if (!mergeResult.ok) {
-      console.error(import_picocolors14.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
-      console.error(import_picocolors14.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
+      console.error(import_picocolors15.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
+      console.error(import_picocolors15.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
     } else {
-      console.log(import_picocolors14.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
+      console.log(import_picocolors15.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
     }
   } else if (meta3.prUrl) {
-    console.log(import_picocolors14.default.dim(`
+    console.log(import_picocolors15.default.dim(`
 PR pending: ${meta3.prUrl} \u2014 merge manually when ready.`));
   }
   if (meta3.baseBranch) {
     console.log(
-      import_picocolors14.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
+      import_picocolors15.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
     );
   }
   await finalize2(taskKey, meta3, config2, projectCfg);
@@ -46835,9 +47667,9 @@ async function finalize2(taskKey, meta3, config2, projectCfg) {
     if (doneTarget.trim() !== "") {
       const transResult = await jira.setStatus(taskKey, doneTarget);
       if (!transResult.ok) {
-        console.warn(import_picocolors14.default.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
+        console.warn(import_picocolors15.default.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
         console.warn(
-          import_picocolors14.default.dim("  Configure jira.transitions.done in your project YAML to match your workflow.")
+          import_picocolors15.default.dim("  Configure jira.transitions.done in your project YAML to match your workflow.")
         );
       }
     }
@@ -46863,7 +47695,7 @@ async function removeBodeLabels(taskKey, config2, meta3) {
     });
   }
 }
-var import_picocolors14;
+var import_picocolors15;
 var init_done = __esm({
   "src/cli/actions/done.ts"() {
     "use strict";
@@ -46874,7 +47706,7 @@ var init_done = __esm({
     init_transitions();
     init_projects();
     init_summary();
-    import_picocolors14 = __toESM(require_picocolors());
+    import_picocolors15 = __toESM(require_picocolors());
   }
 });
 
@@ -46888,25 +47720,25 @@ async function listAction() {
   try {
     const entries = await (0, import_promises12.readdir)(runsDir);
     if (entries.length === 0) {
-      console.log(import_picocolors15.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+      console.log(import_picocolors16.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
       return;
     }
     for (const entry of entries) {
       const result = await loadRunMeta(entry);
       if (result.ok && result.value) {
         const meta3 = result.value;
-        const branchInfo = meta3.branch ? import_picocolors15.default.dim(` (${meta3.branch})`) : "";
-        const conflictInfo = meta3.conflict ? import_picocolors15.default.red(" [CONFLICT]") : "";
+        const branchInfo = meta3.branch ? import_picocolors16.default.dim(` (${meta3.branch})`) : "";
+        const conflictInfo = meta3.conflict ? import_picocolors16.default.red(" [CONFLICT]") : "";
         console.log(
-          `${import_picocolors15.default.bold(meta3.taskKey)} ${import_picocolors15.default.dim("-")} ${meta3.jiraSummary} ${import_picocolors15.default.dim("|")} ${getPhaseStatusLabel(meta3.status)}${branchInfo}${conflictInfo}`
+          `${import_picocolors16.default.bold(meta3.taskKey)} ${import_picocolors16.default.dim("-")} ${meta3.jiraSummary} ${import_picocolors16.default.dim("|")} ${getPhaseStatusLabel(meta3.status)}${branchInfo}${conflictInfo}`
         );
       }
     }
   } catch {
-    console.log(import_picocolors15.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+    console.log(import_picocolors16.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
   }
 }
-var import_promises12, import_picocolors15;
+var import_promises12, import_picocolors16;
 var init_list = __esm({
   "src/cli/actions/list.ts"() {
     "use strict";
@@ -46914,7 +47746,7 @@ var init_list = __esm({
     init_defaults();
     init_run_meta();
     init_phase();
-    import_picocolors15 = __toESM(require_picocolors());
+    import_picocolors16 = __toESM(require_picocolors());
   }
 });
 
@@ -46930,18 +47762,18 @@ async function skillsAction(options) {
       globalDir: void 0
     });
     if (result.ok) {
-      console.log(`${import_picocolors16.default.bold(phase)}: ${import_picocolors16.default.cyan(result.value)}`);
+      console.log(`${import_picocolors17.default.bold(phase)}: ${import_picocolors17.default.cyan(result.value)}`);
     } else {
-      console.log(`${import_picocolors16.default.bold(phase)}: ${import_picocolors16.default.yellow("not found")}`);
+      console.log(`${import_picocolors17.default.bold(phase)}: ${import_picocolors17.default.yellow("not found")}`);
     }
   }
 }
-var import_picocolors16, PHASES;
+var import_picocolors17, PHASES;
 var init_skills = __esm({
   "src/cli/actions/skills.ts"() {
     "use strict";
     init_resolver();
-    import_picocolors16 = __toESM(require_picocolors());
+    import_picocolors17 = __toESM(require_picocolors());
     PHASES = ["planning", "implementation", "review"];
   }
 });
@@ -46952,8 +47784,8 @@ __export(doctor_exports, {
   doctorAction: () => doctorAction
 });
 function fmt(c) {
-  const symbol2 = c.status === "ok" ? import_picocolors17.default.green("\u2713") : c.status === "warn" ? import_picocolors17.default.yellow("\u26A0") : import_picocolors17.default.red("\u2717");
-  return `${symbol2} ${import_picocolors17.default.bold(c.name.padEnd(28))} ${c.detail}`;
+  const symbol2 = c.status === "ok" ? import_picocolors18.default.green("\u2713") : c.status === "warn" ? import_picocolors18.default.yellow("\u26A0") : import_picocolors18.default.red("\u2717");
+  return `${symbol2} ${import_picocolors18.default.bold(c.name.padEnd(28))} ${c.detail}`;
 }
 async function checkNodeVersion() {
   const v = process.versions.node;
@@ -47015,8 +47847,8 @@ async function checkRunsDir() {
 async function doctorAction() {
   const workdir = process.cwd();
   console.log("");
-  console.log(import_picocolors17.default.bold(`bode doctor`) + import_picocolors17.default.dim(`  v${getVersion()}`));
-  console.log(import_picocolors17.default.dim("\u2500".repeat(64)));
+  console.log(import_picocolors18.default.bold(`bode doctor`) + import_picocolors18.default.dim(`  v${getVersion()}`));
+  console.log(import_picocolors18.default.dim("\u2500".repeat(64)));
   const checks = [];
   checks.push(await checkNodeVersion());
   checks.push(await checkGlobalConfig());
@@ -47032,7 +47864,7 @@ async function doctorAction() {
     checks.push({
       name: "Git remote",
       status: env2.vcsProvider ? "ok" : "warn",
-      detail: `${env2.gitRemoteUrl}  ${import_picocolors17.default.dim(`(${provider})`)}`
+      detail: `${env2.gitRemoteUrl}  ${import_picocolors18.default.dim(`(${provider})`)}`
     });
   } else {
     checks.push({
@@ -47078,23 +47910,23 @@ async function doctorAction() {
   for (const c of checks) console.log(fmt(c));
   const fails = checks.filter((c) => c.status === "fail").length;
   const warns = checks.filter((c) => c.status === "warn").length;
-  console.log(import_picocolors17.default.dim("\u2500".repeat(64)));
+  console.log(import_picocolors18.default.dim("\u2500".repeat(64)));
   if (fails === 0 && warns === 0) {
-    console.log(import_picocolors17.default.green(`All ${checks.length} checks passed.`));
+    console.log(import_picocolors18.default.green(`All ${checks.length} checks passed.`));
     process.exit(0);
   }
   if (fails === 0) {
-    console.log(import_picocolors17.default.yellow(`${warns} warning(s), no failures.`));
+    console.log(import_picocolors18.default.yellow(`${warns} warning(s), no failures.`));
     process.exit(0);
   }
-  console.log(import_picocolors17.default.red(`${fails} failure(s), ${warns} warning(s).`));
+  console.log(import_picocolors18.default.red(`${fails} failure(s), ${warns} warning(s).`));
   process.exit(1);
 }
-var import_picocolors17, import_node_fs17, import_node_child_process7, import_node_util14, execFileAsync5;
+var import_picocolors18, import_node_fs17, import_node_child_process7, import_node_util14, execFileAsync5;
 var init_doctor = __esm({
   "src/cli/actions/doctor.ts"() {
     "use strict";
-    import_picocolors17 = __toESM(require_picocolors());
+    import_picocolors18 = __toESM(require_picocolors());
     import_node_fs17 = require("node:fs");
     import_node_child_process7 = require("node:child_process");
     import_node_util14 = require("node:util");
@@ -47140,6 +47972,10 @@ function createCommands(program3) {
       await fastAction2(joined, options);
     }
   );
+  program3.command("new <summary...>").description("Create a local task (.bode/tasks/<key>.md) without running the AI yet").option("--project <name>", "Project name from ~/.bode/projects/").action(async (summary, options) => {
+    const { newAction: newAction2 } = await Promise.resolve().then(() => (init_new(), new_exports));
+    await newAction2(summary.join(" "), options);
+  });
   program3.command("setup").description(
     "Configure Jira OAuth, default CLIs per phase, VCS provider, and validate connections"
   ).action(async () => {

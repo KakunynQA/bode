@@ -4,6 +4,64 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0] — 2026-05-27
+
+**Wave 2 essentially closed** — three new tracker adapters land (#12, #14, #15) plus `plain-markdown` aliasing (#13) and the long-promised `bode new` command. Zero new dependencies — every external API client is a thin `fetch()` wrapper.
+
+### Added — Linear (#12)
+
+- **`LinearAdapter`** at `src/adapters/tracker/linear.ts`. Uses Linear's GraphQL API directly.
+- Auth: `LINEAR_API_KEY` env var (preferred) or `linear.api_key` in config.
+- Task keys: Linear identifier form, e.g. `ENG-123`.
+- Status: workflow state name (`setStatus("In Progress")` resolves the team's state by name).
+- Tags: Linear labels (must exist on the team — adapter does NOT auto-create).
+- Comments: `commentCreate` mutation.
+
+### Added — Notion (#14)
+
+- **`NotionAdapter`** at `src/adapters/tracker/notion.ts`. REST + bearer token + `Notion-Version` header.
+- Auth: `NOTION_TOKEN` env var or `notion.api_token`.
+- Database: `NOTION_DATABASE_ID` or `notion.database_id` (required).
+- Property names default to `Name` / `Status` / `Tags`; override via `notion.properties: { title, status, tags }`.
+- Comments via the official Notion comments API.
+- Status supports both `status` and `select` property types.
+
+### Added — Trello (#15)
+
+- **`TrelloAdapter`** at `src/adapters/tracker/trello.ts`. Key+token query-string auth.
+- Auth: `TRELLO_KEY` + `TRELLO_TOKEN` env vars or `trello.api_key` + `trello.token`.
+- Task keys: card id (24-char) or short link (8-char from card URL).
+- Status: card moves between lists named like the status (`setStatus("In Progress")` finds the "In Progress" list on the card's board).
+- Tags: board labels. Auto-creates the label on the board if missing when `addTag` is called.
+- Comments via `/cards/{id}/actions/comments`.
+
+### Added — plain-markdown alias (#13)
+
+- `tracker: plain-markdown` in config is an alias for `tracker: local`. Same `LocalTrackerAdapter` backend; the alias makes the format explicit.
+- **New `bode new "<summary>"` command** — creates a local task at `<workdir>/.bode/tasks/<auto-key>.md` and prints the key, without running the AI. Pair it with `bode <key>` later to actually do the work.
+
+### Changed
+
+- `tracker` enum now accepts: `jira` | `github-issues` | `linear` | `notion` | `trello` | `local` | `plain-markdown` | `mock`.
+- `selectTracker` learned three new branches and surfaces clear errors when credentials are missing (e.g. `"Linear tracker selected but no API key found. Set linear.api_key in config or LINEAR_API_KEY env var."`).
+- `start.ts` / `continue.ts` propagate the new `linear` / `notion` / `trello` config blocks to `selectTracker`.
+
+### Tests
+
+- `tests/unit/adapters/tracker/linear.test.ts` (5 cases): construct + interface conformance, no-op success on empty inputs.
+- `tests/unit/adapters/tracker/notion.test.ts` (10 cases): property extractor helpers, constructor with/without overrides.
+- `tests/unit/adapters/tracker/trello.test.ts` (5 cases): construct + interface conformance.
+- `tests/unit/adapters/tracker/factory.test.ts` (8 new cases): credential errors + env-var resolution per adapter.
+
+Total: 176 → 203 (+27).
+
+### Notes
+
+- HTTP calls in Linear/Notion/Trello adapters are not integration-tested (no live API in CI). The contract conformance is tested; real network behavior will be covered under Wave 6.
+- All three external adapters implement both canonical (v0.25.0) and deprecated method names.
+- `attachFile` is a no-op on all three external adapters (they have their own attachment models that don't map cleanly to file uploads).
+- Wave 2 is closed. Wave 3 (DX polish) is next.
+
 ## [0.25.0] — 2026-05-27
 
 **Closes #16 — provider-neutral method names on IssueTrackerStrategy.** The Jira-flavored vocabulary (`getIssue`, `addComment`, `transitionStatus`, `addLabel`, `removeLabel`, `getTransitions`) was awkward as soon as LocalTracker and GitHubIssues landed. New canonical names are in. Old names stay until v0.30.0 as `@deprecated` delegates.
