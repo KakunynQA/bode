@@ -120,6 +120,7 @@ export async function runPhase(
 		signal: options.signal,
 		interactive: options.interactive ?? true,
 		dangerousBypass: options.dangerousBypass ?? false,
+		...(options.projectConfig?.workdir ? { workdir: options.projectConfig.workdir } : {}),
 	};
 
 	const invokeResult = await adapterResult.value.invoke(prompt, cliConfig, invocationOpts);

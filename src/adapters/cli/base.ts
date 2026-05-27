@@ -40,11 +40,13 @@ export abstract class BaseCliAdapter implements CliAdapter {
 		return true;
 	}
 
-	private spawnCli(command: string, args: string[], stdio: StdioOptions) {
+	private spawnCli(command: string, args: string[], stdio: StdioOptions, cwd?: string) {
+		const spawnOpts: { stdio: StdioOptions; cwd?: string } = { stdio };
+		if (cwd) spawnOpts.cwd = cwd;
 		if (isWindows) {
-			return spawn('cmd.exe', ['/c', command, ...args], { stdio });
+			return spawn('cmd.exe', ['/c', command, ...args], spawnOpts);
 		}
-		return spawn(command, args, { stdio });
+		return spawn(command, args, spawnOpts);
 	}
 
 	async invoke(
@@ -71,7 +73,12 @@ export abstract class BaseCliAdapter implements CliAdapter {
 
 		try {
 			const result = await new Promise<CliInvocationResult>((resolve, reject) => {
-				const proc = this.spawnCli(command, args, ['inherit', 'inherit', 'inherit']);
+				const proc = this.spawnCli(
+					command,
+					args,
+					['inherit', 'inherit', 'inherit'],
+					options.workdir
+				);
 
 				const timeoutMs = config.timeout_minutes * 60 * 1000;
 				const timer = setTimeout(() => {
@@ -122,7 +129,7 @@ export abstract class BaseCliAdapter implements CliAdapter {
 
 		try {
 			const result = await new Promise<CliInvocationResult>((resolve, reject) => {
-				const proc = this.spawnCli(command, args, ['pipe', 'pipe', 'pipe']);
+				const proc = this.spawnCli(command, args, ['pipe', 'pipe', 'pipe'], options.workdir);
 
 				let stdout = '';
 				let stderr = '';

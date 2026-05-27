@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] — 2026-05-27
+
+### Changed (architecture)
+
+- **The AI creates the pull request, not bode.** When advancing from `reviewed` to `awaiting-merge`, bode no longer shells out to `gh pr create` / `glab mr create` with boilerplate title/body. Instead, it hands the terminal to the configured review-phase CLI with a focused prompt: "you just did the planning/implementation/review, now run `gh` (or `glab`) to open the PR, craft a meaningful title and body, then write the URL to `~/.bode/runs/<KEY>/pr.txt` and exit."
+- The AI inherits stdio, so the user sees the live PR creation and can approve sandbox prompts directly.
+- Bode reads `pr.txt` after the AI exits, extracts the URL (regex-anchored on `/pull/N` or `/-/merge_requests/N`), and persists URL + number in run meta.
+- **Conflict check stays with bode** — fast, no tokens, runs before the AI handoff.
+- `--dangerously-approve-all` propagates through to the PR-creation invocation.
+
+### Added
+
+- `src/orchestrator/pr-creator.ts` (`createPullRequestViaAI`) — composes the PR prompt with the three prior artifacts inlined and the handoff path. Exports `__testing` for unit tests on URL/number extraction and prompt construction.
+- `CliInvocationOptions.workdir` — adapter `invoke()` now accepts `cwd` so the spawned CLI runs in the project workdir by default. Wired through phase-runner and pr-creator.
+
+### Notes
+
+- The bode-generated PR body (`Automated PR created by Bode for X / Summary / X / Powered by Bode`) is gone. PR bodies now describe the actual change.
+- `branch-manager.ts#createPullRequest` is no longer called from the engine but remains in the file for any external caller that still depends on it. Will be removed in a future major bump if no consumers surface.
+- 15 new unit tests cover URL extraction (github + gitlab + self-hosted) and prompt content. Total: 94 → 109.
+
 ## [0.15.0] — 2026-05-27
 
 ### Added

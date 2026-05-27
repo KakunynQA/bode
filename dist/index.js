@@ -31784,11 +31784,13 @@ var init_base2 = __esm({
       supportsInteractive() {
         return true;
       }
-      spawnCli(command, args, stdio) {
+      spawnCli(command, args, stdio, cwd) {
+        const spawnOpts = { stdio };
+        if (cwd) spawnOpts.cwd = cwd;
         if (isWindows) {
-          return (0, import_node_child_process.spawn)("cmd.exe", ["/c", command, ...args], { stdio });
+          return (0, import_node_child_process.spawn)("cmd.exe", ["/c", command, ...args], spawnOpts);
         }
-        return (0, import_node_child_process.spawn)(command, args, { stdio });
+        return (0, import_node_child_process.spawn)(command, args, spawnOpts);
       }
       async invoke(prompt, config2, options = {}) {
         const interactive = options.interactive ?? false;
@@ -31804,7 +31806,12 @@ var init_base2 = __esm({
         const { signal } = options;
         try {
           const result = await new Promise((resolve, reject) => {
-            const proc = this.spawnCli(command, args, ["inherit", "inherit", "inherit"]);
+            const proc = this.spawnCli(
+              command,
+              args,
+              ["inherit", "inherit", "inherit"],
+              options.workdir
+            );
             const timeoutMs = config2.timeout_minutes * 60 * 1e3;
             const timer = setTimeout(() => {
               proc.kill("SIGTERM");
@@ -31844,7 +31851,7 @@ var init_base2 = __esm({
         const { signal } = options;
         try {
           const result = await new Promise((resolve, reject) => {
-            const proc = this.spawnCli(command, args, ["pipe", "pipe", "pipe"]);
+            const proc = this.spawnCli(command, args, ["pipe", "pipe", "pipe"], options.workdir);
             let stdout = "";
             let stderr = "";
             let stdoutBytes = 0;
@@ -32554,8 +32561,8 @@ var init_rest = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.15.0") {
-    return "0.15.0";
+  if ("0.16.0") {
+    return "0.16.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -33834,7 +33841,8 @@ async function runPhase(taskKey, status, config2, jira, options) {
   const invocationOpts = {
     signal: options.signal,
     interactive: options.interactive ?? true,
-    dangerousBypass: options.dangerousBypass ?? false
+    dangerousBypass: options.dangerousBypass ?? false,
+    ...options.projectConfig?.workdir ? { workdir: options.projectConfig.workdir } : {}
   };
   const invokeResult = await adapterResult.value.invoke(prompt, cliConfig, invocationOpts);
   if (!invokeResult.ok) {
@@ -34339,25 +34347,6 @@ async function checkForConflicts(workdir, baseBranch, taskBranch, signal) {
   if (!conflictResult.ok) return conflictResult;
   return { ok: true, value: conflictResult.value };
 }
-async function createPullRequest(workdir, taskKey, summary, branch, baseBranch, provider, signal) {
-  const vcs = createVcsAdapter(provider);
-  const prResult = await vcs.createPullRequest({
-    title: `${taskKey}: ${summary}`,
-    body: `Automated PR created by Bode for ${taskKey}.
-
-## Summary
-${summary}
-
----
-_Powered by Bode_`,
-    head: branch,
-    base: baseBranch,
-    workdir,
-    ...signal ? { signal } : {}
-  });
-  if (!prResult.ok) return prResult;
-  return { ok: true, value: { number: prResult.value.number, url: prResult.value.url } };
-}
 async function switchToBase(workdir, baseBranch) {
   return checkout(workdir, baseBranch);
 }
@@ -34499,6 +34488,153 @@ var init_summary = __esm({
     import_node_path12 = require("node:path");
     init_defaults();
     PHASE_FILES = ["planning", "implementation", "review"];
+  }
+});
+
+// src/orchestrator/pr-creator.ts
+var pr_creator_exports = {};
+__export(pr_creator_exports, {
+  __testing: () => __testing,
+  createPullRequestViaAI: () => createPullRequestViaAI
+});
+async function createPullRequestViaAI(args) {
+  const runDir = getRunDir(args.taskKey);
+  const prFile = (0, import_node_path13.join)(runDir, "pr.txt");
+  const logPath = (0, import_node_path13.join)(runDir, "pr.log");
+  if ((0, import_node_fs11.existsSync)(prFile)) {
+    await writeText(prFile, "");
+  }
+  const planning = await readText((0, import_node_path13.join)(runDir, "planning.md")) ?? "(no plan artifact)";
+  const implementation = await readText((0, import_node_path13.join)(runDir, "implementation.md")) ?? "(no implementation artifact)";
+  const review = await readText((0, import_node_path13.join)(runDir, "review.md")) ?? "(no review artifact)";
+  const tool = args.provider === "gitlab" ? "glab" : "gh";
+  const createCmd = args.provider === "gitlab" ? `glab mr create --source-branch ${args.branch} --target-branch ${args.baseBranch} --title <title> --description <body> --no-editor` : `gh pr create --head ${args.branch} --base ${args.baseBranch} --title <title> --body <body>`;
+  const prompt = buildPrPrompt({
+    taskKey: args.taskKey,
+    summary: args.jiraSummary,
+    branch: args.branch,
+    baseBranch: args.baseBranch,
+    workdir: args.workdir,
+    tool,
+    createCmd,
+    prFile,
+    planning,
+    implementation,
+    review
+  });
+  const phaseConfig = args.config.phases.review;
+  const adapterResult = getAdapter(phaseConfig.cli);
+  if (!adapterResult.ok) return adapterResult;
+  const invokeResult = await adapterResult.value.invoke(
+    prompt,
+    {
+      cli: phaseConfig.cli,
+      model: phaseConfig.model,
+      timeout_minutes: phaseConfig.timeout_minutes
+    },
+    {
+      ...args.signal ? { signal: args.signal } : {},
+      interactive: true,
+      dangerousBypass: args.dangerousBypass ?? false,
+      workdir: args.workdir
+    }
+  );
+  await writeText(
+    logPath,
+    `PR-creation session \u2014 exit code: ${invokeResult.ok ? invokeResult.value.exitCode : "error"}, duration: ${invokeResult.ok ? invokeResult.value.durationMs : 0}ms`
+  );
+  if (!invokeResult.ok) {
+    return { ok: false, error: invokeResult.error };
+  }
+  const raw = await readText(prFile) ?? "";
+  const url2 = extractPrUrl(raw, args.provider);
+  if (!url2) {
+    return {
+      ok: false,
+      error: new Error(
+        `AI session ended but ${prFile} did not contain a recognizable ${args.provider} PR URL.
+  File contents: ${raw.trim() || "(empty)"}
+  Expected: a single line with the full PR/MR URL.`
+      )
+    };
+  }
+  const number4 = extractPrNumber(url2, args.provider);
+  return {
+    ok: true,
+    value: {
+      url: url2,
+      number: number4,
+      bodyArtifactPath: prFile
+    }
+  };
+}
+function buildPrPrompt(a) {
+  return [
+    `# Task: open a pull request`,
+    ``,
+    `You have just finished planning, implementing, and reviewing ${a.taskKey}: "${a.summary}".`,
+    `Your job now is to open the pull request using \`${a.tool}\` and report back the URL.`,
+    ``,
+    `## Repo info`,
+    `- Workdir:      ${a.workdir}`,
+    `- Source branch: ${a.branch}`,
+    `- Target branch: ${a.baseBranch}`,
+    `- Tool:         ${a.tool}`,
+    ``,
+    `## Steps`,
+    `1. Read your own artifacts to recall what changed (already inlined below).`,
+    `2. Craft a clear, specific PR title (avoid generic "${a.taskKey}: ${a.summary}" boilerplate \u2014 use what you actually did).`,
+    `3. Craft a PR body in markdown that includes:`,
+    `     - Summary of what changed and why`,
+    `     - Notable design decisions`,
+    `     - Test coverage you added or relied on`,
+    `     - Anything reviewers should look at carefully`,
+    `     - The review verdict if one is included`,
+    `4. Run \`${a.tool}\` to create the PR. Example shape:`,
+    `     \`${a.createCmd}\``,
+    `   Run it from the workdir above \u2014 your terminal is already there.`,
+    `5. After it succeeds, write ONLY the PR URL on a single line to:`,
+    `     ${a.prFile}`,
+    `   No extra text, no markdown, no commentary \u2014 just the URL.`,
+    `6. Exit the session.`,
+    ``,
+    `## Constraints`,
+    `- Do NOT modify code, run tests, or change branches. Your only job is to open the PR.`,
+    `- If the \`${a.tool}\` command fails, fix the issue (auth, remote, etc.) or report the failure and exit \u2014 do NOT loop forever.`,
+    ``,
+    `## Planning artifact`,
+    ``,
+    a.planning,
+    ``,
+    `## Implementation artifact`,
+    ``,
+    a.implementation,
+    ``,
+    `## Review artifact`,
+    ``,
+    a.review
+  ].join("\n");
+}
+function extractPrUrl(text, provider) {
+  const re = provider === "gitlab" ? /https:\/\/[^\s'"`]+\/-\/merge_requests\/\d+/ : /https:\/\/[^\s'"`]+\/pull\/\d+/;
+  const match = text.match(re);
+  return match?.[0] ?? null;
+}
+function extractPrNumber(url2, provider) {
+  const re = provider === "gitlab" ? /\/merge_requests\/(\d+)/ : /\/pull\/(\d+)/;
+  const match = url2.match(re);
+  return match?.[1] ? parseInt(match[1], 10) : 0;
+}
+var import_node_path13, import_node_fs11, __testing;
+var init_pr_creator = __esm({
+  "src/orchestrator/pr-creator.ts"() {
+    "use strict";
+    import_node_path13 = require("node:path");
+    import_node_fs11 = require("node:fs");
+    init_fs();
+    init_defaults();
+    init_registry();
+    __testing = { extractPrUrl, extractPrNumber, buildPrPrompt };
   }
 });
 
@@ -34645,20 +34781,25 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
     );
     return { ok: true, value: { kind: "conflict", meta: updatedMeta2 } };
   }
-  spinner.text = "Creating pull request...";
+  spinner.succeed("No conflicts. Handing off to AI to open the pull request...");
   const issueResult = await jira.getIssue(taskKey, options.signal);
   const summary = issueResult.ok ? issueResult.value.summary : meta3.jiraSummary;
-  const prResult = await createPullRequest(
-    workdir,
+  const { createPullRequestViaAI: createPullRequestViaAI2 } = await Promise.resolve().then(() => (init_pr_creator(), pr_creator_exports));
+  const prResult = await createPullRequestViaAI2({
     taskKey,
-    summary,
     branch,
     baseBranch,
+    workdir,
     provider,
-    options.signal
-  );
+    jiraSummary: summary,
+    config: config2,
+    jira,
+    ...options.projectConfig ? { projectConfig: options.projectConfig } : {},
+    ...options.signal ? { signal: options.signal } : {},
+    dangerousBypass: options.dangerousBypass ?? false
+  });
   if (!prResult.ok) {
-    spinner.fail(`PR creation failed: ${prResult.error.message}`);
+    console.error(import_picocolors4.default.red(`PR creation failed: ${prResult.error.message}`));
     return prResult;
   }
   const updatedMeta = {
@@ -35402,7 +35543,7 @@ __export(log_exports, {
 });
 async function logAction(taskKey) {
   const { readdir: readdir4 } = await import("node:fs/promises");
-  const { join: join11 } = await import("node:path");
+  const { join: join12 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
     const files = await readdir4(runDir);
@@ -35416,7 +35557,7 @@ async function logAction(taskKey) {
       console.error(import_picocolors12.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join11(runDir, latest));
+    const content = await readText(join12(runDir, latest));
     if (content) {
       console.log(content);
     }

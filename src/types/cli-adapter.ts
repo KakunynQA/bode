@@ -10,6 +10,7 @@ export type CliInvocationOptions = {
 	signal?: AbortSignal | undefined;
 	interactive?: boolean;
 	dangerousBypass?: boolean;
+	workdir?: string;
 };
 
 export type CliInvocationResult = {

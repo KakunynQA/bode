@@ -4,7 +4,7 @@ import { getNextPhase, getPhaseStatusLabel } from '~/types/phase.ts';
 import type { JiraAdapter } from '~/types/jira.ts';
 import { loadRunMeta, saveRunMeta, type RunMeta } from '~/storage/run-meta.ts';
 import { runPhase, type PhaseRunResult } from './phase-runner.ts';
-import { checkForConflicts, createPullRequest } from './branch-manager.ts';
+import { checkForConflicts } from './branch-manager.ts';
 import { resolveVcsProvider } from '~/config/loader.ts';
 import { resolveJiraTransition } from '~/config/transitions.ts';
 import { printPhaseArtifacts } from '~/cli/summary.ts';
@@ -157,11 +157,7 @@ async function advanceToAwaitingMerge(
 	meta: RunMeta,
 	config: BodeConfig,
 	jira: JiraAdapter,
-	options: {
-		projectRoot: string | undefined;
-		signal: AbortSignal | undefined;
-		projectConfig?: ProjectConfig | undefined;
-	}
+	options: AdvanceOptions
 ): Promise<Result<AdvanceResult>> {
 	const workdir = options.projectConfig?.workdir ?? options.projectRoot;
 	const branch = meta.branch;
@@ -208,22 +204,27 @@ async function advanceToAwaitingMerge(
 		return { ok: true, value: { kind: 'conflict', meta: updatedMeta } };
 	}
 
-	spinner.text = 'Creating pull request...';
+	spinner.succeed('No conflicts. Handing off to AI to open the pull request...');
 
 	const issueResult = await jira.getIssue(taskKey, options.signal);
 	const summary = issueResult.ok ? issueResult.value.summary : meta.jiraSummary;
 
-	const prResult = await createPullRequest(
-		workdir,
+	const { createPullRequestViaAI } = await import('./pr-creator.ts');
+	const prResult = await createPullRequestViaAI({
 		taskKey,
-		summary,
 		branch,
 		baseBranch,
+		workdir,
 		provider,
-		options.signal
-	);
+		jiraSummary: summary,
+		config,
+		jira,
+		...(options.projectConfig ? { projectConfig: options.projectConfig } : {}),
+		...(options.signal ? { signal: options.signal } : {}),
+		dangerousBypass: options.dangerousBypass ?? false,
+	});
 	if (!prResult.ok) {
-		spinner.fail(`PR creation failed: ${prResult.error.message}`);
+		console.error(pc.red(`PR creation failed: ${prResult.error.message}`));
 		return prResult;
 	}
 
