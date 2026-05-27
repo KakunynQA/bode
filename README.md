@@ -17,7 +17,7 @@
 
 <p>
   <strong>AI Coding Orchestrator for Jira</strong><br>
-  Current version: <strong>0.3.0</strong><br>
+  Current version: <strong>0.5.0</strong><br>
   Drives <strong>Claude Code</strong>, <strong>OpenCode</strong>, <strong>Codex</strong>, <strong>Z.AI</strong> through configurable phases and syncs progress to <strong>Jira</strong>.
 </p>
 

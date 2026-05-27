@@ -73,14 +73,16 @@ $ bode start KD-312
 ## Tech Stack
 
 - **Language:** TypeScript (strict)
-- **Runtime:** Bun
-- **CLI framework:** `commander` or `clipanion` (simple, low-dep)
-- **Jira integration:** MCP Atlassian server
+- **Runtime:** Node.js >=18, built with esbuild to single CJS bundle
+- **CLI framework:** `commander`
+- **Interactive prompts:** `@inquirer/prompts` (arrow-key selection)
+- **Jira integration:** MCP Atlassian server (mock adapter for MVP)
 - **AI CLI invocation:** child_process (headless mode of each CLI)
 - **Local storage:** filesystem (`~/.bode/`), no DB
 - **Config:** YAML (`~/.bode/config.yml` + `<project>/.bode.yml`)
-- **Tests:** `bun test` for units, Playwright not needed (no UI)
+- **Tests:** `node --test` for units
 - **Logging:** structured JSON logs to file, pretty output to terminal
+- **Build:** esbuild → `dist/index.js` (CJS), assets embedded via `define`
 
 ## Directory Layout
 
@@ -206,9 +208,9 @@ Each phase follows the same pattern:
 | CLI | Invocation pattern |
 |---|---|
 | claude-code | `claude --print --model <model> < prompt.txt > output.log` |
-| opencode | `opencode run --model <model> --prompt "$(cat prompt.txt)"` |
-| codex | `codex exec --model <model> --prompt-file prompt.txt` |
-| gemini-cli | `gemini --prompt-file prompt.txt --model <model>` |
+| opencode | `opencode run --model <model> --prompt-file /dev/stdin` |
+| codex | `codex exec --model <model> --prompt-file /dev/stdin` |
+| zai | `zai-coding --model <model> --prompt-file /dev/stdin` |
 
 Exact flags will be validated during implementation; some CLIs are still evolving. The orchestrator must abstract this behind a `CliAdapter` interface.
 
@@ -291,8 +293,8 @@ If two devs run `bode start` on the same task simultaneously, second one detects
 - [ ] `bode done <KEY>` cleans up state and closes Jira task
 - [ ] Autopilot label runs all phases sequentially
 - [ ] All commands handle network errors gracefully
-- [ ] At least 2 CLI adapters working: claude-code and opencode
-- [ ] At least one phase has been configured per fase with a different CLI in a real test
+- [ ] At least 2 CLI adapters working: claude-code and opencode (codex and zai also implemented)
+- [ ] At least one phase has been configured per phase with a different CLI in a real test
 - [ ] Unit test coverage for: config loading, CLI adapters, Jira ops, skill resolution
 - [ ] Smoke test script that runs a fake task end-to-end against a Jira sandbox
 

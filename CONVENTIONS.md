@@ -31,18 +31,25 @@ Standards for **Bode** and any future internal CLI/tool at Kakunyn. Follow stric
 
 ```
 src/
-├── cli/              # CLI command handlers (one file per command)
-├── orchestrator/     # phase execution, state machine
 ├── adapters/
-│   ├── cli/          # CliAdapter implementations (claude-code, opencode, ...)
-│   ├── jira/         # MCP Atlassian wrapper
-│   └── vcs/          # GitHub/GitLab PR creation
+│   ├── cli/          # CliAdapter implementations (claude-code, opencode, codex, zai)
+│   ├── jira/         # MCP Atlassian wrapper (mock for now)
+│   └── vcs/          # GitHub PR creation via gh CLI
+├── assets/           # Static assets (bode.art) embedded at build time
+├── cli/
+│   ├── actions/      # One file per command action
+│   ├── commands.ts   # Commander command definitions
+│   └── program.ts    # Program setup, version
 ├── config/           # config loading, schema, defaults
-├── skills/           # skill resolution and prompt building
+├── orchestrator/     # phase execution, state machine, engine
+├── skills/           # skill resolution, prompt building, bundled defaults
 ├── storage/          # ~/.bode/ filesystem operations
 ├── types/            # shared domain types
 ├── utils/            # pure helpers
 └── index.ts          # entry point
+
+scripts/
+└── build.mjs         # esbuild build script
 
 tests/
 ├── unit/             # mirrors src/ structure
@@ -58,7 +65,7 @@ Rules:
 ## Imports
 
 Order:
-1. Node/Bun built-ins (`node:fs`, `node:path`)
+1. Node built-ins (`node:fs`, `node:path`)
 2. External packages
 3. `~/...` alias (project root)
 4. Relative imports
@@ -108,7 +115,7 @@ Custom error types per boundary:
 ## Logging
 
 - Two layers: **terminal output** (for user) and **structured log** (for debugging).
-- Terminal: `console.log` with prefixes (`✓`, `✗`, `→`, `🤖`). Colored via `picocolors`.
+- Terminal: `console.log` with prefixes (`✓`, `✗`, `→`). Colored via `picocolors`.
 - Structured: JSON lines to `~/.bode/runs/<KEY>/<phase>.log`. Every entry has `timestamp`, `level`, `phase`, `message`, optional `extra`.
 - Never log secrets, tokens, full Jira credentials.
 - Levels: `debug`, `info`, `warn`, `error`. Default terminal level: `info`. Override via `--verbose`.
@@ -116,22 +123,29 @@ Custom error types per boundary:
 ## CLI UX
 
 - Every command has `--help` with examples.
-- Every command supports `--json` for machine-readable output (useful for piping).
 - Errors exit with non-zero code and a clear message.
-- No unicode emoji in pipeable output unless TTY detected.
-- Progress indication: spinners for short ops (<10s), progress bars for longer.
+- Progress indication: spinners via `ora` for long ops.
 - Confirmations on destructive ops (`bode abort`, `bode done`) unless `--yes` passed.
+- Interactive prompts via `@inquirer/prompts` (arrow-key selection, not raw stdin).
+
+## Build
+
+- esbuild bundles everything to single CJS file `dist/index.js`.
+- Build script: `scripts/build.mjs` (ESM, runs with Node).
+- Static assets embedded via esbuild `define` (e.g., `__GOAT_ART__` from `src/assets/bode.art`).
+- `__dirname` available in CJS output. `import.meta.url` not available.
+- Path alias `~/` maps to `./src` via esbuild alias + tsconfig paths.
 
 ## Configuration
 
 - YAML for human-edited configs. JSON for machine-generated state.
 - Config validation via `zod` schemas. Fail fast on invalid config.
 - Defaults in code, not in default config file. Config file shows only overrides.
-- Sensitive values (tokens) stored via system keychain (`keytar`), never in plain config.
+- Sensitive values (tokens) stored via system keychain, never in plain config.
 
 ## Testing
 
-- Unit tests with `bun test` for pure logic, config loading, skill resolution.
+- Unit tests with `node --test` for pure logic, config loading, skill resolution.
 - Integration tests for CliAdapter implementations (run actual CLIs, may need credentials).
 - Smoke test script: runs a fake Jira task end-to-end against a sandbox project.
 - No tests for CLI handlers (they're thin glue, integration-tested via smoke).
@@ -154,7 +168,7 @@ Custom error types per boundary:
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`.
 - One logical change per PR. If you can describe it with "and", split it.
 - PR description: what changed, why, how to test, output/screenshots if UX.
-- All PRs must pass: `bun run check`, `bun run lint`, `bun run test`, integration smoke (manual).
+- All PRs must pass: `npm run check`, `npm run lint`, `npm run build`.
 - Squash merge to `main`. Branch names: `feat/jira-mcp`, `fix/timeout-handling`.
 
 ## When Working with AI Agents

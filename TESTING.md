@@ -6,9 +6,9 @@ Bode has no UI, so testing focuses on unit logic, integration with external syst
 
 | Layer | Tool | Runs |
 |---|---|---|
-| Unit | `bun test` | Every PR, fast, deterministic |
-| Integration | `bun test --tag=integration` | Local with credentials, optional in CI with secrets |
-| Smoke | Custom script `bun run smoke` | Manual before releases |
+| Unit | `node --test` | Every PR, fast, deterministic |
+| Integration | `node --test --tag=integration` | Local with credentials, optional in CI with secrets |
+| Smoke | Custom script `npm run smoke` | Manual before releases |
 
 ## Unit Tests
 
@@ -16,24 +16,25 @@ Cover:
 - Config loading and validation (`src/config/`)
 - Skill resolution and prompt building (`src/skills/`)
 - Result type helpers, formatters (`src/utils/`)
-- Phase state machine transitions (`src/orchestrator/state.ts`)
+- Phase state machine transitions (`src/types/phase.ts`)
 - Adapter error handling (mock the external calls)
 
 Rules:
 - Co-located with code: `loader.ts` → `loader.test.ts`
 - Mock external systems (Jira, CLI invocations, filesystem when realistic)
-- No real timers (`setTimeout` etc). Use injected clock or `bun test`'s fake timers
+- No real timers (`setTimeout` etc). Use injected clock or fake timers.
 - Deterministic: same input, same output, always
 
 Example:
 
 ```ts
 // src/skills/resolver.test.ts
-import { describe, test, expect } from 'bun:test';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 import { resolveSkillPath } from './resolver';
 
 describe('resolveSkillPath', () => {
-  test('prefers project override', async () => {
+  it('prefers project override', async () => {
     const result = await resolveSkillPath('planning', {
       projectRoot: '/fake/project',
       globalDir: '/fake/home/.bode',
@@ -42,27 +43,7 @@ describe('resolveSkillPath', () => {
         '/fake/home/.bode/skills/planning.md': 'global',
       }),
     });
-    expect(result).toEqual({ ok: true, value: '/fake/project/.bode/skills/planning.md' });
-  });
-
-  test('falls back to global', async () => {
-    const result = await resolveSkillPath('planning', {
-      projectRoot: '/fake/project',
-      globalDir: '/fake/home/.bode',
-      fs: mockFs({
-        '/fake/home/.bode/skills/planning.md': 'global',
-      }),
-    });
-    expect(result).toEqual({ ok: true, value: '/fake/home/.bode/skills/planning.md' });
-  });
-
-  test('returns error if no skill found', async () => {
-    const result = await resolveSkillPath('planning', {
-      projectRoot: '/fake/project',
-      globalDir: '/fake/home/.bode',
-      fs: mockFs({}),
-    });
-    expect(result.ok).toBe(false);
+    assert.equal(result.ok, true);
   });
 });
 ```
@@ -77,11 +58,11 @@ Cover the adapters where mocks lie too much:
 Tagged so they skip when credentials absent:
 
 ```ts
-import { test } from 'bun:test';
+import { it } from 'node:test';
 
 const hasJiraCreds = !!process.env.BODE_JIRA_TEST_SITE;
 
-test.skipIf(!hasJiraCreds)('integration: jira add comment', async () => {
+it.skipIf(!hasJiraCreds)('integration: jira add comment', async () => {
   // real call
 });
 ```
@@ -99,7 +80,7 @@ CI runs integration tests only if these secrets are present.
 A single script that exercises the full happy path against the sandbox:
 
 ```bash
-bun run smoke
+npm run smoke
 ```
 
 What it does:
@@ -128,14 +109,16 @@ tests/
 
 ## CI
 
-GitHub Actions workflow runs on every PR:
+GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every PR:
 
-1. `bun install`
-2. `bun run check`
-3. `bun run lint`
-4. `bun run format:check`
-5. `bun run test` (unit only)
-6. `bun run build`
+1. `npm ci`
+2. `npm run check`
+3. `npm run lint`
+4. `npm run format:check`
+5. `npm run test` (unit only)
+6. `npm run build`
+
+On `v*` tags: creates GitHub Release with tarball and dist artifact.
 
 Integration tests run on a separate workflow triggered manually or on `main` push, if secrets are configured.
 

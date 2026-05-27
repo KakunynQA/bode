@@ -7,7 +7,7 @@ export function createProgram(): Command {
   program
     .name('bode')
     .description('Orchestrate AI coding work through configurable phases')
-    .version('0.4.0');
+    .version('0.5.0');
 
   createCommands(program);
 
