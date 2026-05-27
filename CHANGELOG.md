@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.22.0] — 2026-05-27
+
+**Closes #6 — `bode <query>` fast path.** Headline UX: single positional argument, intelligent routing.
+
+### Added
+
+- **`bode <ticket-key>`** (matches `[A-Z]+-\d+`) → runs `bode start` on that key.
+- **`bode "<freeform prompt>"`** → creates a local task at `<workdir>/.bode/tasks/auto-<YYYYMMDD-HHMM>-<slug>.md` and starts the regular flow. No Jira required.
+- `--project`, `--auto`, `--dangerously-auto-merge`, `--dangerously-approve-all` work on the fast path too.
+
+### Examples
+
+```bash
+bode KD-312                                    # ticket flow
+bode "fix the dashboard ID/name bug"           # freeform; creates local task
+bode "add unit tests for merge logic" --auto
+```
+
+### Files
+
+- `src/cli/actions/fast.ts` (`fastAction`, `generateKey`, ticket-key regex)
+- `src/cli/commands.ts` (default command via `argument('[query...]')`)
+
+### Tests
+
+- `tests/unit/cli/fast.test.ts` — TICKET_KEY_RE valid+invalid, generateKey edge cases.
+
+Total: 145 → 152 (+7).
+
+### Notes
+
+- Freeform path runs all phases (planning → implementation → review → PR). For unattended, add `--auto`. A `--quick` single-phase mode is on the roadmap.
+- Full auto-detect of AI CLI when no global config exists (#7 full integration) is still pending — for now `bode <prompt>` needs `bode setup` run once, OR `claude-code`/`opencode` installed (the DEFAULT_CONFIG CLIs).
+
 ## [0.21.0] — 2026-05-27
 
 **Closes #9 — Jira is no longer required.** Bode now has a first-class local file-based tracker. New users without Jira (or with Linear / GitHub Issues / nothing) get a working bode experience without configuring credentials.

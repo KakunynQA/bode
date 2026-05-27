@@ -1,6 +1,39 @@
 import { Command } from 'commander';
 
 export function createCommands(program: Command): void {
+	// Default action: `bode <query>` where query is a ticket key OR a freeform
+	// prompt. Routes to startAction for tickets, creates a local task otherwise.
+	// Registered FIRST so subcommands take precedence; this only fires when no
+	// subcommand matches.
+	program
+		.argument('[query...]', 'Ticket key (e.g. KD-312) or freeform prompt')
+		.option('--project <name>', 'Project name from ~/.bode/projects/')
+		.option('--auto', 'Run all phases automatically until PR is created')
+		.option('--dangerously-auto-merge', 'Run all phases AND auto-merge the PR (use with caution)')
+		.option(
+			'--dangerously-approve-all',
+			'Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code.'
+		)
+		.action(
+			async (
+				query: string[] | undefined,
+				options: {
+					project?: string;
+					auto?: boolean;
+					dangerouslyAutoMerge?: boolean;
+					dangerouslyApproveAll?: boolean;
+				}
+			) => {
+				const joined = (query ?? []).join(' ').trim();
+				if (!joined) {
+					program.outputHelp();
+					return;
+				}
+				const { fastAction } = await import('./actions/fast.ts');
+				await fastAction(joined, options);
+			}
+		);
+
 	program
 		.command('setup')
 		.description(
