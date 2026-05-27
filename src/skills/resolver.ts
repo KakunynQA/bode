@@ -3,10 +3,14 @@ import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { getSkillsDir } from '~/config/defaults.ts';
 import type { Result } from '~/types/result.ts';
-import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
 
-const BUNDLED_SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'defaults');
+const BUNDLED_SKILLS_DIR = join(
+  typeof __dirname !== 'undefined'
+    ? __dirname
+    : process.cwd(),
+  'skills',
+  'defaults'
+);
 
 export async function resolveSkillPath(
   phase: string,

@@ -15,7 +15,7 @@
     "declaration": true,
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["bun-types"],
+    "types": ["node"],
     "paths": {
       "~/*": ["./src/*"]
     }
