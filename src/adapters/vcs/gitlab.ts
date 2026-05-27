@@ -5,7 +5,7 @@ import type { Result } from '~/types/result.ts';
 
 const execFileAsync = promisify(execFile);
 
-export class GitHubAdapter implements VcsAdapter {
+export class GitLabAdapter implements VcsAdapter {
 	async createPullRequest(options: {
 		title: string;
 		body: string;
@@ -15,30 +15,32 @@ export class GitHubAdapter implements VcsAdapter {
 	}): Promise<Result<PullRequest>> {
 		try {
 			const args = [
-				'pr',
+				'mr',
 				'create',
 				'--title',
 				options.title,
-				'--body',
+				'--description',
 				options.body,
-				'--head',
+				'--source-branch',
 				options.head,
+				'--target-branch',
+				options.base ?? 'main',
+				'--no-editor',
 			];
-			if (options.base) {
-				args.push('--base', options.base);
-			}
 
-			const { stdout } = await execFileAsync('gh', args, { signal: options.signal ?? undefined });
-			const urlMatch = stdout.match(/https:\/\/[^\s]*\/pull\/\d+/);
+			const { stdout } = await execFileAsync('glab', args, {
+				signal: options.signal ?? undefined,
+			});
+
+			const urlMatch = stdout.match(/https:\/\/[^\s]*\/-\/merge_requests\/\d+/);
 			const url = urlMatch?.[0] ?? stdout.trim().split('\n').pop() ?? '';
-
-			const numberMatch = url.match(/\/pull\/(\d+)/);
-			const prNumber = numberMatch?.[1] ? parseInt(numberMatch[1], 10) : 0;
+			const numberMatch = url.match(/\/merge_requests\/(\d+)/);
+			const mrNumber = numberMatch?.[1] ? parseInt(numberMatch[1], 10) : 0;
 
 			return {
 				ok: true,
 				value: {
-					number: prNumber,
+					number: mrNumber,
 					url,
 					title: options.title,
 					body: options.body,
@@ -53,7 +55,7 @@ export class GitHubAdapter implements VcsAdapter {
 
 	async addComment(prNumber: number, body: string, signal?: AbortSignal): Promise<Result<void>> {
 		try {
-			await execFileAsync('gh', ['pr', 'comment', String(prNumber), '--body', body], {
+			await execFileAsync('glab', ['mr', 'note', String(prNumber), '--message', body], {
 				signal: signal ?? undefined,
 			});
 			return { ok: true, value: undefined };
@@ -67,23 +69,31 @@ export class GitHubAdapter implements VcsAdapter {
 			const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin']);
 			const url = stdout.trim();
 
-			const sshMatch = url.match(/git@github\.com:(.+?)\/(.+?)(?:\.git)?$/);
-			if (sshMatch?.[1] && sshMatch[2]) {
+			const sshMatch = url.match(/git@(gitlab\..+?):(.+?)\/(.+?)(?:\.git)?$/);
+			if (sshMatch?.[1] && sshMatch[2] && sshMatch[3]) {
 				return {
 					ok: true,
-					value: { type: 'github', org: sshMatch[1], repo: sshMatch[2] },
+					value: {
+						type: 'gitlab',
+						org: sshMatch[2],
+						repo: sshMatch[3],
+					},
 				};
 			}
 
-			const httpsMatch = url.match(/https:\/\/github\.com\/(.+?)\/(.+?)(?:\.git)?$/);
-			if (httpsMatch?.[1] && httpsMatch[2]) {
+			const httpsMatch = url.match(/https:\/\/(gitlab\..+?)\/(.+?)\/(.+?)(?:\.git)?$/);
+			if (httpsMatch?.[1] && httpsMatch[2] && httpsMatch[3]) {
 				return {
 					ok: true,
-					value: { type: 'github', org: httpsMatch[1], repo: httpsMatch[2] },
+					value: {
+						type: 'gitlab',
+						org: httpsMatch[2],
+						repo: httpsMatch[3],
+					},
 				};
 			}
 
-			return { ok: false, error: new Error('Could not parse GitHub remote URL') };
+			return { ok: false, error: new Error('Could not parse GitLab remote URL') };
 		} catch (error) {
 			return { ok: false, error: error as Error };
 		}
@@ -91,7 +101,7 @@ export class GitHubAdapter implements VcsAdapter {
 
 	async mergePR(prNumber: number, signal?: AbortSignal): Promise<Result<void>> {
 		try {
-			await execFileAsync('gh', ['pr', 'merge', String(prNumber), '--squash', '--delete-branch'], {
+			await execFileAsync('glab', ['mr', 'merge', String(prNumber), '--squash', '--yes'], {
 				signal: signal ?? undefined,
 			});
 			return { ok: true, value: undefined };
