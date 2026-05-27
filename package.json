@@ -12,9 +12,7 @@
     "bode": "dist/index.js"
   },
   "files": [
-    "dist/",
-    "scripts/",
-    "src/"
+    "dist/"
   ],
   "engines": {
     "node": ">=18"
@@ -22,7 +20,6 @@
   "scripts": {
     "dev": "node --import tsx src/index.ts",
     "build": "node scripts/build.mjs",
-    "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "check": "tsc --noEmit",
     "lint": "eslint src/ --config eslint.config.mjs",
@@ -32,7 +29,6 @@
   },
   "dependencies": {
     "commander": "^14.0.3",
-    "esbuild": "^0.25.0",
     "ora": "^9.4.0",
     "picocolors": "^1.1.1",
     "yaml": "^2.9.0",
@@ -41,6 +37,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.8.3",
