@@ -99,6 +99,7 @@ export async function createPullRequest(
 		body: `Automated PR created by Bode for ${taskKey}.\n\n## Summary\n${summary}\n\n---\n_Powered by Bode_`,
 		head: branch,
 		base: baseBranch,
+		workdir,
 		...(signal ? { signal } : {}),
 	});
 

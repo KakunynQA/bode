@@ -9,6 +9,7 @@ import { abortRun } from './abort.ts';
 import { handlePromptError } from '~/utils/prompt.ts';
 import { planDangerousMode } from '~/cli/dangerous-check.ts';
 import { handleMissingArtifact } from '~/cli/missing-artifact.ts';
+import { printTaskSummary } from '~/cli/summary.ts';
 import { select } from '@inquirer/prompts';
 import pc from 'picocolors';
 import ora from 'ora';
@@ -279,13 +280,17 @@ export async function startAction(
 					}
 				}
 
-				await saveRunMeta({ ...advanceVal.meta, status: 'done' });
-				await jira.transitionStatus(taskKey, 'Done');
+				const { resolveJiraTransition } = await import('~/config/transitions.ts');
+				const doneTarget = resolveJiraTransition('done', config, projectConfig);
+				await jira.transitionStatus(taskKey, doneTarget).catch(() => {});
 
-				console.log(pc.green(`\n✓ Task ${taskKey} complete.`));
-				console.log(pc.yellow('⚠ Automated review was used — verify before deploying.'));
+				const finalMeta = { ...advanceVal.meta, status: 'done' as const, updatedAt: Date.now() };
+				await saveRunMeta(finalMeta);
+				console.log(pc.yellow('\n⚠ Automated review was used — verify before deploying.'));
+				printTaskSummary(finalMeta);
 			} else {
 				console.log(pc.dim('Review the PR manually. Run "bode done" when ready.'));
+				printTaskSummary(advanceVal.meta);
 			}
 			return;
 		}

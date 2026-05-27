@@ -17,6 +17,7 @@ export interface VcsAdapter {
 		body: string;
 		head: string;
 		base?: string;
+		workdir?: string;
 		signal?: AbortSignal;
 	}): Promise<Result<PullRequest>>;
 	addComment(prNumber: number, body: string, signal?: AbortSignal): Promise<Result<void>>;

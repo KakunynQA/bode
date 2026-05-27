@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v0.14.0) that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs interactively (terminal handoff) and syncing progress to Jira. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local CLI (v0.15.0) that orchestrates AI coding work through configurable phases (planning, implementation, review), driving native AI CLIs interactively (terminal handoff) and syncing progress to Jira. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 

@@ -11,6 +11,7 @@ export class GitLabAdapter implements VcsAdapter {
 		body: string;
 		head: string;
 		base?: string;
+		workdir?: string;
 		signal?: AbortSignal;
 	}): Promise<Result<PullRequest>> {
 		try {
@@ -28,9 +29,11 @@ export class GitLabAdapter implements VcsAdapter {
 				'--no-editor',
 			];
 
-			const { stdout } = await execFileAsync('glab', args, {
-				signal: options.signal ?? undefined,
-			});
+			const execOpts: { signal?: AbortSignal; cwd?: string } = {};
+			if (options.signal) execOpts.signal = options.signal;
+			if (options.workdir) execOpts.cwd = options.workdir;
+
+			const { stdout } = await execFileAsync('glab', args, execOpts);
 
 			const urlMatch = stdout.match(/https:\/\/[^\s]*\/-\/merge_requests\/\d+/);
 			const url = urlMatch?.[0] ?? stdout.trim().split('\n').pop() ?? '';

@@ -11,6 +11,7 @@ export class GitHubAdapter implements VcsAdapter {
 		body: string;
 		head: string;
 		base?: string;
+		workdir?: string;
 		signal?: AbortSignal;
 	}): Promise<Result<PullRequest>> {
 		try {
@@ -28,7 +29,36 @@ export class GitHubAdapter implements VcsAdapter {
 				args.push('--base', options.base);
 			}
 
-			const { stdout } = await execFileAsync('gh', args, { signal: options.signal ?? undefined });
+			const execOpts: { signal?: AbortSignal; cwd?: string } = {};
+			if (options.signal) execOpts.signal = options.signal;
+			if (options.workdir) execOpts.cwd = options.workdir;
+
+			let stdout: string;
+			try {
+				const res = await execFileAsync('gh', args, execOpts);
+				stdout = res.stdout;
+			} catch (e) {
+				const err = e as { message?: string; stderr?: string };
+				const combined = `${err.message ?? ''}\n${err.stderr ?? ''}`;
+				if (/Could not resolve to a Repository/i.test(combined)) {
+					const remoteRes = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
+						...(options.workdir ? { cwd: options.workdir } : {}),
+					}).catch(() => ({ stdout: '<unknown>', stderr: '' }));
+					return {
+						ok: false,
+						error: new Error(
+							`gh pr create failed: GitHub does not recognize this repository.\n` +
+								`  Workdir:      ${options.workdir ?? process.cwd()}\n` +
+								`  Local remote: ${remoteRes.stdout.trim()}\n` +
+								`  Checklist:\n` +
+								`    - Does the repo exist on GitHub under that org/name?\n` +
+								`    - Is your gh auth pointing to the right account? Run: gh auth status\n` +
+								`    - Update the git remote if needed: git remote set-url origin <url>`
+						),
+					};
+				}
+				throw e;
+			}
 			const urlMatch = stdout.match(/https:\/\/[^\s]*\/pull\/\d+/);
 			const url = urlMatch?.[0] ?? stdout.trim().split('\n').pop() ?? '';
 

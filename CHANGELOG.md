@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] — 2026-05-27
+
+### Added
+
+- **Configurable Jira transitions per project.** New `jira.transitions` block lets each project map its workflow's transition names (or target status names) to bode phases:
+  ```yaml
+  jira:
+    transitions:
+      planning: "In Progress"
+      implementation: "In Development"
+      review: "QA"          # or whatever your team calls it
+      done: "Done"
+  ```
+  Resolution order: project YAML > global YAML > built-in defaults (`In Progress` / `In Review` / `Code Review` / `Done`). Fixes the common `Transition to "Code Review" not found` error on Jira workflows that use different status names.
+- **Per-phase artifact paths printed to the terminal.** After each successful phase, bode prints the absolute paths of the log + markdown artifact so you can grep/open them directly.
+- **End-of-task summary.** `bode done` (and `bode start --auto` / `--dangerously-auto-merge`) print a structured summary at the end with task key, status, branch, PR URL, conflict flag, and every artifact path under `~/.bode/runs/<KEY>/`.
+- **`workdir` passed to `gh` / `glab`.** PR/MR creation now runs in the project's workdir (`cwd:`) instead of `process.cwd()`. Fixes wrong-repo PR creation when bode is invoked from a directory different from the configured workdir.
+
+### Changed
+
+- `gh pr create` failure with `Could not resolve to a Repository` now prints a structured diagnostic: workdir, local remote URL, and a 3-item checklist (repo existence, `gh auth status`, `git remote set-url`).
+- `bode done` now uses the configured `jira.transitions.done` value (default `Done`) instead of hardcoding `Done`.
+- `bode start --dangerously-auto-merge` uses the configured `jira.transitions.done` value when finalizing.
+
+### Files
+
+- New `src/config/transitions.ts` (resolver + defaults).
+- New `src/cli/summary.ts` (`printPhaseArtifacts`, `printTaskSummary`).
+- `src/orchestrator/engine.ts` reads transitions from config, prints artifact paths.
+- `src/cli/actions/{done,start}.ts` print the full summary at end-of-task.
+- `src/adapters/vcs/{github,gitlab}.ts` accept `workdir` and pass it as `cwd`.
+
 ## [0.14.0] — 2026-05-27
 
 ### Changed (breaking)

@@ -1,9 +1,11 @@
 import { loadRunMeta, saveRunMeta, type RunMeta } from '~/storage/run-meta.ts';
-import { getRunDir } from '~/config/defaults.ts';
 import { switchToBase, mergePR } from '~/orchestrator/branch-manager.ts';
 import { loadConfig, resolveVcsProvider } from '~/config/loader.ts';
 import { createJiraAdapter } from '~/adapters/jira/factory.ts';
-import type { BodeConfig } from '~/config/schema.ts';
+import { resolveJiraTransition } from '~/config/transitions.ts';
+import { loadProjectConfig } from '~/config/projects.ts';
+import { printTaskSummary } from '~/cli/summary.ts';
+import type { BodeConfig, ProjectConfig } from '~/config/schema.ts';
 import pc from 'picocolors';
 
 export async function doneAction(
@@ -25,23 +27,27 @@ export async function doneAction(
 	const configResult = await loadConfig();
 	const config = configResult.ok ? configResult.value : null;
 
+	let projectCfg: ProjectConfig | undefined;
+	if (meta.projectName) {
+		const projResult = await loadProjectConfig(meta.projectName);
+		if (projResult.ok && projResult.value) {
+			projectCfg = projResult.value;
+		}
+	}
+
 	if (meta.status !== 'awaiting-merge') {
-		await finalize(taskKey, meta, config);
+		await finalize(taskKey, meta, config, projectCfg);
 		return;
 	}
 
 	if (!meta.baseBranch || !meta.branch) {
-		await finalize(taskKey, meta, config);
+		await finalize(taskKey, meta, config, projectCfg);
 		return;
 	}
 
 	let provider: 'github' | 'gitlab' = 'github';
-	if (meta.projectName && config) {
-		const { loadProjectConfig } = await import('~/config/projects.ts');
-		const projResult = await loadProjectConfig(meta.projectName);
-		if (projResult.ok && projResult.value) {
-			provider = resolveVcsProvider(config, projResult.value);
-		}
+	if (projectCfg && config) {
+		provider = resolveVcsProvider(config, projectCfg);
 	}
 
 	if (options.autoApprovePrMerge && meta.prNumber) {
@@ -70,14 +76,26 @@ export async function doneAction(
 		console.log(pc.dim(`Switched to ${meta.baseBranch}`));
 	}
 
-	await finalize(taskKey, meta, config);
+	await finalize(taskKey, meta, config, projectCfg);
 }
 
-async function finalize(taskKey: string, meta: RunMeta, config: BodeConfig | null): Promise<void> {
+async function finalize(
+	taskKey: string,
+	meta: RunMeta,
+	config: BodeConfig | null,
+	projectCfg: ProjectConfig | undefined
+): Promise<void> {
 	if (config) {
 		await removeBodeLabels(taskKey, config);
 		const jira = createJiraAdapter(config.jira);
-		await jira.transitionStatus(taskKey, 'Done').catch(() => {});
+		const doneTarget = resolveJiraTransition('done', config, projectCfg);
+		const transResult = await jira.transitionStatus(taskKey, doneTarget);
+		if (!transResult.ok) {
+			console.warn(pc.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
+			console.warn(
+				pc.dim('  Configure jira.transitions.done in your project YAML to match your workflow.')
+			);
+		}
 		const useEmoji = config.comment_format?.use_emoji ?? true;
 		const prefix = useEmoji ? '🤖 ' : '';
 		await jira
@@ -85,9 +103,9 @@ async function finalize(taskKey: string, meta: RunMeta, config: BodeConfig | nul
 			.catch(() => {});
 	}
 
-	await saveRunMeta({ ...meta, status: 'done' });
-	console.log(pc.green(`Task ${taskKey} marked as done.`));
-	console.log(pc.dim(`Run data at ${getRunDir(taskKey)}`));
+	const finalMeta: RunMeta = { ...meta, status: 'done', updatedAt: Date.now() };
+	await saveRunMeta(finalMeta);
+	printTaskSummary(finalMeta);
 }
 
 async function removeBodeLabels(taskKey: string, config: BodeConfig): Promise<void> {

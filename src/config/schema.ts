@@ -7,12 +7,22 @@ const phaseConfigSchema = z.object({
 	timeout_minutes: z.number().min(1).max(480),
 });
 
+const jiraTransitionsSchema = z
+	.object({
+		planning: z.string().optional(),
+		implementation: z.string().optional(),
+		review: z.string().optional(),
+		done: z.string().optional(),
+	})
+	.optional();
+
 export const bodeConfigSchema = z.object({
 	jira: z.object({
 		site: z.string(),
 		default_project: z.string(),
 		email: z.string().optional(),
 		api_token: z.string().optional(),
+		transitions: jiraTransitionsSchema,
 	}),
 	github: z
 		.object({
@@ -74,6 +84,7 @@ export const projectConfigSchema = z.object({
 		.object({
 			site: z.string().optional(),
 			default_project: z.string().optional(),
+			transitions: jiraTransitionsSchema,
 		})
 		.optional(),
 	context_paths: z.array(z.string()).optional(),

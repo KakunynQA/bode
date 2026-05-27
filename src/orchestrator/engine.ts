@@ -6,7 +6,11 @@ import { loadRunMeta, saveRunMeta, type RunMeta } from '~/storage/run-meta.ts';
 import { runPhase, type PhaseRunResult } from './phase-runner.ts';
 import { checkForConflicts, createPullRequest } from './branch-manager.ts';
 import { resolveVcsProvider } from '~/config/loader.ts';
+import { resolveJiraTransition } from '~/config/transitions.ts';
+import { printPhaseArtifacts } from '~/cli/summary.ts';
+import { getPhaseNameForStatus } from '~/types/phase.ts';
 import type { Result } from '~/types/result.ts';
+import pc from 'picocolors';
 import ora from 'ora';
 
 export type AdvanceResult =
@@ -63,16 +67,26 @@ export async function advancePhase(
 
 	await saveRunMeta({ ...meta, status: executingStatus });
 
-	// Jira transition: move card before executing phase
-	const transitionResult = await transitionJiraForStatus(taskKey, executingStatus, jira);
-	if (!transitionResult.ok) {
-		console.warn(`[bode] Jira transition failed: ${transitionResult.error.message}`);
-	}
-
 	const interactive = options.interactive ?? true;
 	const spinner = interactive
 		? null
 		: ora(`Running ${getPhaseStatusLabel(executingStatus)} phase...`).start();
+
+	const transitionResult = await transitionForPhase(
+		taskKey,
+		executingStatus,
+		jira,
+		config,
+		options.projectConfig
+	);
+	if (!transitionResult.ok) {
+		console.warn(pc.yellow(`[bode] Jira transition skipped: ${transitionResult.error.message}`));
+		console.warn(
+			pc.dim(
+				'  Configure jira.transitions in your project YAML (or global config) to match your workflow.'
+			)
+		);
+	}
 
 	const phaseResult = await runPhase(taskKey, executingStatus, config, jira, {
 		projectRoot: options.projectRoot,
@@ -98,6 +112,9 @@ export async function advancePhase(
 		spinner?.succeed(
 			`${getPhaseStatusLabel(nextStatus)} complete (${formatDuration(result.durationMs)})`
 		);
+
+		const phaseName = getPhaseNameForStatus(executingStatus);
+		if (phaseName) printPhaseArtifacts(taskKey, phaseName);
 
 		await postPhaseSummary(
 			taskKey,
@@ -219,8 +236,15 @@ async function advanceToAwaitingMerge(
 	};
 	await saveRunMeta(updatedMeta);
 
-	// Transition Jira to "Code Review"
-	await jira.transitionStatus(taskKey, 'Code Review');
+	// Transition Jira to the configured "review" target (default "Code Review")
+	const reviewTransition = resolveJiraTransition('review', config, options.projectConfig);
+	const reviewTransResult = await jira.transitionStatus(taskKey, reviewTransition);
+	if (!reviewTransResult.ok) {
+		console.warn(pc.yellow(`[bode] Jira transition skipped: ${reviewTransResult.error.message}`));
+		console.warn(
+			pc.dim('  Configure jira.transitions.review in your project YAML to match your workflow.')
+		);
+	}
 
 	// Post PR comment on Jira
 	await postJiraComment(
@@ -234,22 +258,17 @@ async function advanceToAwaitingMerge(
 	return { ok: true, value: { kind: 'pr-created', meta: updatedMeta, prUrl: prResult.value.url } };
 }
 
-async function transitionJiraForStatus(
+async function transitionForPhase(
 	taskKey: string,
 	status: PhaseStatus,
-	jira: JiraAdapter
+	jira: JiraAdapter,
+	config: BodeConfig,
+	projectConfig?: ProjectConfig
 ): Promise<Result<void>> {
-	const transitionMap: Partial<Record<PhaseStatus, string>> = {
-		planning: 'In Progress',
-		implementing: 'In Review',
-		reviewing: 'Code Review',
-	};
-
-	const transition = transitionMap[status];
-	if (transition) {
-		return await jira.transitionStatus(taskKey, transition);
-	}
-	return { ok: true, value: undefined };
+	const phaseName = getPhaseNameForStatus(status);
+	if (!phaseName) return { ok: true, value: undefined };
+	const target = resolveJiraTransition(phaseName, config, projectConfig);
+	return await jira.transitionStatus(taskKey, target);
 }
 
 async function postPhaseSummary(
