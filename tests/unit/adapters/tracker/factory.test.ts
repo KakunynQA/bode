@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { selectTracker } from '~/adapters/tracker/factory.ts';
 import { LocalTrackerAdapter } from '~/adapters/tracker/local.ts';
+import { GitHubIssuesAdapter } from '~/adapters/tracker/github-issues.ts';
 import { RealJiraAdapter } from '~/adapters/jira/rest.ts';
 import { MockJiraAdapter } from '~/adapters/jira/mock.ts';
 
@@ -43,5 +44,29 @@ describe('selectTracker', () => {
 			force: 'local',
 		});
 		assert.equal(sel.kind, 'local');
+	});
+
+	it('explicit tracker: "github-issues" returns GitHubIssuesAdapter', () => {
+		const sel = selectTracker({ workdir: '/tmp', tracker: 'github-issues' });
+		assert.equal(sel.kind, 'github-issues');
+		assert.ok(sel.adapter instanceof GitHubIssuesAdapter);
+	});
+
+	it('explicit tracker beats Jira config when both present', () => {
+		const sel = selectTracker({
+			jira: { site: 'x.atlassian.net', email: 'a@b.com', api_token: 'tok' },
+			workdir: '/tmp',
+			tracker: 'github-issues',
+		});
+		assert.equal(sel.kind, 'github-issues');
+	});
+
+	it('explicit tracker: "jira" with partial creds falls through to mock', () => {
+		const sel = selectTracker({
+			jira: { site: 'x.atlassian.net' },
+			workdir: '/tmp',
+			tracker: 'jira',
+		});
+		assert.equal(sel.kind, 'mock');
 	});
 });

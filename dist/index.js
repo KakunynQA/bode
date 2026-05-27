@@ -38801,6 +38801,14 @@ var init_schema = __esm({
       github: external_exports.object({
         default_org: external_exports.string()
       }).optional(),
+      /**
+       * Explicit tracker selection (v0.24.0+). When set, overrides the auto-select
+       * logic in `selectTracker`. Useful for users who have Jira configured but
+       * want a specific project to use GitHub Issues, or vice versa.
+       *
+       * Values: `jira` | `github-issues` | `local` | `mock`.
+       */
+      tracker: external_exports.enum(["jira", "github-issues", "local", "mock"]).optional(),
       vcs: external_exports.object({
         provider: external_exports.enum(["github", "gitlab"]).default("github")
       }).optional(),
@@ -38851,7 +38859,8 @@ var init_schema = __esm({
         review: phaseConfigSchema.partial().optional()
       }).optional(),
       branch_tool: external_exports.string().optional(),
-      repos: external_exports.array(reposItemSchema).optional()
+      repos: external_exports.array(reposItemSchema).optional(),
+      tracker: external_exports.enum(["jira", "github-issues", "local", "mock"]).optional()
     });
   }
 });
@@ -39466,6 +39475,135 @@ var init_run_meta = __esm({
   }
 });
 
+// src/adapters/tracker/github-issues.ts
+function inferIssueType(labels) {
+  const lower = labels.map((l) => l.toLowerCase());
+  if (lower.includes("bug")) return "Bug";
+  if (lower.some((l) => l.includes("enhancement") || l.includes("feature"))) return "Story";
+  if (lower.some((l) => l.includes("chore") || l.includes("refactor"))) return "Task";
+  return "Task";
+}
+var import_node_child_process3, import_node_util10, execFileAsync2, GitHubIssuesAdapter;
+var init_github_issues = __esm({
+  "src/adapters/tracker/github-issues.ts"() {
+    "use strict";
+    import_node_child_process3 = require("node:child_process");
+    import_node_util10 = require("node:util");
+    execFileAsync2 = (0, import_node_util10.promisify)(import_node_child_process3.execFile);
+    GitHubIssuesAdapter = class {
+      workdir;
+      constructor(options) {
+        this.workdir = options.workdir;
+      }
+      /** Strips a leading `#` or trailing fragment, returns the numeric id. */
+      parseKey(key) {
+        const slugMatch = key.match(/^([^/\s]+\/[^/\s#]+)#(\d+)$/);
+        if (slugMatch?.[1] && slugMatch[2]) {
+          return { num: slugMatch[2], repoFlag: ["--repo", slugMatch[1]] };
+        }
+        const hashMatch = key.match(/^#?(\d+)$/);
+        if (hashMatch?.[1]) {
+          return { num: hashMatch[1], repoFlag: [] };
+        }
+        return { num: key, repoFlag: [] };
+      }
+      async runGh(args, options = {}) {
+        try {
+          const { stdout } = await execFileAsync2("gh", args, { cwd: this.workdir });
+          if (options.parseJson) {
+            return { ok: true, value: JSON.parse(stdout) };
+          }
+          return { ok: true, value: stdout };
+        } catch (e) {
+          const err = e;
+          return {
+            ok: false,
+            error: new Error(
+              `gh failed: ${err.stderr?.trim() ?? err.message ?? "unknown error"}
+  Command: gh ${args.join(" ")}`
+            )
+          };
+        }
+      }
+      async getIssue(key) {
+        const { num, repoFlag } = this.parseKey(key);
+        const result = await this.runGh(
+          ["issue", "view", num, ...repoFlag, "--json", "number,title,body,state,labels,assignees,url"],
+          { parseJson: true }
+        );
+        if (!result.ok) return result;
+        const data = result.value;
+        const labels = data.labels.map((l) => l.name);
+        const bodeStatusLabel = labels.find((l) => l.startsWith("bode:"));
+        const status = data.state === "CLOSED" ? "done" : bodeStatusLabel ? bodeStatusLabel.slice("bode:".length) : "pending";
+        return {
+          ok: true,
+          value: {
+            key,
+            summary: data.title,
+            description: data.body ?? "",
+            status,
+            issueType: inferIssueType(labels),
+            assignee: data.assignees[0]?.login ?? null,
+            labels,
+            url: data.url
+          }
+        };
+      }
+      async addComment(key, body) {
+        const { num, repoFlag } = this.parseKey(key);
+        const result = await this.runGh(["issue", "comment", num, ...repoFlag, "--body", body]);
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: {
+            id: `gh-${Date.now()}`,
+            body,
+            created: (/* @__PURE__ */ new Date()).toISOString()
+          }
+        };
+      }
+      async transitionStatus(key, transitionName) {
+        const { num, repoFlag } = this.parseKey(key);
+        const target = transitionName.toLowerCase();
+        if (target === "done" || target === "closed" || target === "close") {
+          const result = await this.runGh(["issue", "close", num, ...repoFlag]);
+          if (!result.ok) return result;
+          return { ok: true, value: void 0 };
+        }
+        return { ok: true, value: void 0 };
+      }
+      async addLabel(key, label) {
+        const { num, repoFlag } = this.parseKey(key);
+        const result = await this.runGh(["issue", "edit", num, ...repoFlag, "--add-label", label]);
+        if (!result.ok) return result;
+        return { ok: true, value: void 0 };
+      }
+      async removeLabel(key, label) {
+        const { num, repoFlag } = this.parseKey(key);
+        const result = await this.runGh(["issue", "edit", num, ...repoFlag, "--remove-label", label]);
+        if (!result.ok) return result;
+        return { ok: true, value: void 0 };
+      }
+      async attachFile(_key, _filename, _content) {
+        return { ok: true, value: void 0 };
+      }
+      async getTransitions(_key) {
+        return {
+          ok: true,
+          value: [
+            { id: "planning", name: "Planning", toStatusName: "planning" },
+            { id: "implementing", name: "In Progress", toStatusName: "implementing" },
+            { id: "reviewing", name: "Reviewing", toStatusName: "reviewing" },
+            { id: "awaiting-merge", name: "Awaiting Merge", toStatusName: "awaiting-merge" },
+            { id: "done", name: "Done", toStatusName: "done" }
+          ]
+        };
+      }
+    };
+  }
+});
+
 // src/adapters/jira/adf.ts
 function textToAdf(text) {
   const paragraphs = text.split(/\n{2,}/);
@@ -39776,38 +39914,46 @@ var init_mock = __esm({
 
 // src/adapters/tracker/factory.ts
 function selectTracker(options) {
-  if (options.force) {
-    switch (options.force) {
-      case "jira":
-        if (options.jira?.email && options.jira?.api_token && options.jira?.site) {
-          return {
-            kind: "jira",
-            adapter: new RealJiraAdapter(
-              options.jira.site,
-              options.jira.email,
-              options.jira.api_token
-            )
-          };
-        }
-        return { kind: "mock", adapter: new MockJiraAdapter() };
-      case "mock":
-        return { kind: "mock", adapter: new MockJiraAdapter() };
-      case "local":
-        return { kind: "local", adapter: new LocalTrackerAdapter(options.workdir) };
-    }
+  const explicit = options.force ?? options.tracker;
+  if (explicit) {
+    return materialize(explicit, options);
   }
   if (options.jira?.site && options.jira?.email && options.jira?.api_token) {
-    return {
-      kind: "jira",
-      adapter: new RealJiraAdapter(options.jira.site, options.jira.email, options.jira.api_token)
-    };
+    return materialize("jira", options);
   }
-  return { kind: "local", adapter: new LocalTrackerAdapter(options.workdir) };
+  return materialize("local", options);
+}
+function materialize(kind, options) {
+  switch (kind) {
+    case "jira":
+      if (options.jira?.email && options.jira?.api_token && options.jira?.site) {
+        return {
+          kind: "jira",
+          adapter: new RealJiraAdapter(
+            options.jira.site,
+            options.jira.email,
+            options.jira.api_token
+          )
+        };
+      }
+      return { kind: "mock", adapter: new MockJiraAdapter() };
+    case "github-issues":
+      return {
+        kind: "github-issues",
+        adapter: new GitHubIssuesAdapter({ workdir: options.workdir })
+      };
+    case "mock":
+      return { kind: "mock", adapter: new MockJiraAdapter() };
+    case "local":
+    default:
+      return { kind: "local", adapter: new LocalTrackerAdapter(options.workdir) };
+  }
 }
 var init_factory = __esm({
   "src/adapters/tracker/factory.ts"() {
     "use strict";
     init_local();
+    init_github_issues();
     init_rest();
     init_mock();
   }
@@ -39864,11 +40010,11 @@ var init_phase = __esm({
 });
 
 // src/adapters/cli/base.ts
-var import_node_child_process3, isWindows, MAX_OUTPUT_BYTES, TRUNCATION_NOTICE, BaseCliAdapter;
+var import_node_child_process4, isWindows, MAX_OUTPUT_BYTES, TRUNCATION_NOTICE, BaseCliAdapter;
 var init_base = __esm({
   "src/adapters/cli/base.ts"() {
     "use strict";
-    import_node_child_process3 = require("node:child_process");
+    import_node_child_process4 = require("node:child_process");
     isWindows = process.platform === "win32";
     MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
     TRUNCATION_NOTICE = "\n\n...[truncated: output exceeded 5MB]";
@@ -39894,9 +40040,9 @@ var init_base = __esm({
         const spawnOpts = { stdio };
         if (cwd) spawnOpts.cwd = cwd;
         if (isWindows) {
-          return (0, import_node_child_process3.spawn)("cmd.exe", ["/c", command, ...args], spawnOpts);
+          return (0, import_node_child_process4.spawn)("cmd.exe", ["/c", command, ...args], spawnOpts);
         }
-        return (0, import_node_child_process3.spawn)(command, args, spawnOpts);
+        return (0, import_node_child_process4.spawn)(command, args, spawnOpts);
       }
       async invoke(prompt, config2, options = {}) {
         const interactive = options.interactive ?? false;
@@ -43788,11 +43934,11 @@ var init_stdin_discarder = __esm({
 function ora(options) {
   return new Ora(options);
 }
-var import_node_process7, import_node_util10, RENDER_DEFERRAL_TIMEOUT, SYNCHRONIZED_OUTPUT_ENABLE, SYNCHRONIZED_OUTPUT_DISABLE, activeHooksPerStream, validColors, Ora;
+var import_node_process7, import_node_util11, RENDER_DEFERRAL_TIMEOUT, SYNCHRONIZED_OUTPUT_ENABLE, SYNCHRONIZED_OUTPUT_DISABLE, activeHooksPerStream, validColors, Ora;
 var init_ora = __esm({
   "node_modules/ora/index.js"() {
     import_node_process7 = __toESM(require("node:process"), 1);
-    import_node_util10 = require("node:util");
+    import_node_util11 = require("node:util");
     init_source();
     init_cli_cursor();
     init_cli_spinners();
@@ -44016,7 +44162,7 @@ var init_ora = __esm({
       }
       #computeLineCountFrom(text, columns) {
         let count = 0;
-        for (const line of (0, import_node_util10.stripVTControlCharacters)(text).split("\n")) {
+        for (const line of (0, import_node_util11.stripVTControlCharacters)(text).split("\n")) {
           count += Math.max(1, Math.ceil(stringWidth(line) / columns));
         }
         return count;
@@ -44660,13 +44806,13 @@ var init_engine = __esm({
 });
 
 // src/adapters/vcs/github.ts
-var import_node_child_process4, import_node_util11, execFileAsync2, GitHubAdapter;
+var import_node_child_process5, import_node_util12, execFileAsync3, GitHubAdapter;
 var init_github = __esm({
   "src/adapters/vcs/github.ts"() {
     "use strict";
-    import_node_child_process4 = require("node:child_process");
-    import_node_util11 = require("node:util");
-    execFileAsync2 = (0, import_node_util11.promisify)(import_node_child_process4.execFile);
+    import_node_child_process5 = require("node:child_process");
+    import_node_util12 = require("node:util");
+    execFileAsync3 = (0, import_node_util12.promisify)(import_node_child_process5.execFile);
     GitHubAdapter = class {
       async createPullRequest(options) {
         try {
@@ -44688,7 +44834,7 @@ var init_github = __esm({
           if (options.workdir) execOpts.cwd = options.workdir;
           let stdout;
           try {
-            const res = await execFileAsync2("gh", args, execOpts);
+            const res = await execFileAsync3("gh", args, execOpts);
             stdout = res.stdout;
           } catch (e) {
             const err = e;
@@ -44730,7 +44876,7 @@ ${err.stderr ?? ""}`;
       }
       async addComment(prNumber, body, signal) {
         try {
-          await execFileAsync2("gh", ["pr", "comment", String(prNumber), "--body", body], {
+          await execFileAsync3("gh", ["pr", "comment", String(prNumber), "--body", body], {
             signal: signal ?? void 0
           });
           return { ok: true, value: void 0 };
@@ -44740,7 +44886,7 @@ ${err.stderr ?? ""}`;
       }
       async mergePR(prNumber, signal) {
         try {
-          await execFileAsync2("gh", ["pr", "merge", String(prNumber), "--squash", "--delete-branch"], {
+          await execFileAsync3("gh", ["pr", "merge", String(prNumber), "--squash", "--delete-branch"], {
             signal: signal ?? void 0
           });
           return { ok: true, value: void 0 };
@@ -44753,13 +44899,13 @@ ${err.stderr ?? ""}`;
 });
 
 // src/adapters/vcs/gitlab.ts
-var import_node_child_process5, import_node_util12, execFileAsync3, GitLabAdapter;
+var import_node_child_process6, import_node_util13, execFileAsync4, GitLabAdapter;
 var init_gitlab = __esm({
   "src/adapters/vcs/gitlab.ts"() {
     "use strict";
-    import_node_child_process5 = require("node:child_process");
-    import_node_util12 = require("node:util");
-    execFileAsync3 = (0, import_node_util12.promisify)(import_node_child_process5.execFile);
+    import_node_child_process6 = require("node:child_process");
+    import_node_util13 = require("node:util");
+    execFileAsync4 = (0, import_node_util13.promisify)(import_node_child_process6.execFile);
     GitLabAdapter = class {
       async createPullRequest(options) {
         try {
@@ -44779,7 +44925,7 @@ var init_gitlab = __esm({
           const execOpts = {};
           if (options.signal) execOpts.signal = options.signal;
           if (options.workdir) execOpts.cwd = options.workdir;
-          const { stdout } = await execFileAsync3("glab", args, execOpts);
+          const { stdout } = await execFileAsync4("glab", args, execOpts);
           const urlMatch = stdout.match(/https:\/\/[^\s]*\/-\/merge_requests\/\d+/);
           const url2 = urlMatch?.[0] ?? stdout.trim().split("\n").pop() ?? "";
           const numberMatch = url2.match(/\/merge_requests\/(\d+)/);
@@ -44801,7 +44947,7 @@ var init_gitlab = __esm({
       }
       async addComment(prNumber, body, signal) {
         try {
-          await execFileAsync3("glab", ["mr", "note", String(prNumber), "--message", body], {
+          await execFileAsync4("glab", ["mr", "note", String(prNumber), "--message", body], {
             signal: signal ?? void 0
           });
           return { ok: true, value: void 0 };
@@ -44811,7 +44957,7 @@ var init_gitlab = __esm({
       }
       async mergePR(prNumber, signal) {
         try {
-          await execFileAsync3("glab", ["mr", "merge", String(prNumber), "--squash", "--yes"], {
+          await execFileAsync4("glab", ["mr", "merge", String(prNumber), "--squash", "--yes"], {
             signal: signal ?? void 0
           });
           return { ok: true, value: void 0 };
@@ -45186,7 +45332,11 @@ async function startAction(taskKey, options) {
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
-  const tracker = selectTracker({ jira: config2.jira, workdir: projectConfig.workdir });
+  const tracker = selectTracker({
+    jira: config2.jira,
+    workdir: projectConfig.workdir,
+    ...projectConfig.tracker ? { tracker: projectConfig.tracker } : config2.tracker ? { tracker: config2.tracker } : {}
+  });
   const jira = tracker.adapter;
   if (tracker.kind === "local") {
     console.log(import_picocolors7.default.dim(`Tracker: local (.bode/tasks/) \u2014 no Jira configured`));
@@ -45581,8 +45731,8 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.23.0") {
-    return "0.23.0";
+  if ("0.24.0") {
+    return "0.24.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -46323,7 +46473,11 @@ async function continueAction(taskKey, options) {
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
-  const tracker = selectTracker({ jira: config2.jira, workdir: projectConfig.workdir });
+  const tracker = selectTracker({
+    jira: config2.jira,
+    workdir: projectConfig.workdir,
+    ...projectConfig.tracker ? { tracker: projectConfig.tracker } : config2.tracker ? { tracker: config2.tracker } : {}
+  });
   const jira = tracker.adapter;
   const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);
   if (!lockResult.ok) {
@@ -46740,12 +46894,12 @@ async function checkNodeVersion() {
 async function checkBinaryAvailable(name, binary) {
   const isWindows2 = process.platform === "win32";
   try {
-    const { stdout } = await execFileAsync4(binary, ["--version"]);
+    const { stdout } = await execFileAsync5(binary, ["--version"]);
     const version2 = stdout.trim().split("\n")[0] ?? "";
     return { name, status: "ok", detail: version2 || "installed" };
   } catch {
     try {
-      await execFileAsync4(isWindows2 ? "where" : "which", [binary]);
+      await execFileAsync5(isWindows2 ? "where" : "which", [binary]);
       return { name, status: "ok", detail: "installed (no --version)" };
     } catch {
       return { name, status: "warn", detail: `${binary} not found on PATH` };
@@ -46860,20 +47014,20 @@ async function doctorAction() {
   console.log(import_picocolors17.default.red(`${fails} failure(s), ${warns} warning(s).`));
   process.exit(1);
 }
-var import_picocolors17, import_node_fs17, import_node_child_process6, import_node_util13, execFileAsync4;
+var import_picocolors17, import_node_fs17, import_node_child_process7, import_node_util14, execFileAsync5;
 var init_doctor = __esm({
   "src/cli/actions/doctor.ts"() {
     "use strict";
     import_picocolors17 = __toESM(require_picocolors());
     import_node_fs17 = require("node:fs");
-    import_node_child_process6 = require("node:child_process");
-    import_node_util13 = require("node:util");
+    import_node_child_process7 = require("node:child_process");
+    import_node_util14 = require("node:util");
     init_auto_detect();
     init_loader();
     init_defaults();
     init_registry();
     init_version();
-    execFileAsync4 = (0, import_node_util13.promisify)(import_node_child_process6.execFile);
+    execFileAsync5 = (0, import_node_util14.promisify)(import_node_child_process7.execFile);
   }
 });
 

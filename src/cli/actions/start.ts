@@ -41,7 +41,15 @@ export async function startAction(
 	}
 
 	const { config, projectConfig } = projectResult.value;
-	const tracker = selectTracker({ jira: config.jira, workdir: projectConfig.workdir });
+	const tracker = selectTracker({
+		jira: config.jira,
+		workdir: projectConfig.workdir,
+		...(projectConfig.tracker
+			? { tracker: projectConfig.tracker }
+			: config.tracker
+				? { tracker: config.tracker }
+				: {}),
+	});
 	const jira = tracker.adapter;
 	if (tracker.kind === 'local') {
 		console.log(pc.dim(`Tracker: local (.bode/tasks/) — no Jira configured`));

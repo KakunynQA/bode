@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] — 2026-05-27
+
+**Closes #11 — GitHub Issues tracker.** First Wave 2 ship; pays off the strategy formalization from v0.17.0. Devs without Jira but using GitHub Issues now get the same end-to-end flow.
+
+### Added
+
+- **`GitHubIssuesAdapter`** at `src/adapters/tracker/github-issues.ts`. Implements `IssueTrackerStrategy`, shells to the user's existing `gh` CLI (no new deps, no new auth). Supports key forms `123`, `#123`, `owner/repo#123`.
+- **Explicit `tracker:` config key**. Both global (`~/.bode/config.yml`) and per-project (`.bode.yml`) can set `tracker: jira | github-issues | local | mock`. Honored over auto-selection.
+- Selector priority updated:
+  1. `force` (test override)
+  2. `tracker` from config (explicit choice)
+  3. Jira when fully configured
+  4. Local fallback
+- Phase ↔ GitHub Issue state mapping:
+  - planning / implementing / reviewing / awaiting-merge → open + `bode:<phase>` label
+  - done → CLOSED via `gh issue close`
+
+### Usage
+
+```yaml
+# ~/.bode/config.yml or .bode.yml
+tracker: github-issues
+```
+
+```bash
+bode 312                    # ticket from current repo
+bode acme/widgets#7         # ticket from a specific repo
+bode "fix the bug"          # freeform → still uses local (no GH issue created)
+```
+
+### Tests
+
+- `tests/unit/adapters/tracker/github-issues.test.ts` (10 cases): key parsing across forms, `inferIssueType` from labels, fixed transitions, no-op `attachFile`/`transitionStatus` for non-done.
+- Updated `tests/unit/adapters/tracker/factory.test.ts` for explicit `tracker:` honoring (3 new cases).
+
+Total: 157 → 170 (+13).
+
+### Notes
+
+- GitHub Issues has no formal workflow states like Jira, so bode phases are encoded as labels (`bode:planning`, `bode:implementing`, etc.). The engine's existing label add/remove already handles this — no behavior change for users.
+- `bode <prompt>` (freeform) still creates a local task; it does NOT auto-open a GitHub issue. To open a GH issue and then run bode against it: `gh issue create -t "..." -b "..."` then `bode 123`.
+- Next in Wave 2: #12 Linear (needs `@linear/sdk`, will ask before adding).
+
 ## [0.23.0] — 2026-05-27
 
 **Closes #7 — zero-config first run.** Wave 1 is now complete. Bode works on a fresh install with NO `bode setup`, NO `bode setup-project`, NO `~/.bode/config.yml`, NO `.bode.yml`. Just install the CLI, install one AI CLI (claude / codex / opencode), `cd` into any git repo, and:

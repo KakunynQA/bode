@@ -1,11 +1,13 @@
 import type { IssueTrackerStrategy } from '~/types/issue-tracker.ts';
 import { LocalTrackerAdapter } from './local.ts';
+import { GitHubIssuesAdapter } from './github-issues.ts';
 import { RealJiraAdapter } from '~/adapters/jira/rest.ts';
 import { MockJiraAdapter } from '~/adapters/jira/mock.ts';
 
+export type TrackerKind = 'jira' | 'github-issues' | 'local' | 'mock';
+
 export type TrackerSelection = {
-	/** Active tracker kind. Useful for logging and `bode doctor`. */
-	kind: 'jira' | 'local' | 'mock';
+	kind: TrackerKind;
 	adapter: IssueTrackerStrategy;
 };
 
@@ -18,50 +20,62 @@ export type SelectTrackerOptions = {
 		  }
 		| undefined;
 	workdir: string;
+	/**
+	 * Explicit tracker kind from config (`tracker: github-issues` etc).
+	 * Honored over auto-selection.
+	 */
+	tracker?: TrackerKind | undefined;
 	/** Force a specific tracker kind. Useful for tests. */
-	force?: 'jira' | 'local' | 'mock' | undefined;
+	force?: TrackerKind | undefined;
 };
 
 /**
  * Selects the right tracker for the current invocation.
  *
- * Order:
- *   1. If `force` is set, use it.
- *   2. If Jira is fully configured (site + email + token) → RealJiraAdapter.
- *   3. Otherwise → LocalTrackerAdapter (reads/writes .bode/tasks/<key>.md).
- *
- * The legacy `MockJiraAdapter` is no longer returned by default — its behavior
- * (in-memory issues with seeded data) was only useful in tests. Local is now
- * the real fallback for users without external trackers configured.
+ * Priority:
+ *   1. `force` (test-only override)
+ *   2. `tracker` from config (explicit user choice)
+ *   3. Jira if fully configured (site + email + token)
+ *   4. Local fallback (`.bode/tasks/<key>.md`)
  */
 export function selectTracker(options: SelectTrackerOptions): TrackerSelection {
-	if (options.force) {
-		switch (options.force) {
-			case 'jira':
-				if (options.jira?.email && options.jira?.api_token && options.jira?.site) {
-					return {
-						kind: 'jira',
-						adapter: new RealJiraAdapter(
-							options.jira.site,
-							options.jira.email,
-							options.jira.api_token
-						),
-					};
-				}
-				return { kind: 'mock', adapter: new MockJiraAdapter() };
-			case 'mock':
-				return { kind: 'mock', adapter: new MockJiraAdapter() };
-			case 'local':
-				return { kind: 'local', adapter: new LocalTrackerAdapter(options.workdir) };
-		}
+	const explicit = options.force ?? options.tracker;
+	if (explicit) {
+		return materialize(explicit, options);
 	}
 
 	if (options.jira?.site && options.jira?.email && options.jira?.api_token) {
-		return {
-			kind: 'jira',
-			adapter: new RealJiraAdapter(options.jira.site, options.jira.email, options.jira.api_token),
-		};
+		return materialize('jira', options);
 	}
 
-	return { kind: 'local', adapter: new LocalTrackerAdapter(options.workdir) };
+	return materialize('local', options);
+}
+
+function materialize(kind: TrackerKind, options: SelectTrackerOptions): TrackerSelection {
+	switch (kind) {
+		case 'jira':
+			if (options.jira?.email && options.jira?.api_token && options.jira?.site) {
+				return {
+					kind: 'jira',
+					adapter: new RealJiraAdapter(
+						options.jira.site,
+						options.jira.email,
+						options.jira.api_token
+					),
+				};
+			}
+			// Asked for jira but missing creds → fall through to mock so callers
+			// don't blow up on partial config. They get a clear error on first call.
+			return { kind: 'mock', adapter: new MockJiraAdapter() };
+		case 'github-issues':
+			return {
+				kind: 'github-issues',
+				adapter: new GitHubIssuesAdapter({ workdir: options.workdir }),
+			};
+		case 'mock':
+			return { kind: 'mock', adapter: new MockJiraAdapter() };
+		case 'local':
+		default:
+			return { kind: 'local', adapter: new LocalTrackerAdapter(options.workdir) };
+	}
 }

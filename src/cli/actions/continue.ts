@@ -27,7 +27,15 @@ export async function continueAction(
 	}
 
 	const { config, projectConfig } = projectResult.value;
-	const tracker = selectTracker({ jira: config.jira, workdir: projectConfig.workdir });
+	const tracker = selectTracker({
+		jira: config.jira,
+		workdir: projectConfig.workdir,
+		...(projectConfig.tracker
+			? { tracker: projectConfig.tracker }
+			: config.tracker
+				? { tracker: config.tracker }
+				: {}),
+	});
 	const jira = tracker.adapter;
 
 	const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);

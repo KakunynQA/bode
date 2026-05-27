@@ -35,6 +35,14 @@ export const bodeConfigSchema = z.object({
 			default_org: z.string(),
 		})
 		.optional(),
+	/**
+	 * Explicit tracker selection (v0.24.0+). When set, overrides the auto-select
+	 * logic in `selectTracker`. Useful for users who have Jira configured but
+	 * want a specific project to use GitHub Issues, or vice versa.
+	 *
+	 * Values: `jira` | `github-issues` | `local` | `mock`.
+	 */
+	tracker: z.enum(['jira', 'github-issues', 'local', 'mock']).optional(),
 	vcs: z
 		.object({
 			provider: z.enum(['github', 'gitlab']).default('github'),
@@ -104,6 +112,7 @@ export const projectConfigSchema = z.object({
 		.optional(),
 	branch_tool: z.string().optional(),
 	repos: z.array(reposItemSchema).optional(),
+	tracker: z.enum(['jira', 'github-issues', 'local', 'mock']).optional(),
 });
 
 export type ProjectConfig = z.infer<typeof projectConfigSchema>;
