@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] — 2026-05-27
+
+**Closes #7 — zero-config first run.** Wave 1 is now complete. Bode works on a fresh install with NO `bode setup`, NO `bode setup-project`, NO `~/.bode/config.yml`, NO `.bode.yml`. Just install the CLI, install one AI CLI (claude / codex / opencode), `cd` into any git repo, and:
+
+```bash
+bode "fix the dashboard bug"
+```
+
+### How it works
+
+When `~/.bode/config.yml` is absent, `loadConfig` synthesizes a complete `BodeConfig` from `detectEnv(cwd)`:
+
+- AI CLI: first of `claude`, `codex`, `opencode` found on PATH.
+- Model: sane default for the detected CLI (`claude-opus-4-7`, `gpt-5.5`, `claude-sonnet-4-6`).
+- Timeouts: 15min planning, 60min implementation, 10min review.
+- VCS provider: inferred from `git remote get-url origin`.
+- Jira: empty (falls back to `LocalTrackerAdapter` per v0.21.0).
+
+When no project is configured anywhere (no `.bode.yml` in cwd or ancestors, no entries in `~/.bode/projects/`), `resolveProject` synthesizes a minimal `{ name: 'auto', workdir: cwd, default_branch: 'main' }`.
+
+A `bode setup` user gets a richer config but is no longer required for the basic flow.
+
+### Added
+
+- `buildSyntheticConfig(workdir)` in `src/config/loader.ts`.
+- `isAutoDetectedConfig(config)` helper (used today by tests, future use by `bode doctor`).
+- Synthetic project fallback in `resolveProject`.
+- `tests/unit/config/synthetic.test.ts` (5 cases).
+
+### Notes
+
+- The error path "No project found" only fires now when `--project <name>` is explicitly passed but the named project doesn't exist. Implicit invocations always get a working synthetic project.
+- `bode doctor` continues to flag missing global config / context files as warnings — useful signal even when synthetic config works.
+
 ## [0.22.0] — 2026-05-27
 
 **Closes #6 — `bode <query>` fast path.** Headline UX: single positional argument, intelligent routing.

@@ -73,11 +73,28 @@ export async function resolveProject(
 
 	const projects = projectsResult.value;
 
+	// v0.23.0: when no project is configured anywhere (no .bode.yml in cwd or
+	// ancestors, no entries in ~/.bode/projects/), synthesize a minimal project
+	// pointing at the cwd. Lets `bode <prompt>` and `bode KD-X` work in any git
+	// repo without setup. The synthetic project name is "auto" and workdir is
+	// the cwd; default_branch falls back to "main".
+	if (projects.length === 0 && !options.projectName) {
+		const synthetic: ProjectConfig = {
+			name: 'auto',
+			workdir: cwd,
+			default_branch: 'main',
+		};
+		return {
+			ok: true,
+			value: { config: mergeProjectConfig(config, synthetic), projectConfig: synthetic },
+		};
+	}
+
 	if (projects.length === 0) {
 		return {
 			ok: false,
 			error: new Error(
-				'No project found. Either:\n' +
+				`Project "${options.projectName}" not configured. Either:\n` +
 					`  - add a .bode.yml to ${cwd} (or an ancestor directory), or\n` +
 					'  - run "bode setup-project" to create one in ~/.bode/projects/'
 			),
