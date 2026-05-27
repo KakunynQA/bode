@@ -2,12 +2,24 @@
   "name": "bode",
   "version": "0.1.0",
   "type": "module",
+  "description": "Local CLI that orchestrates AI coding work through configurable phases",
+  "author": "Kakunyn",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KakunynQA/bode.git"
+  },
   "bin": {
     "bode": "dist/index.js"
   },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
+    "build": "bun build src/index.ts --outdir dist --target bun && bun run build:shebang",
+    "build:shebang": "bun -e \"const p='dist/index.js';const f=require('fs');const c=f.readFileSync(p,'utf8');f.writeFileSync(p,'#!/usr/bin/env bun\\n'+c)\"",
+    "prepublishOnly": "bun run build",
     "check": "tsc --noEmit",
     "lint": "eslint src/",
     "format": "prettier --write src/",
