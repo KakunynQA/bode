@@ -156,6 +156,23 @@ export async function runPhase(
 		);
 	}
 
+	// Exit code gate (B1 from analysis, issue #1):
+	// If the AI CLI exited non-zero, the phase failed regardless of whether an
+	// artifact happens to exist on disk. Treat as a hard failure.
+	if (invocation.exitCode !== 0) {
+		const reason = `${phaseConfig.cli} exited with code ${invocation.exitCode}${
+			invocation.stderr ? `\n${invocation.stderr.trim().slice(-500)}` : ''
+		}`;
+		const metaResult = await loadRunMeta(taskKey);
+		if (metaResult.ok && metaResult.value) {
+			await saveRunMeta({ ...metaResult.value, status: 'failed', error: reason });
+		}
+		return {
+			ok: true,
+			value: { kind: 'failed', reason, logPath },
+		};
+	}
+
 	const artifact = await readArtifact(artifactPath, invocation.stdout);
 
 	if (!artifact) {

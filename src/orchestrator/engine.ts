@@ -114,7 +114,12 @@ export async function advancePhase(
 		);
 
 		const phaseName = getPhaseNameForStatus(executingStatus);
-		if (phaseName) printPhaseArtifacts(taskKey, phaseName);
+		if (phaseName) {
+			await printPhaseArtifacts(taskKey, phaseName, {
+				workdir: options.projectConfig?.workdir,
+				baseBranch: meta.baseBranch,
+			});
+		}
 
 		await postPhaseSummary(
 			taskKey,
@@ -237,14 +242,19 @@ async function advanceToAwaitingMerge(
 	};
 	await saveRunMeta(updatedMeta);
 
-	// Transition Jira to the configured "review" target (default "Code Review")
-	const reviewTransition = resolveJiraTransition('review', config, options.projectConfig);
-	const reviewTransResult = await jira.transitionStatus(taskKey, reviewTransition);
-	if (!reviewTransResult.ok) {
-		console.warn(pc.yellow(`[bode] Jira transition skipped: ${reviewTransResult.error.message}`));
-		console.warn(
-			pc.dim('  Configure jira.transitions.review in your project YAML to match your workflow.')
-		);
+	// Transition Jira to the configured "awaiting_merge" target (default "Code Review").
+	// This is the moment the work hands off to a human reviewer.
+	const mergeTransition = resolveJiraTransition('awaiting_merge', config, options.projectConfig);
+	if (mergeTransition.trim() !== '') {
+		const mergeTransResult = await jira.transitionStatus(taskKey, mergeTransition);
+		if (!mergeTransResult.ok) {
+			console.warn(pc.yellow(`[bode] Jira transition skipped: ${mergeTransResult.error.message}`));
+			console.warn(
+				pc.dim(
+					'  Configure jira.transitions.awaiting_merge in your project YAML to match your workflow.'
+				)
+			);
+		}
 	}
 
 	// Post PR comment on Jira
@@ -269,6 +279,8 @@ async function transitionForPhase(
 	const phaseName = getPhaseNameForStatus(status);
 	if (!phaseName) return { ok: true, value: undefined };
 	const target = resolveJiraTransition(phaseName, config, projectConfig);
+	// Empty string = explicit "do not transition for this phase"
+	if (target.trim() === '') return { ok: true, value: undefined };
 	return await jira.transitionStatus(taskKey, target);
 }
 

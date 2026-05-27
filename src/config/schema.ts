@@ -12,6 +12,7 @@ const jiraTransitionsSchema = z
 		planning: z.string().optional(),
 		implementation: z.string().optional(),
 		review: z.string().optional(),
+		awaiting_merge: z.string().optional(),
 		done: z.string().optional(),
 	})
 	.optional();

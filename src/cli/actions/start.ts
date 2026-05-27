@@ -192,6 +192,52 @@ export async function startAction(
 	const isDangerous = options.dangerouslyAutoMerge ?? false;
 	const interactive = !isAuto && !isDangerous;
 
+	// Warn loudly when --auto runs without --dangerously-approve-all (issue #29).
+	// In that combination, the AI is invoked in headless --print mode which is
+	// text-only — no file edits, no shell commands. The phases run but no code
+	// actually changes. Users hit this and don't realize why nothing happened.
+	if ((isAuto || isDangerous) && !dangerousBypass) {
+		try {
+			const { select } = await import('@inquirer/prompts');
+			console.log('');
+			console.log(
+				pc.yellow('⚠ --auto / --dangerously-auto-merge runs the AI in HEADLESS text-only mode.')
+			);
+			console.log(
+				pc.yellow(
+					'  In this mode the AI cannot edit files or run shell commands. The phases will produce'
+				)
+			);
+			console.log(
+				pc.yellow(
+					'  markdown artifacts under ~/.bode/runs/, but no code in your repo will be changed.'
+				)
+			);
+			console.log('');
+			console.log(
+				pc.dim(
+					'  To make the AI actually implement code, add --dangerously-approve-all (passes the'
+				)
+			);
+			console.log(pc.dim('  CLI bypass-approvals flag).'));
+			console.log('');
+			const choice = await select({
+				message: 'Proceed in text-only mode?',
+				choices: [
+					{ name: 'Yes — I want the markdown artifacts only', value: 'yes' },
+					{ name: 'No — abort so I can re-run with --dangerously-approve-all', value: 'no' },
+				],
+			});
+			if (choice !== 'yes') {
+				console.log(pc.dim('Aborted by user.'));
+				process.exit(0);
+			}
+		} catch (err) {
+			handlePromptError(err);
+			process.exit(1);
+		}
+	}
+
 	const engineOpts = {
 		projectRoot: projectConfig.workdir,
 		signal: undefined as AbortSignal | undefined,

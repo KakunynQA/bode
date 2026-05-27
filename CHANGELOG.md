@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] — 2026-05-27
+
+Wave 0 hardening pass — addresses 6 of the open hardening issues at once.
+
+### Added
+
+- **`IssueTrackerStrategy` type alias** (#5) — provider-neutral name for the existing `JiraAdapter` interface; documented contract; future adapters (GitHub Issues, Linear, etc.) will implement the same shape. Lives in `src/types/issue-tracker.ts`. No behavior change.
+- **`jira.transitions.awaiting_merge`** (#33) — separate transition for when the PR is opened, distinct from `review` (which now controls the internal AI-review phase only). Default `awaiting_merge` is `"Code Review"`. Defaults for `implementation` and `review` changed to `"In Progress"` so internal phases no longer move the card.
+- **Empty-string transition = skip** — set any `jira.transitions.<key>` to `""` to disable that transition entirely.
+- **Diff stat in phase summary** (#31) — after each phase, bode runs `git diff --shortstat <base>...HEAD` and prints `Diff: <n> files changed, +X -Y`. When no changes detected, prints a yellow hint suggesting `--dangerously-approve-all` (likely cause of empty diff in `--auto`).
+- **Interactive warning on `--auto` without `--dangerously-approve-all`** (#29) — bode now stops and asks for confirmation before running the AI in headless text-only mode, since that combination produces no actual code changes.
+
+### Fixed
+
+- **Exit code gate** (#1) — `phase-runner` now treats a non-zero CLI exit code as a phase failure, regardless of artifact presence. Previously bode marked success purely on artifact file existence, masking AI sandbox refusals.
+- **Prompt injection guard** (#2) — Jira ticket fields and prior artifacts are now wrapped in `<untrusted-*>` blocks. A `<untrusted-input-policy>` header tells the AI to treat the content strictly as data, never as instructions that alter bode's contract, bypass approvals, exfiltrate secrets, etc.
+
+### Notes
+
+- This bump does **not** include the bigger "remove all git from bode" change (#35). That ships as v0.18.0.
+
 ## [0.16.0] — 2026-05-27
 
 ### Changed (architecture)

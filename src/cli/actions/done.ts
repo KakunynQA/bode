@@ -89,12 +89,14 @@ async function finalize(
 		await removeBodeLabels(taskKey, config);
 		const jira = createJiraAdapter(config.jira);
 		const doneTarget = resolveJiraTransition('done', config, projectCfg);
-		const transResult = await jira.transitionStatus(taskKey, doneTarget);
-		if (!transResult.ok) {
-			console.warn(pc.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
-			console.warn(
-				pc.dim('  Configure jira.transitions.done in your project YAML to match your workflow.')
-			);
+		if (doneTarget.trim() !== '') {
+			const transResult = await jira.transitionStatus(taskKey, doneTarget);
+			if (!transResult.ok) {
+				console.warn(pc.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
+				console.warn(
+					pc.dim('  Configure jira.transitions.done in your project YAML to match your workflow.')
+				);
+			}
 		}
 		const useEmoji = config.comment_format?.use_emoji ?? true;
 		const prefix = useEmoji ? '🤖 ' : '';
