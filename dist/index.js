@@ -32474,8 +32474,8 @@ var init_rest = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.11.0") {
-    return "0.11.0";
+  if ("0.11.1") {
+    return "0.11.1";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
