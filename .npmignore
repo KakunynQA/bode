@@ -1,0 +1,17 @@
+src/
+scripts/
+tests/
+.github/
+*.ts
+tsconfig.json
+eslint.config.mjs
+.prettierrc
+AGENTS.md
+CLAUDE.md
+CONVENTIONS.md
+SPEC.md
+TESTING.md
+SKILLS.md
+PROMPT.md
+CONTRIBUTING.md
+RTK.md
