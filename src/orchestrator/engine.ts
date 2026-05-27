@@ -178,7 +178,7 @@ async function advanceToAwaitingMerge(
 	// Bode no longer runs git from its own process.
 	console.log(pc.dim('Handing off to AI to open the pull request (with conflict check)...'));
 
-	const issueResult = await jira.getIssue(taskKey, options.signal);
+	const issueResult = await jira.fetchTask(taskKey, options.signal);
 	const summary = issueResult.ok ? issueResult.value.summary : meta.jiraSummary;
 
 	const { createPullRequestViaAI } = await import('./pr-creator.ts');
@@ -213,7 +213,7 @@ async function advanceToAwaitingMerge(
 	// This is the moment the work hands off to a human reviewer.
 	const mergeTransition = resolveJiraTransition('awaiting_merge', config, options.projectConfig);
 	if (mergeTransition.trim() !== '') {
-		const mergeTransResult = await jira.transitionStatus(taskKey, mergeTransition);
+		const mergeTransResult = await jira.setStatus(taskKey, mergeTransition);
 		if (!mergeTransResult.ok) {
 			console.warn(pc.yellow(`[bode] Jira transition skipped: ${mergeTransResult.error.message}`));
 			console.warn(
@@ -248,7 +248,7 @@ async function transitionForPhase(
 	const target = resolveJiraTransition(phaseName, config, projectConfig);
 	// Empty string = explicit "do not transition for this phase"
 	if (target.trim() === '') return { ok: true, value: undefined };
-	return await jira.transitionStatus(taskKey, target);
+	return await jira.setStatus(taskKey, target);
 }
 
 async function postPhaseSummary(
@@ -294,7 +294,7 @@ function extractSummary(artifact: string, maxChars: number): string {
 }
 
 async function postJiraComment(taskKey: string, jira: JiraAdapter, body: string): Promise<void> {
-	await jira.addComment(taskKey, body);
+	await jira.postComment(taskKey, body);
 }
 
 function getExecutingStatus(nextStatus: PhaseStatus): PhaseStatus | null {

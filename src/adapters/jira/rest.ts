@@ -231,6 +231,27 @@ export class RealJiraAdapter implements JiraAdapter {
 			signal
 		);
 	}
+
+	// ─── v0.25.0 provider-neutral aliases (delegate to legacy methods) ───
+
+	async fetchTask(key: string, signal?: AbortSignal): Promise<Result<JiraIssue>> {
+		return this.getIssue(key, signal);
+	}
+	async postComment(key: string, body: string, signal?: AbortSignal): Promise<Result<JiraComment>> {
+		return this.addComment(key, body, signal);
+	}
+	async setStatus(key: string, statusName: string, signal?: AbortSignal): Promise<Result<void>> {
+		return this.transitionStatus(key, statusName, signal);
+	}
+	async addTag(key: string, tag: string, signal?: AbortSignal): Promise<Result<void>> {
+		return this.addLabel(key, tag, signal);
+	}
+	async removeTag(key: string, tag: string, signal?: AbortSignal): Promise<Result<void>> {
+		return this.removeLabel(key, tag, signal);
+	}
+	async listStatuses(key: string, signal?: AbortSignal): Promise<Result<JiraTransition[]>> {
+		return this.getTransitions(key, signal);
+	}
 }
 
 export async function testJiraConnection(

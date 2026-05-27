@@ -1,3 +1,12 @@
+/**
+ * Jira-specific issue types. The interface `JiraAdapter` is now a structural
+ * alias for `IssueTrackerStrategy` (which has both old and new method names).
+ * Kept for any external consumer that imports from this module by path.
+ *
+ * @deprecated since v0.25.0 — prefer `IssueTrackerStrategy` from
+ * `~/types/issue-tracker.ts`. This re-export will remain through v0.29.x.
+ */
+
 export type JiraIssue = {
 	key: string;
 	summary: string;
@@ -21,36 +30,5 @@ export type JiraTransition = {
 	toStatusName?: string;
 };
 
-export interface JiraAdapter {
-	getIssue(key: string, signal?: AbortSignal): Promise<import('./result.ts').Result<JiraIssue>>;
-	addComment(
-		key: string,
-		body: string,
-		signal?: AbortSignal
-	): Promise<import('./result.ts').Result<JiraComment>>;
-	transitionStatus(
-		key: string,
-		transitionName: string,
-		signal?: AbortSignal
-	): Promise<import('./result.ts').Result<void>>;
-	addLabel(
-		key: string,
-		label: string,
-		signal?: AbortSignal
-	): Promise<import('./result.ts').Result<void>>;
-	removeLabel(
-		key: string,
-		label: string,
-		signal?: AbortSignal
-	): Promise<import('./result.ts').Result<void>>;
-	attachFile(
-		key: string,
-		filename: string,
-		content: string,
-		signal?: AbortSignal
-	): Promise<import('./result.ts').Result<void>>;
-	getTransitions(
-		key: string,
-		signal?: AbortSignal
-	): Promise<import('./result.ts').Result<JiraTransition[]>>;
-}
+/** @deprecated since v0.25.0 — use `IssueTrackerStrategy`. */
+export type JiraAdapter = import('./issue-tracker.ts').IssueTrackerStrategy;

@@ -78,7 +78,7 @@ export async function startAction(
 
 	const spinner = ora(`Fetching ${taskKey}...`).start();
 
-	const issueResult = await jira.getIssue(taskKey);
+	const issueResult = await jira.fetchTask(taskKey);
 	if (!issueResult.ok) {
 		spinner.fail(`Jira error: ${issueResult.error.message}`);
 		process.exit(1);
@@ -87,7 +87,7 @@ export async function startAction(
 	const issue = issueResult.value;
 	spinner.succeed(`Found: ${issue.summary} [${issue.issueType}]`);
 
-	const transitionsResult = await jira.getTransitions(taskKey);
+	const transitionsResult = await jira.listStatuses(taskKey);
 	if (!transitionsResult.ok) {
 		console.log(pc.yellow(`⚠ Cannot check Jira transitions: ${transitionsResult.error.message}`));
 		console.log(
@@ -306,7 +306,7 @@ export async function startAction(
 
 				const { resolveJiraTransition } = await import('~/config/transitions.ts');
 				const doneTarget = resolveJiraTransition('done', config, projectConfig);
-				await jira.transitionStatus(taskKey, doneTarget).catch(() => {});
+				await jira.setStatus(taskKey, doneTarget).catch(() => {});
 
 				const finalMeta = { ...advanceVal.meta, status: 'done' as const, updatedAt: Date.now() };
 				await saveRunMeta(finalMeta);

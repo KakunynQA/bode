@@ -63,7 +63,7 @@ export async function runPhase(
 	});
 	if (!skillResult.ok) return skillResult;
 
-	const issueResult = await jira.getIssue(taskKey, options.signal);
+	const issueResult = await jira.fetchTask(taskKey, options.signal);
 	if (!issueResult.ok) return issueResult;
 	const issue = issueResult.value;
 
@@ -124,7 +124,7 @@ export async function runPhase(
 	const labels = config.jira_labels;
 	const currentLabelKey = getCurrentLabelKey(phaseName);
 	if (labels && currentLabelKey) {
-		await jira.addLabel(taskKey, labels[currentLabelKey]);
+		await jira.addTag(taskKey, labels[currentLabelKey]);
 	}
 
 	const invocationOpts: CliInvocationOptions = {
@@ -201,11 +201,11 @@ export async function runPhase(
 	const labelsConfig = config.jira_labels;
 	if (labelsConfig) {
 		if (currentLabelKey) {
-			await jira.removeLabel(taskKey, labelsConfig[currentLabelKey]);
+			await jira.removeTag(taskKey, labelsConfig[currentLabelKey]);
 		}
 		const nextLabelKey = getNextLabelKey(phaseName);
 		if (nextLabelKey) {
-			await jira.addLabel(taskKey, labelsConfig[nextLabelKey]);
+			await jira.addTag(taskKey, labelsConfig[nextLabelKey]);
 		}
 	}
 

@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] — 2026-05-27
+
+**Closes #16 — provider-neutral method names on IssueTrackerStrategy.** The Jira-flavored vocabulary (`getIssue`, `addComment`, `transitionStatus`, `addLabel`, `removeLabel`, `getTransitions`) was awkward as soon as LocalTracker and GitHubIssues landed. New canonical names are in. Old names stay until v0.30.0 as `@deprecated` delegates.
+
+### Rename map
+
+| Old (deprecated) | New (canonical) |
+|---|---|
+| `getIssue` | `fetchTask` |
+| `addComment` | `postComment` |
+| `transitionStatus` | `setStatus` |
+| `addLabel` | `addTag` |
+| `removeLabel` | `removeTag` |
+| `getTransitions` | `listStatuses` |
+| `attachFile` | `attachFile` *(unchanged)* |
+
+### Changed
+
+- `IssueTrackerStrategy` interface now has 13 methods: 7 canonical + 6 deprecated aliases. Old names still required on the interface for the deprecation window so existing adapter implementations don't break.
+- Every adapter (`RealJiraAdapter`, `MockJiraAdapter`, `LocalTrackerAdapter`, `GitHubIssuesAdapter`) implements both name families. Old methods carry the actual logic; new names are one-line delegates. Cheap.
+- Internal callers (`engine.ts`, `phase-runner.ts`, `start.ts`, `done.ts`, `continue.ts`) migrated to the canonical names exclusively.
+- `JiraAdapter` in `src/types/jira.ts` is now a type alias for `IssueTrackerStrategy`. The old standalone interface is gone. Anyone importing `JiraAdapter` by path still works.
+
+### Deprecation timeline
+
+- v0.25.0 — both name families work. New code SHOULD use the canonical names.
+- v0.26.0 → v0.29.x — old names continue working with `@deprecated` JSDoc.
+- v0.30.0 — old names removed from the interface. Adapter implementations may drop them at that point.
+
+### Tests
+
+- `tests/unit/adapters/tracker/method-aliases.test.ts` (6 cases): asserts old + new names produce identical outputs across `LocalTrackerAdapter` and `MockJiraAdapter`.
+
+Total: 170 → 176 (+6).
+
+### Migration notes for adapter authors
+
+If you implement `IssueTrackerStrategy` (you have a custom adapter):
+
+- Update to provide both old and new methods through v0.29.x.
+- Easiest pattern: keep the old methods as your logic, add 1-line aliases. See `MockJiraAdapter` for the canonical example.
+- In v0.30.0 you can drop the old methods entirely.
+
 ## [0.24.0] — 2026-05-27
 
 **Closes #11 — GitHub Issues tracker.** First Wave 2 ship; pays off the strategy formalization from v0.17.0. Devs without Jira but using GitHub Issues now get the same end-to-end flow.

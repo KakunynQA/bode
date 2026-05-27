@@ -178,6 +178,27 @@ export class LocalTrackerAdapter implements IssueTrackerStrategy {
 		if (!wr.ok) return wr;
 		return this.getIssue(key);
 	}
+
+	// ─── v0.25.0 provider-neutral aliases ────────────────────────────────
+
+	async fetchTask(key: string): Promise<Result<IssueTask>> {
+		return this.getIssue(key);
+	}
+	async postComment(key: string, body: string): Promise<Result<IssueComment>> {
+		return this.addComment(key, body);
+	}
+	async setStatus(key: string, statusName: string): Promise<Result<void>> {
+		return this.transitionStatus(key, statusName);
+	}
+	async addTag(key: string, tag: string): Promise<Result<void>> {
+		return this.addLabel(key, tag);
+	}
+	async removeTag(key: string, tag: string): Promise<Result<void>> {
+		return this.removeLabel(key, tag);
+	}
+	async listStatuses(key: string): Promise<Result<IssueTransition[]>> {
+		return this.getTransitions(key);
+	}
 }
 
 type TaskFrontmatter = {

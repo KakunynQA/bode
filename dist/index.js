@@ -11027,6 +11027,25 @@ ${body.trim()}
         if (!wr.ok) return wr;
         return this.getIssue(key);
       }
+      // ─── v0.25.0 provider-neutral aliases ────────────────────────────────
+      async fetchTask(key) {
+        return this.getIssue(key);
+      }
+      async postComment(key, body) {
+        return this.addComment(key, body);
+      }
+      async setStatus(key, statusName) {
+        return this.transitionStatus(key, statusName);
+      }
+      async addTag(key, tag) {
+        return this.addLabel(key, tag);
+      }
+      async removeTag(key, tag) {
+        return this.removeLabel(key, tag);
+      }
+      async listStatuses(key) {
+        return this.getTransitions(key);
+      }
     };
     FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
   }
@@ -39600,6 +39619,25 @@ var init_github_issues = __esm({
           ]
         };
       }
+      // ─── v0.25.0 provider-neutral aliases ────────────────────────────────
+      async fetchTask(key) {
+        return this.getIssue(key);
+      }
+      async postComment(key, body) {
+        return this.addComment(key, body);
+      }
+      async setStatus(key, statusName) {
+        return this.transitionStatus(key, statusName);
+      }
+      async addTag(key, tag) {
+        return this.addLabel(key, tag);
+      }
+      async removeTag(key, tag) {
+        return this.removeLabel(key, tag);
+      }
+      async listStatuses(key) {
+        return this.getTransitions(key);
+      }
     };
   }
 });
@@ -39844,6 +39882,25 @@ var init_rest = __esm({
           signal
         );
       }
+      // ─── v0.25.0 provider-neutral aliases (delegate to legacy methods) ───
+      async fetchTask(key, signal) {
+        return this.getIssue(key, signal);
+      }
+      async postComment(key, body, signal) {
+        return this.addComment(key, body, signal);
+      }
+      async setStatus(key, statusName, signal) {
+        return this.transitionStatus(key, statusName, signal);
+      }
+      async addTag(key, tag, signal) {
+        return this.addLabel(key, tag, signal);
+      }
+      async removeTag(key, tag, signal) {
+        return this.removeLabel(key, tag, signal);
+      }
+      async listStatuses(key, signal) {
+        return this.getTransitions(key, signal);
+      }
     };
   }
 });
@@ -39857,12 +39914,12 @@ var init_mock = __esm({
     mockComments = /* @__PURE__ */ new Map();
     mockLabels = /* @__PURE__ */ new Map();
     MockJiraAdapter = class {
-      async getIssue(key) {
+      async getIssue(key, _signal) {
         const issue2 = mockIssues.get(key);
         if (!issue2) return { ok: false, error: new Error(`Issue ${key} not found`) };
         return { ok: true, value: { ...issue2, labels: [...mockLabels.get(key) ?? []] } };
       }
-      async addComment(key, body) {
+      async addComment(key, body, _signal) {
         const comment = {
           id: `comment-${Date.now()}`,
           body,
@@ -39873,23 +39930,23 @@ var init_mock = __esm({
         mockComments.set(key, existing);
         return { ok: true, value: comment };
       }
-      async transitionStatus(_key, _transitionName) {
+      async transitionStatus(_key, _transitionName, _signal) {
         return { ok: true, value: void 0 };
       }
-      async addLabel(key, label) {
+      async addLabel(key, label, _signal) {
         const labels = mockLabels.get(key) ?? /* @__PURE__ */ new Set();
         labels.add(label);
         mockLabels.set(key, labels);
         return { ok: true, value: void 0 };
       }
-      async removeLabel(key, label) {
+      async removeLabel(key, label, _signal) {
         mockLabels.get(key)?.delete(label);
         return { ok: true, value: void 0 };
       }
-      async attachFile(_key, _filename, _content) {
+      async attachFile(_key, _filename, _content, _signal) {
         return { ok: true, value: void 0 };
       }
-      async getTransitions(_key) {
+      async getTransitions(_key, _signal) {
         return {
           ok: true,
           value: [
@@ -39897,6 +39954,25 @@ var init_mock = __esm({
             { id: "2", name: "Done", toStatusName: "Done" }
           ]
         };
+      }
+      // ─── v0.25.0 provider-neutral aliases (delegate to legacy methods) ───
+      async fetchTask(key, signal) {
+        return this.getIssue(key, signal);
+      }
+      async postComment(key, body, signal) {
+        return this.addComment(key, body, signal);
+      }
+      async setStatus(key, statusName, signal) {
+        return this.transitionStatus(key, statusName, signal);
+      }
+      async addTag(key, tag, signal) {
+        return this.addLabel(key, tag, signal);
+      }
+      async removeTag(key, tag, signal) {
+        return this.removeLabel(key, tag, signal);
+      }
+      async listStatuses(key, signal) {
+        return this.getTransitions(key, signal);
       }
       static seedIssue(issue2) {
         mockIssues.set(issue2.key, issue2);
@@ -40748,7 +40824,7 @@ async function runPhase(taskKey, status, config2, jira, options) {
     globalDir: void 0
   });
   if (!skillResult.ok) return skillResult;
-  const issueResult = await jira.getIssue(taskKey, options.signal);
+  const issueResult = await jira.fetchTask(taskKey, options.signal);
   if (!issueResult.ok) return issueResult;
   const issue2 = issueResult.value;
   const priorPhaseFile = getPriorPhaseFile(phaseName);
@@ -40795,7 +40871,7 @@ async function runPhase(taskKey, status, config2, jira, options) {
   const labels = config2.jira_labels;
   const currentLabelKey = getCurrentLabelKey(phaseName);
   if (labels && currentLabelKey) {
-    await jira.addLabel(taskKey, labels[currentLabelKey]);
+    await jira.addTag(taskKey, labels[currentLabelKey]);
   }
   const invocationOpts = {
     signal: options.signal,
@@ -40859,11 +40935,11 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
   const labelsConfig = config2.jira_labels;
   if (labelsConfig) {
     if (currentLabelKey) {
-      await jira.removeLabel(taskKey, labelsConfig[currentLabelKey]);
+      await jira.removeTag(taskKey, labelsConfig[currentLabelKey]);
     }
     const nextLabelKey = getNextLabelKey(phaseName);
     if (nextLabelKey) {
-      await jira.addLabel(taskKey, labelsConfig[nextLabelKey]);
+      await jira.addTag(taskKey, labelsConfig[nextLabelKey]);
     }
   }
   let aiBranch = null;
@@ -44679,7 +44755,7 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
     };
   }
   console.log(import_picocolors2.default.dim("Handing off to AI to open the pull request (with conflict check)..."));
-  const issueResult = await jira.getIssue(taskKey, options.signal);
+  const issueResult = await jira.fetchTask(taskKey, options.signal);
   const summary = issueResult.ok ? issueResult.value.summary : meta3.jiraSummary;
   const { createPullRequestViaAI: createPullRequestViaAI2 } = await Promise.resolve().then(() => (init_pr_creator(), pr_creator_exports));
   const prResult = await createPullRequestViaAI2({
@@ -44709,7 +44785,7 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
   await saveRunMeta(updatedMeta);
   const mergeTransition = resolveJiraTransition("awaiting_merge", config2, options.projectConfig);
   if (mergeTransition.trim() !== "") {
-    const mergeTransResult = await jira.transitionStatus(taskKey, mergeTransition);
+    const mergeTransResult = await jira.setStatus(taskKey, mergeTransition);
     if (!mergeTransResult.ok) {
       console.warn(import_picocolors2.default.yellow(`[bode] Jira transition skipped: ${mergeTransResult.error.message}`));
       console.warn(
@@ -44733,7 +44809,7 @@ async function transitionForPhase(taskKey, status, jira, config2, projectConfig)
   if (!phaseName) return { ok: true, value: void 0 };
   const target = resolveJiraTransition(phaseName, config2, projectConfig);
   if (target.trim() === "") return { ok: true, value: void 0 };
-  return await jira.transitionStatus(taskKey, target);
+  return await jira.setStatus(taskKey, target);
 }
 async function postPhaseSummary(taskKey, phaseStatus, artifact, durationMs, config2, jira) {
   const phaseLabel = getPhaseStatusLabel(phaseStatus);
@@ -44763,7 +44839,7 @@ function extractSummary(artifact, maxChars) {
   return summaryLines.join("\n") + "\n\n...(_truncated. Run `bode show <phase> <TASK-KEY>` for full output_)";
 }
 async function postJiraComment(taskKey, jira, body) {
-  await jira.addComment(taskKey, body);
+  await jira.postComment(taskKey, body);
 }
 function getExecutingStatus(nextStatus) {
   switch (nextStatus) {
@@ -45357,14 +45433,14 @@ async function startAction(taskKey, options) {
     dangerousBypass = true;
   }
   const spinner = ora(`Fetching ${taskKey}...`).start();
-  const issueResult = await jira.getIssue(taskKey);
+  const issueResult = await jira.fetchTask(taskKey);
   if (!issueResult.ok) {
     spinner.fail(`Jira error: ${issueResult.error.message}`);
     process.exit(1);
   }
   const issue2 = issueResult.value;
   spinner.succeed(`Found: ${issue2.summary} [${issue2.issueType}]`);
-  const transitionsResult = await jira.getTransitions(taskKey);
+  const transitionsResult = await jira.listStatuses(taskKey);
   if (!transitionsResult.ok) {
     console.log(import_picocolors7.default.yellow(`\u26A0 Cannot check Jira transitions: ${transitionsResult.error.message}`));
     console.log(
@@ -45555,7 +45631,7 @@ PR created: ${import_picocolors7.default.bold(advanceVal.prUrl)}`));
         }
         const { resolveJiraTransition: resolveJiraTransition2 } = await Promise.resolve().then(() => (init_transitions(), transitions_exports));
         const doneTarget = resolveJiraTransition2("done", config2, projectConfig);
-        await jira.transitionStatus(taskKey, doneTarget).catch(() => {
+        await jira.setStatus(taskKey, doneTarget).catch(() => {
         });
         const finalMeta = { ...advanceVal.meta, status: "done", updatedAt: Date.now() };
         await saveRunMeta(finalMeta);
@@ -45731,8 +45807,8 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.24.0") {
-    return "0.24.0";
+  if ("0.25.0") {
+    return "0.25.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -46757,7 +46833,7 @@ async function finalize2(taskKey, meta3, config2, projectCfg) {
     }).adapter;
     const doneTarget = resolveJiraTransition("done", config2, projectCfg);
     if (doneTarget.trim() !== "") {
-      const transResult = await jira.transitionStatus(taskKey, doneTarget);
+      const transResult = await jira.setStatus(taskKey, doneTarget);
       if (!transResult.ok) {
         console.warn(import_picocolors14.default.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
         console.warn(
@@ -46783,7 +46859,7 @@ async function removeBodeLabels(taskKey, config2, meta3) {
   }).adapter;
   const allLabels = /* @__PURE__ */ new Set([...Object.values(labels), "bode:conflict"]);
   for (const label of allLabels) {
-    await jira.removeLabel(taskKey, label).catch(() => {
+    await jira.removeTag(taskKey, label).catch(() => {
     });
   }
 }

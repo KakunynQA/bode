@@ -89,7 +89,7 @@ async function finalize(
 		}).adapter;
 		const doneTarget = resolveJiraTransition('done', config, projectCfg);
 		if (doneTarget.trim() !== '') {
-			const transResult = await jira.transitionStatus(taskKey, doneTarget);
+			const transResult = await jira.setStatus(taskKey, doneTarget);
 			if (!transResult.ok) {
 				console.warn(pc.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
 				console.warn(
@@ -118,6 +118,6 @@ async function removeBodeLabels(taskKey: string, config: BodeConfig, meta: RunMe
 	}).adapter;
 	const allLabels = new Set<string>([...Object.values(labels), 'bode:conflict']);
 	for (const label of allLabels) {
-		await jira.removeLabel(taskKey, label).catch(() => {});
+		await jira.removeTag(taskKey, label).catch(() => {});
 	}
 }
