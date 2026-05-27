@@ -38789,11 +38789,25 @@ var init_zod = __esm({
 });
 
 // src/config/schema.ts
-var phaseConfigSchema, jiraTransitionsSchema, bodeConfigSchema, reposItemSchema, projectConfigSchema;
+var hookEntrySchema, hooksSchema, phaseConfigSchema, jiraTransitionsSchema, bodeConfigSchema, reposItemSchema, projectConfigSchema;
 var init_schema = __esm({
   "src/config/schema.ts"() {
     "use strict";
     init_zod();
+    hookEntrySchema = external_exports.union([
+      external_exports.string(),
+      external_exports.object({ run: external_exports.string(), non_blocking: external_exports.boolean().optional() })
+    ]);
+    hooksSchema = external_exports.object({
+      pre_planning: external_exports.array(hookEntrySchema).optional(),
+      post_planning: external_exports.array(hookEntrySchema).optional(),
+      pre_implementation: external_exports.array(hookEntrySchema).optional(),
+      post_implementation: external_exports.array(hookEntrySchema).optional(),
+      pre_review: external_exports.array(hookEntrySchema).optional(),
+      post_review: external_exports.array(hookEntrySchema).optional(),
+      pre_pr: external_exports.array(hookEntrySchema).optional(),
+      post_pr: external_exports.array(hookEntrySchema).optional()
+    }).optional();
     phaseConfigSchema = external_exports.object({
       cli: external_exports.string(),
       model: external_exports.string(),
@@ -38887,7 +38901,8 @@ var init_schema = __esm({
       }).optional(),
       defaults: external_exports.object({
         project: external_exports.string().optional()
-      }).optional()
+      }).optional(),
+      hooks: hooksSchema
     });
     reposItemSchema = external_exports.object({
       workdir: external_exports.string().min(1),
@@ -38921,7 +38936,8 @@ var init_schema = __esm({
         "local",
         "plain-markdown",
         "mock"
-      ]).optional()
+      ]).optional(),
+      hooks: hooksSchema
     });
   }
 });
@@ -41941,6 +41957,54 @@ var init_summary = __esm({
   }
 });
 
+// src/orchestrator/hooks.ts
+function resolveHooks(point, config2, projectConfig) {
+  const fromProject = projectConfig?.hooks?.[point] ?? [];
+  const fromGlobal = config2.hooks?.[point] ?? [];
+  return [...fromGlobal, ...fromProject];
+}
+async function runHook(point, context, config2, projectConfig) {
+  const hooks = resolveHooks(point, config2, projectConfig);
+  if (hooks.length === 0) return { ok: true };
+  console.log(import_picocolors2.default.dim(`[hook ${point}] running ${hooks.length} command(s)...`));
+  for (const entry of hooks) {
+    const cmd = typeof entry === "string" ? entry : entry.run;
+    const nonBlocking = typeof entry === "object" && entry.non_blocking === true;
+    try {
+      await execFileAsync3("sh", ["-c", cmd], {
+        cwd: context.workdir,
+        env: {
+          ...process.env,
+          BODE_TASK_KEY: context.taskKey,
+          BODE_PHASE: context.phase,
+          BODE_HOOK: point,
+          BODE_WORKDIR: context.workdir
+        }
+      });
+      console.log(import_picocolors2.default.dim(`  \u2713 ${cmd}`));
+    } catch (err) {
+      const error52 = err instanceof Error ? err : new Error(String(err));
+      if (nonBlocking) {
+        console.warn(import_picocolors2.default.yellow(`  \u26A0 ${cmd}  (non-blocking, continuing)`));
+        continue;
+      }
+      console.error(import_picocolors2.default.red(`  \u2717 ${cmd}`));
+      return { ok: false, failedCommand: cmd, error: error52 };
+    }
+  }
+  return { ok: true };
+}
+var import_node_child_process5, import_node_util11, import_picocolors2, execFileAsync3;
+var init_hooks = __esm({
+  "src/orchestrator/hooks.ts"() {
+    "use strict";
+    import_node_child_process5 = require("node:child_process");
+    import_node_util11 = require("node:util");
+    import_picocolors2 = __toESM(require_picocolors());
+    execFileAsync3 = (0, import_node_util11.promisify)(import_node_child_process5.execFile);
+  }
+});
+
 // node_modules/chalk/source/vendor/ansi-styles/index.js
 function assembleStyles() {
   const codes = /* @__PURE__ */ new Map();
@@ -44796,11 +44860,11 @@ var init_stdin_discarder = __esm({
 function ora(options) {
   return new Ora(options);
 }
-var import_node_process7, import_node_util11, RENDER_DEFERRAL_TIMEOUT, SYNCHRONIZED_OUTPUT_ENABLE, SYNCHRONIZED_OUTPUT_DISABLE, activeHooksPerStream, validColors, Ora;
+var import_node_process7, import_node_util12, RENDER_DEFERRAL_TIMEOUT, SYNCHRONIZED_OUTPUT_ENABLE, SYNCHRONIZED_OUTPUT_DISABLE, activeHooksPerStream, validColors, Ora;
 var init_ora = __esm({
   "node_modules/ora/index.js"() {
     import_node_process7 = __toESM(require("node:process"), 1);
-    import_node_util11 = require("node:util");
+    import_node_util12 = require("node:util");
     init_source();
     init_cli_cursor();
     init_cli_spinners();
@@ -45024,7 +45088,7 @@ var init_ora = __esm({
       }
       #computeLineCountFrom(text, columns) {
         let count = 0;
-        for (const line of (0, import_node_util11.stripVTControlCharacters)(text).split("\n")) {
+        for (const line of (0, import_node_util12.stripVTControlCharacters)(text).split("\n")) {
           count += Math.max(1, Math.ceil(stringWidth(line) / columns));
         }
         return count;
@@ -45450,6 +45514,26 @@ async function advancePhase(taskKey, config2, jira, options) {
   await saveRunMeta({ ...meta3, status: executingStatus });
   const interactive = options.interactive ?? true;
   const spinner = interactive ? null : ora(`Running ${getPhaseStatusLabel(executingStatus)} phase...`).start();
+  const phaseName = getPhaseNameForStatus(executingStatus);
+  const workdir = options.projectConfig?.workdir ?? options.projectRoot ?? process.cwd();
+  if (phaseName) {
+    const prePoint = `pre_${phaseName}`;
+    const preHook = await runHook(
+      prePoint,
+      { taskKey, phase: phaseName, workdir },
+      config2,
+      options.projectConfig
+    );
+    if (!preHook.ok) {
+      return {
+        ok: false,
+        error: new Error(
+          `Hook ${prePoint} failed: ${preHook.failedCommand}
+  ${preHook.error.message}`
+        )
+      };
+    }
+  }
   const transitionResult = await transitionForPhase(
     taskKey,
     executingStatus,
@@ -45458,9 +45542,9 @@ async function advancePhase(taskKey, config2, jira, options) {
     options.projectConfig
   );
   if (!transitionResult.ok) {
-    console.warn(import_picocolors2.default.yellow(`[bode] Jira transition skipped: ${transitionResult.error.message}`));
+    console.warn(import_picocolors3.default.yellow(`[bode] Jira transition skipped: ${transitionResult.error.message}`));
     console.warn(
-      import_picocolors2.default.dim(
+      import_picocolors3.default.dim(
         "  Configure jira.transitions in your project YAML (or global config) to match your workflow."
       )
     );
@@ -45488,9 +45572,20 @@ ${phaseResult.error.message}`
     spinner?.succeed(
       `${getPhaseStatusLabel(nextStatus)} complete (${formatDuration2(result.durationMs)})`
     );
-    const phaseName = getPhaseNameForStatus(executingStatus);
     if (phaseName) {
       await printPhaseArtifacts(taskKey, phaseName);
+      const postPoint = `post_${phaseName}`;
+      const postHook = await runHook(
+        postPoint,
+        { taskKey, phase: phaseName, workdir },
+        config2,
+        options.projectConfig
+      );
+      if (!postHook.ok) {
+        console.warn(
+          import_picocolors3.default.yellow(`[hook ${postPoint}] failed: ${postHook.failedCommand} \u2014 continuing.`)
+        );
+      }
     }
     await postPhaseSummary(
       taskKey,
@@ -45540,7 +45635,7 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
       )
     };
   }
-  console.log(import_picocolors2.default.dim("Handing off to AI to open the pull request (with conflict check)..."));
+  console.log(import_picocolors3.default.dim("Handing off to AI to open the pull request (with conflict check)..."));
   const issueResult = await jira.fetchTask(taskKey, options.signal);
   const summary = issueResult.ok ? issueResult.value.summary : meta3.jiraSummary;
   const { createPullRequestViaAI: createPullRequestViaAI2 } = await Promise.resolve().then(() => (init_pr_creator(), pr_creator_exports));
@@ -45558,7 +45653,7 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
     dangerousBypass: options.dangerousBypass ?? false
   });
   if (!prResult.ok) {
-    console.error(import_picocolors2.default.red(`PR creation failed: ${prResult.error.message}`));
+    console.error(import_picocolors3.default.red(`PR creation failed: ${prResult.error.message}`));
     return prResult;
   }
   const updatedMeta = {
@@ -45573,9 +45668,9 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
   if (mergeTransition.trim() !== "") {
     const mergeTransResult = await jira.setStatus(taskKey, mergeTransition);
     if (!mergeTransResult.ok) {
-      console.warn(import_picocolors2.default.yellow(`[bode] Jira transition skipped: ${mergeTransResult.error.message}`));
+      console.warn(import_picocolors3.default.yellow(`[bode] Jira transition skipped: ${mergeTransResult.error.message}`));
       console.warn(
-        import_picocolors2.default.dim(
+        import_picocolors3.default.dim(
           "  Configure jira.transitions.awaiting_merge in your project YAML to match your workflow."
         )
       );
@@ -45587,7 +45682,7 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
     `**[Bode PR]** Created: ${prResult.value.url}
 Branch: \`${branch}\` \u2192 \`${baseBranch}\``
   );
-  console.log(import_picocolors2.default.green(`PR created: ${prResult.value.url}`));
+  console.log(import_picocolors3.default.green(`PR created: ${prResult.value.url}`));
   return { ok: true, value: { kind: "pr-created", meta: updatedMeta, prUrl: prResult.value.url } };
 }
 async function transitionForPhase(taskKey, status, jira, config2, projectConfig) {
@@ -45651,7 +45746,7 @@ function formatDuration2(ms) {
   const remainingSeconds = seconds % 60;
   return `${minutes}m ${remainingSeconds}s`;
 }
-var import_picocolors2;
+var import_picocolors3;
 var init_engine = __esm({
   "src/orchestrator/engine.ts"() {
     "use strict";
@@ -45662,19 +45757,20 @@ var init_engine = __esm({
     init_transitions();
     init_summary();
     init_phase();
-    import_picocolors2 = __toESM(require_picocolors());
+    init_hooks();
+    import_picocolors3 = __toESM(require_picocolors());
     init_ora();
   }
 });
 
 // src/adapters/vcs/github.ts
-var import_node_child_process5, import_node_util12, execFileAsync3, GitHubAdapter;
+var import_node_child_process6, import_node_util13, execFileAsync4, GitHubAdapter;
 var init_github = __esm({
   "src/adapters/vcs/github.ts"() {
     "use strict";
-    import_node_child_process5 = require("node:child_process");
-    import_node_util12 = require("node:util");
-    execFileAsync3 = (0, import_node_util12.promisify)(import_node_child_process5.execFile);
+    import_node_child_process6 = require("node:child_process");
+    import_node_util13 = require("node:util");
+    execFileAsync4 = (0, import_node_util13.promisify)(import_node_child_process6.execFile);
     GitHubAdapter = class {
       async createPullRequest(options) {
         try {
@@ -45696,7 +45792,7 @@ var init_github = __esm({
           if (options.workdir) execOpts.cwd = options.workdir;
           let stdout;
           try {
-            const res = await execFileAsync3("gh", args, execOpts);
+            const res = await execFileAsync4("gh", args, execOpts);
             stdout = res.stdout;
           } catch (e) {
             const err = e;
@@ -45738,7 +45834,7 @@ ${err.stderr ?? ""}`;
       }
       async addComment(prNumber, body, signal) {
         try {
-          await execFileAsync3("gh", ["pr", "comment", String(prNumber), "--body", body], {
+          await execFileAsync4("gh", ["pr", "comment", String(prNumber), "--body", body], {
             signal: signal ?? void 0
           });
           return { ok: true, value: void 0 };
@@ -45748,7 +45844,7 @@ ${err.stderr ?? ""}`;
       }
       async mergePR(prNumber, signal) {
         try {
-          await execFileAsync3("gh", ["pr", "merge", String(prNumber), "--squash", "--delete-branch"], {
+          await execFileAsync4("gh", ["pr", "merge", String(prNumber), "--squash", "--delete-branch"], {
             signal: signal ?? void 0
           });
           return { ok: true, value: void 0 };
@@ -45761,13 +45857,13 @@ ${err.stderr ?? ""}`;
 });
 
 // src/adapters/vcs/gitlab.ts
-var import_node_child_process6, import_node_util13, execFileAsync4, GitLabAdapter;
+var import_node_child_process7, import_node_util14, execFileAsync5, GitLabAdapter;
 var init_gitlab = __esm({
   "src/adapters/vcs/gitlab.ts"() {
     "use strict";
-    import_node_child_process6 = require("node:child_process");
-    import_node_util13 = require("node:util");
-    execFileAsync4 = (0, import_node_util13.promisify)(import_node_child_process6.execFile);
+    import_node_child_process7 = require("node:child_process");
+    import_node_util14 = require("node:util");
+    execFileAsync5 = (0, import_node_util14.promisify)(import_node_child_process7.execFile);
     GitLabAdapter = class {
       async createPullRequest(options) {
         try {
@@ -45787,7 +45883,7 @@ var init_gitlab = __esm({
           const execOpts = {};
           if (options.signal) execOpts.signal = options.signal;
           if (options.workdir) execOpts.cwd = options.workdir;
-          const { stdout } = await execFileAsync4("glab", args, execOpts);
+          const { stdout } = await execFileAsync5("glab", args, execOpts);
           const urlMatch = stdout.match(/https:\/\/[^\s]*\/-\/merge_requests\/\d+/);
           const url2 = urlMatch?.[0] ?? stdout.trim().split("\n").pop() ?? "";
           const numberMatch = url2.match(/\/merge_requests\/(\d+)/);
@@ -45809,7 +45905,7 @@ var init_gitlab = __esm({
       }
       async addComment(prNumber, body, signal) {
         try {
-          await execFileAsync4("glab", ["mr", "note", String(prNumber), "--message", body], {
+          await execFileAsync5("glab", ["mr", "note", String(prNumber), "--message", body], {
             signal: signal ?? void 0
           });
           return { ok: true, value: void 0 };
@@ -45819,7 +45915,7 @@ var init_gitlab = __esm({
       }
       async mergePR(prNumber, signal) {
         try {
-          await execFileAsync4("glab", ["mr", "merge", String(prNumber), "--squash", "--yes"], {
+          await execFileAsync5("glab", ["mr", "merge", String(prNumber), "--squash", "--yes"], {
             signal: signal ?? void 0
           });
           return { ok: true, value: void 0 };
@@ -45878,37 +45974,37 @@ async function abortRun(taskKey) {
 }
 async function abortAction(taskKey, options) {
   if (!options.yes) {
-    console.log(import_picocolors3.default.yellow(`Are you sure you want to abort ${taskKey}? Use --yes to confirm.`));
+    console.log(import_picocolors4.default.yellow(`Are you sure you want to abort ${taskKey}? Use --yes to confirm.`));
     return;
   }
   const result = await abortRun(taskKey);
   if (!result.ok) {
-    console.error(import_picocolors3.default.red(result.error.message));
+    console.error(import_picocolors4.default.red(result.error.message));
     process.exit(1);
   }
   const metaR = await loadRunMeta(taskKey);
   const meta3 = metaR.ok ? metaR.value : null;
-  console.log(import_picocolors3.default.green(`Task ${taskKey} aborted.`));
-  console.log(import_picocolors3.default.dim(`Run data preserved at ${getRunDir(taskKey)}`));
+  console.log(import_picocolors4.default.green(`Task ${taskKey} aborted.`));
+  console.log(import_picocolors4.default.dim(`Run data preserved at ${getRunDir(taskKey)}`));
   if (meta3?.branch) {
     console.log("");
     console.log(
-      import_picocolors3.default.yellow(
-        `Branch ${import_picocolors3.default.bold(meta3.branch)} may still exist locally and/or on origin. Clean up with:`
+      import_picocolors4.default.yellow(
+        `Branch ${import_picocolors4.default.bold(meta3.branch)} may still exist locally and/or on origin. Clean up with:`
       )
     );
-    console.log(import_picocolors3.default.dim(`  git checkout ${meta3.baseBranch ?? "main"}`));
-    console.log(import_picocolors3.default.dim(`  git branch -D ${meta3.branch}`));
-    console.log(import_picocolors3.default.dim(`  git push origin --delete ${meta3.branch}`));
+    console.log(import_picocolors4.default.dim(`  git checkout ${meta3.baseBranch ?? "main"}`));
+    console.log(import_picocolors4.default.dim(`  git branch -D ${meta3.branch}`));
+    console.log(import_picocolors4.default.dim(`  git push origin --delete ${meta3.branch}`));
   }
 }
-var import_picocolors3;
+var import_picocolors4;
 var init_abort = __esm({
   "src/cli/actions/abort.ts"() {
     "use strict";
     init_run_meta();
     init_defaults();
-    import_picocolors3 = __toESM(require_picocolors());
+    import_picocolors4 = __toESM(require_picocolors());
   }
 });
 
@@ -45944,17 +46040,17 @@ function createCancelSignal() {
 function handlePromptError(err, cleanup) {
   cleanup?.();
   if (err instanceof ExitPromptError || err instanceof AbortPromptError) {
-    console.log(import_picocolors4.default.dim("\nCancelled.\n"));
+    console.log(import_picocolors5.default.dim("\nCancelled.\n"));
     process.exit(0);
   }
   throw err;
 }
-var import_picocolors4, BACK;
+var import_picocolors5, BACK;
 var init_prompt = __esm({
   "src/utils/prompt.ts"() {
     "use strict";
     init_dist5();
-    import_picocolors4 = __toESM(require_picocolors());
+    import_picocolors5 = __toESM(require_picocolors());
     BACK = Symbol("__BACK__");
   }
 });
@@ -45963,9 +46059,9 @@ var init_prompt = __esm({
 async function planDangerousMode(config2) {
   console.log("");
   console.log(
-    import_picocolors5.default.yellow("\u26A0 --dangerously-approve-all: bode will pass each AI CLI its bypass-approvals flag.")
+    import_picocolors6.default.yellow("\u26A0 --dangerously-approve-all: bode will pass each AI CLI its bypass-approvals flag.")
   );
-  console.log(import_picocolors5.default.yellow("  This disables sandbox prompts. Use only on code you trust."));
+  console.log(import_picocolors6.default.yellow("  This disables sandbox prompts. Use only on code you trust."));
   console.log("");
   const phaseCliNames = Array.from(
     /* @__PURE__ */ new Set([
@@ -45984,12 +46080,12 @@ async function planDangerousMode(config2) {
   }
   if (unsupported.length > 0) {
     console.log(
-      import_picocolors5.default.yellow(
+      import_picocolors6.default.yellow(
         `The following configured CLI(s) do NOT support an auto-bypass flag: ${unsupported.join(", ")}.`
       )
     );
     console.log(
-      import_picocolors5.default.dim(
+      import_picocolors6.default.dim(
         "  During those phases you will need to approve actions interactively in the terminal."
       )
     );
@@ -46012,12 +46108,12 @@ async function planDangerousMode(config2) {
   }
   return { approved: true, unsupported };
 }
-var import_picocolors5;
+var import_picocolors6;
 var init_dangerous_check = __esm({
   "src/cli/dangerous-check.ts"() {
     "use strict";
     init_dist17();
-    import_picocolors5 = __toESM(require_picocolors());
+    import_picocolors6 = __toESM(require_picocolors());
     init_registry();
     init_prompt();
   }
@@ -46027,14 +46123,14 @@ var init_dangerous_check = __esm({
 async function handleMissingArtifact(context, taskKey) {
   console.log("");
   console.log(
-    import_picocolors6.default.yellow(`\u26A0 The AI session for ${context} exited without writing the phase artifact.`)
+    import_picocolors7.default.yellow(`\u26A0 The AI session for ${context} exited without writing the phase artifact.`)
   );
   console.log(
-    import_picocolors6.default.dim(
+    import_picocolors7.default.dim(
       "  The AI may have hit a permission/approval block, ran out of context, or just quit early."
     )
   );
-  console.log(import_picocolors6.default.dim("  Inspect the log with: ") + import_picocolors6.default.bold(`bode log ${taskKey}`));
+  console.log(import_picocolors7.default.dim("  Inspect the log with: ") + import_picocolors7.default.bold(`bode log ${taskKey}`));
   console.log("");
   try {
     const choice = await dist_default13({
@@ -46060,12 +46156,12 @@ async function handleMissingArtifact(context, taskKey) {
     return "abort";
   }
 }
-var import_picocolors6;
+var import_picocolors7;
 var init_missing_artifact = __esm({
   "src/cli/missing-artifact.ts"() {
     "use strict";
     init_dist17();
-    import_picocolors6 = __toESM(require_picocolors());
+    import_picocolors7 = __toESM(require_picocolors());
     init_prompt();
   }
 });
@@ -46183,14 +46279,14 @@ __export(start_exports, {
 async function startAction(taskKey, options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors7.default.red(`Configuration error: ${configResult.error.message}`));
-    console.error(import_picocolors7.default.dim('Run "bode setup" to configure.'));
+    console.error(import_picocolors8.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors8.default.dim('Run "bode setup" to configure.'));
     process.exit(1);
   }
   const baseConfig = configResult.value;
   const projectResult = await resolveProject(baseConfig, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors7.default.red(projectResult.error.message));
+    console.error(import_picocolors8.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
@@ -46204,13 +46300,13 @@ async function startAction(taskKey, options) {
   });
   const jira = tracker.adapter;
   if (tracker.kind === "local") {
-    console.log(import_picocolors7.default.dim(`Tracker: local (.bode/tasks/) \u2014 no external tracker configured`));
+    console.log(import_picocolors8.default.dim(`Tracker: local (.bode/tasks/) \u2014 no external tracker configured`));
   } else if (tracker.kind !== "jira") {
-    console.log(import_picocolors7.default.dim(`Tracker: ${tracker.kind}`));
+    console.log(import_picocolors8.default.dim(`Tracker: ${tracker.kind}`));
   }
   const lockResult = await acquireLock(taskKey, `start ${taskKey}`);
   if (!lockResult.ok) {
-    console.error(import_picocolors7.default.red(lockResult.error.message));
+    console.error(import_picocolors8.default.red(lockResult.error.message));
     process.exit(1);
   }
   registerLockReleaseHandlers(lockResult.value.release);
@@ -46218,7 +46314,7 @@ async function startAction(taskKey, options) {
   if (options.dangerouslyApproveAll) {
     const plan = await planDangerousMode(config2);
     if (!plan.approved) {
-      console.log(import_picocolors7.default.dim("Aborted by user."));
+      console.log(import_picocolors8.default.dim("Aborted by user."));
       process.exit(0);
     }
     dangerousBypass = true;
@@ -46233,14 +46329,14 @@ async function startAction(taskKey, options) {
   spinner.succeed(`Found: ${issue2.summary} [${issue2.issueType}]`);
   const transitionsResult = await jira.listStatuses(taskKey);
   if (!transitionsResult.ok) {
-    console.log(import_picocolors7.default.yellow(`\u26A0 Cannot check Jira transitions: ${transitionsResult.error.message}`));
+    console.log(import_picocolors8.default.yellow(`\u26A0 Cannot check Jira transitions: ${transitionsResult.error.message}`));
     console.log(
-      import_picocolors7.default.dim('  Jira card moves and comments will not work. Run "bode setup" to configure Jira.')
+      import_picocolors8.default.dim('  Jira card moves and comments will not work. Run "bode setup" to configure Jira.')
     );
   } else if (transitionsResult.value.length === 0) {
-    console.log(import_picocolors7.default.yellow("\u26A0 No available Jira transitions for this issue."));
+    console.log(import_picocolors8.default.yellow("\u26A0 No available Jira transitions for this issue."));
     console.log(
-      import_picocolors7.default.dim(
+      import_picocolors8.default.dim(
         "  Card may not move automatically. Check that transitions are configured in your workflow."
       )
     );
@@ -46249,12 +46345,12 @@ async function startAction(taskKey, options) {
       const label = t.toStatusName ?? t.name;
       return t.name !== label ? `${t.name} \u2192 ${label}` : t.name;
     });
-    console.log(import_picocolors7.default.dim(`  Jira: available \u2014 ${names.join(", ")}`));
+    console.log(import_picocolors8.default.dim(`  Jira: available \u2014 ${names.join(", ")}`));
   }
   let isContinuing = false;
   const existing = await loadRunMeta(taskKey);
   if (existing.ok && existing.value) {
-    console.log(import_picocolors7.default.yellow(`Task ${taskKey} already has a run (status: ${existing.value.status})`));
+    console.log(import_picocolors8.default.yellow(`Task ${taskKey} already has a run (status: ${existing.value.status})`));
     try {
       const action = await dist_default13({
         message: "What to do?",
@@ -46276,10 +46372,10 @@ async function startAction(taskKey, options) {
       if (action === "restart") {
         const abortResult = await abortRun(taskKey);
         if (!abortResult.ok) {
-          console.error(import_picocolors7.default.red(`Abort failed: ${abortResult.error.message}`));
+          console.error(import_picocolors8.default.red(`Abort failed: ${abortResult.error.message}`));
           process.exit(1);
         }
-        console.log(import_picocolors7.default.green("Previous run aborted. Starting fresh..."));
+        console.log(import_picocolors8.default.green("Previous run aborted. Starting fresh..."));
       }
       if (action === "continue") {
         isContinuing = true;
@@ -46297,7 +46393,7 @@ async function startAction(taskKey, options) {
       workdir: projectConfig.workdir
     });
     console.log(
-      import_picocolors7.default.dim(
+      import_picocolors8.default.dim(
         `Base branch: ${baseBranch} (the AI will create the working branch during implementation)`
       )
     );
@@ -46310,25 +46406,25 @@ async function startAction(taskKey, options) {
       const { select } = await Promise.resolve().then(() => (init_dist17(), dist_exports));
       console.log("");
       console.log(
-        import_picocolors7.default.yellow("\u26A0 --auto / --dangerously-auto-merge runs the AI in HEADLESS text-only mode.")
+        import_picocolors8.default.yellow("\u26A0 --auto / --dangerously-auto-merge runs the AI in HEADLESS text-only mode.")
       );
       console.log(
-        import_picocolors7.default.yellow(
+        import_picocolors8.default.yellow(
           "  In this mode the AI cannot edit files or run shell commands. The phases will produce"
         )
       );
       console.log(
-        import_picocolors7.default.yellow(
+        import_picocolors8.default.yellow(
           "  markdown artifacts under ~/.bode/runs/, but no code in your repo will be changed."
         )
       );
       console.log("");
       console.log(
-        import_picocolors7.default.dim(
+        import_picocolors8.default.dim(
           "  To make the AI actually implement code, add --dangerously-approve-all (passes the"
         )
       );
-      console.log(import_picocolors7.default.dim("  CLI bypass-approvals flag)."));
+      console.log(import_picocolors8.default.dim("  CLI bypass-approvals flag)."));
       console.log("");
       const choice = await select({
         message: "Proceed in text-only mode?",
@@ -46338,7 +46434,7 @@ async function startAction(taskKey, options) {
         ]
       });
       if (choice !== "yes") {
-        console.log(import_picocolors7.default.dim("Aborted by user."));
+        console.log(import_picocolors8.default.dim("Aborted by user."));
         process.exit(0);
       }
     } catch (err) {
@@ -46357,19 +46453,19 @@ async function startAction(taskKey, options) {
   if (interactive) {
     const result = await advancePhase(taskKey, config2, jira, engineOpts);
     if (!result.ok) {
-      console.error(import_picocolors7.default.red(`Planning failed: ${result.error.message}`));
+      console.error(import_picocolors8.default.red(`Planning failed: ${result.error.message}`));
       process.exit(1);
     }
     const advanceVal = result.value;
     if (advanceVal.kind === "phase" && advanceVal.phaseResult.kind === "success") {
-      console.log(import_picocolors7.default.green(`
-Plan ready. Run ${import_picocolors7.default.bold(`bode continue ${taskKey}`)} to advance.`));
+      console.log(import_picocolors8.default.green(`
+Plan ready. Run ${import_picocolors8.default.bold(`bode continue ${taskKey}`)} to advance.`));
     } else if (advanceVal.kind === "phase" && advanceVal.phaseResult.kind === "missing-artifact") {
       const decision = await handleMissingArtifact("planning", taskKey);
       if (decision === "abort") process.exit(1);
     } else if (advanceVal.kind === "phase") {
       console.error(
-        import_picocolors7.default.red(
+        import_picocolors8.default.red(
           `
 Planning failed: ${advanceVal.phaseResult.kind === "failed" ? advanceVal.phaseResult.reason : "timed out"}`
         )
@@ -46380,42 +46476,42 @@ Planning failed: ${advanceVal.phaseResult.kind === "failed" ? advanceVal.phaseRe
   }
   if (isDangerous) {
     console.log(
-      import_picocolors7.default.yellow("\n\u26A0 --dangerously-auto-merge: This will run all phases AND auto-merge the PR.")
+      import_picocolors8.default.yellow("\n\u26A0 --dangerously-auto-merge: This will run all phases AND auto-merge the PR.")
     );
-    console.log(import_picocolors7.default.yellow("  Automated review may miss issues. Verify before deploying.\n"));
+    console.log(import_picocolors8.default.yellow("  Automated review may miss issues. Verify before deploying.\n"));
   }
-  console.log(import_picocolors7.default.cyan("Auto mode: running all phases...\n"));
+  console.log(import_picocolors8.default.cyan("Auto mode: running all phases...\n"));
   let loopCount = 0;
   const maxLoops = 10;
   while (loopCount < maxLoops) {
     loopCount++;
     const result = await advancePhase(taskKey, config2, jira, engineOpts);
     if (!result.ok) {
-      console.error(import_picocolors7.default.red(`Error in phase ${loopCount}: ${result.error.message}`));
+      console.error(import_picocolors8.default.red(`Error in phase ${loopCount}: ${result.error.message}`));
       process.exit(1);
     }
     const advanceVal = result.value;
     if (advanceVal.kind === "conflict") {
-      console.error(import_picocolors7.default.yellow("\nConflicts detected! Stopping auto mode."));
-      console.error(import_picocolors7.default.dim('Resolve conflicts manually, then run "bode continue".'));
+      console.error(import_picocolors8.default.yellow("\nConflicts detected! Stopping auto mode."));
+      console.error(import_picocolors8.default.dim('Resolve conflicts manually, then run "bode continue".'));
       process.exit(1);
     }
     if (advanceVal.kind === "pr-created") {
-      console.log(import_picocolors7.default.green(`
-PR created: ${import_picocolors7.default.bold(advanceVal.prUrl)}`));
+      console.log(import_picocolors8.default.green(`
+PR created: ${import_picocolors8.default.bold(advanceVal.prUrl)}`));
       if (isDangerous && advanceVal.meta.prNumber) {
-        console.log(import_picocolors7.default.dim("Auto-merging PR..."));
+        console.log(import_picocolors8.default.dim("Auto-merging PR..."));
         const provider = resolveVcsProvider(config2, projectConfig);
         const mergeResult = await mergePR(advanceVal.meta.prNumber, provider);
         if (!mergeResult.ok) {
-          console.error(import_picocolors7.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
-          console.error(import_picocolors7.default.dim("Merge manually: " + (advanceVal.meta.prUrl ?? "")));
+          console.error(import_picocolors8.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
+          console.error(import_picocolors8.default.dim("Merge manually: " + (advanceVal.meta.prUrl ?? "")));
           process.exit(1);
         }
-        console.log(import_picocolors7.default.green(`PR #${advanceVal.meta.prNumber} merged and branch deleted.`));
+        console.log(import_picocolors8.default.green(`PR #${advanceVal.meta.prNumber} merged and branch deleted.`));
         if (advanceVal.meta.baseBranch) {
           console.log(
-            import_picocolors7.default.dim(
+            import_picocolors8.default.dim(
               `Switch back to ${advanceVal.meta.baseBranch} manually: \`git checkout ${advanceVal.meta.baseBranch}\``
             )
           );
@@ -46426,10 +46522,10 @@ PR created: ${import_picocolors7.default.bold(advanceVal.prUrl)}`));
         });
         const finalMeta = { ...advanceVal.meta, status: "done", updatedAt: Date.now() };
         await saveRunMeta(finalMeta);
-        console.log(import_picocolors7.default.yellow("\n\u26A0 Automated review was used \u2014 verify before deploying."));
+        console.log(import_picocolors8.default.yellow("\n\u26A0 Automated review was used \u2014 verify before deploying."));
         printTaskSummary(finalMeta);
       } else {
-        console.log(import_picocolors7.default.dim('Review the PR manually. Run "bode done" when ready.'));
+        console.log(import_picocolors8.default.dim('Review the PR manually. Run "bode done" when ready.'));
         printTaskSummary(advanceVal.meta);
       }
       return;
@@ -46444,20 +46540,20 @@ PR created: ${import_picocolors7.default.bold(advanceVal.prUrl)}`));
     }
     if (advanceVal.kind === "phase" && advanceVal.phaseResult.kind !== "success" && advanceVal.phaseResult.kind !== "missing-artifact") {
       console.error(
-        import_picocolors7.default.red(
+        import_picocolors8.default.red(
           `
 Phase ${loopCount} failed: ${advanceVal.phaseResult.kind === "failed" ? advanceVal.phaseResult.reason : "timed out"}`
         )
       );
       process.exit(1);
     }
-    console.log(import_picocolors7.default.dim(`  Phase ${loopCount} done, advancing...
+    console.log(import_picocolors8.default.dim(`  Phase ${loopCount} done, advancing...
 `));
   }
-  console.error(import_picocolors7.default.red(`Exceeded max phase iterations (${maxLoops}). Stopping.`));
+  console.error(import_picocolors8.default.red(`Exceeded max phase iterations (${maxLoops}). Stopping.`));
   process.exit(1);
 }
-var import_picocolors7;
+var import_picocolors8;
 var init_start = __esm({
   "src/cli/actions/start.ts"() {
     "use strict";
@@ -46475,7 +46571,7 @@ var init_start = __esm({
     init_lockfile();
     init_lock_release();
     init_dist17();
-    import_picocolors7 = __toESM(require_picocolors());
+    import_picocolors8 = __toESM(require_picocolors());
     init_ora();
   }
 });
@@ -46489,10 +46585,10 @@ __export(fast_exports, {
 async function fastAction(query, options) {
   const trimmed = query.trim();
   if (!trimmed) {
-    console.error(import_picocolors8.default.red("No query provided."));
-    console.error(import_picocolors8.default.dim("Usage:"));
-    console.error(import_picocolors8.default.dim("  bode KD-312                       (run a ticket)"));
-    console.error(import_picocolors8.default.dim('  bode "fix the dashboard bug"      (freeform task)'));
+    console.error(import_picocolors9.default.red("No query provided."));
+    console.error(import_picocolors9.default.dim("Usage:"));
+    console.error(import_picocolors9.default.dim("  bode KD-312                       (run a ticket)"));
+    console.error(import_picocolors9.default.dim('  bode "fix the dashboard bug"      (freeform task)'));
     process.exit(1);
   }
   if (TICKET_KEY_RE.test(trimmed)) {
@@ -46501,19 +46597,19 @@ async function fastAction(query, options) {
   }
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors8.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors9.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const projectResult = await resolveProject(configResult.value, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors8.default.red(projectResult.error.message));
+    console.error(import_picocolors9.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { projectConfig } = projectResult.value;
   const key = generateKey(trimmed);
   const tracker = new LocalTrackerAdapter(projectConfig.workdir);
   console.log(
-    import_picocolors8.default.dim(`Creating local task ${import_picocolors8.default.bold(key)} at ${projectConfig.workdir}/.bode/tasks/${key}.md`)
+    import_picocolors9.default.dim(`Creating local task ${import_picocolors9.default.bold(key)} at ${projectConfig.workdir}/.bode/tasks/${key}.md`)
   );
   const created = await tracker.createTask(key, trimmed, {
     description: `# ${trimmed}
@@ -46523,7 +46619,7 @@ _Created by bode <prompt> at ${(/* @__PURE__ */ new Date()).toISOString()}._
     type: "Task"
   });
   if (!created.ok) {
-    console.error(import_picocolors8.default.red(`Could not create local task: ${created.error.message}`));
+    console.error(import_picocolors9.default.red(`Could not create local task: ${created.error.message}`));
     process.exit(1);
   }
   await startAction(key, options);
@@ -46534,11 +46630,11 @@ function generateKey(prompt) {
   const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
   return `auto-${stamp}-${slug || "task"}`;
 }
-var import_picocolors8, TICKET_KEY_RE, __testing2;
+var import_picocolors9, TICKET_KEY_RE, __testing2;
 var init_fast = __esm({
   "src/cli/actions/fast.ts"() {
     "use strict";
-    import_picocolors8 = __toESM(require_picocolors());
+    import_picocolors9 = __toESM(require_picocolors());
     init_local();
     init_project_resolver();
     init_loader();
@@ -46556,19 +46652,19 @@ __export(new_exports, {
 async function newAction(summary, options) {
   const trimmed = summary.trim();
   if (!trimmed) {
-    console.error(import_picocolors9.default.red('Usage: bode new "<task summary>"'));
+    console.error(import_picocolors10.default.red('Usage: bode new "<task summary>"'));
     process.exit(1);
   }
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors9.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors10.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const projectResult = await resolveProject(configResult.value, {
     projectName: options.project
   });
   if (!projectResult.ok) {
-    console.error(import_picocolors9.default.red(projectResult.error.message));
+    console.error(import_picocolors10.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { projectConfig } = projectResult.value;
@@ -46582,19 +46678,19 @@ _Created by bode new at ${(/* @__PURE__ */ new Date()).toISOString()}._
     type: "Task"
   });
   if (!created.ok) {
-    console.error(import_picocolors9.default.red(`Could not create local task: ${created.error.message}`));
+    console.error(import_picocolors10.default.red(`Could not create local task: ${created.error.message}`));
     process.exit(1);
   }
-  console.log(import_picocolors9.default.green(`\u2713 Created task ${import_picocolors9.default.bold(key)}`));
-  console.log(import_picocolors9.default.dim(`  File: ${projectConfig.workdir}/.bode/tasks/${key}.md`));
+  console.log(import_picocolors10.default.green(`\u2713 Created task ${import_picocolors10.default.bold(key)}`));
+  console.log(import_picocolors10.default.dim(`  File: ${projectConfig.workdir}/.bode/tasks/${key}.md`));
   console.log("");
-  console.log(import_picocolors9.default.dim(`To run it now: ${import_picocolors9.default.bold(`bode ${key}`)}`));
+  console.log(import_picocolors10.default.dim(`To run it now: ${import_picocolors10.default.bold(`bode ${key}`)}`));
 }
-var import_picocolors9, generateKey2;
+var import_picocolors10, generateKey2;
 var init_new = __esm({
   "src/cli/actions/new.ts"() {
     "use strict";
-    import_picocolors9 = __toESM(require_picocolors());
+    import_picocolors10 = __toESM(require_picocolors());
     init_local();
     init_project_resolver();
     init_loader();
@@ -46653,8 +46749,8 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.27.0") {
-    return "0.27.0";
+  if ("0.28.0") {
+    return "0.28.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -46719,7 +46815,7 @@ async function selectCli(question, defaultCli, signal) {
     value: name,
     description: cliDescription(name)
   }));
-  choices.push({ name: import_picocolors10.default.dim("\u2190 Back"), value: BACK, description: "Go to previous question" });
+  choices.push({ name: import_picocolors11.default.dim("\u2190 Back"), value: BACK, description: "Go to previous question" });
   return dist_default13(
     {
       message: question,
@@ -46747,11 +46843,11 @@ async function selectModel(cliName, currentModel, signal) {
     })
   );
   choices.push({
-    name: import_picocolors10.default.dim("(other \u2014 type manually)"),
+    name: import_picocolors11.default.dim("(other \u2014 type manually)"),
     value: "__custom__"
   });
   choices.push({
-    name: import_picocolors10.default.dim("\u2190 Back"),
+    name: import_picocolors11.default.dim("\u2190 Back"),
     value: BACK,
     description: "Go to previous question"
   });
@@ -46793,14 +46889,14 @@ async function setupAction(subcommand) {
     return;
   }
   console.log("\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28A0\u28E4\u28C0\u2800\u2800\u2800\u28B0\u2876\u28E6\u2800\u2800\u2800\u28F0\u28FE\u28FF\u2844\u2800\u2800\u28E0\u28F4\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2800\u2800\u2800\u2800\u2880\u28FF\u2809\u28BB\u28F7\u2844\u2880\u28FF\u2837\u283B\u28FF\u2801\u2838\u280B\u2809\u28B9\u2847\u2800\u287E\u281B\u28BB\u287F\u2800\u28E4\u287E\u28FB\u2807\u2800\u2800\u28A0\u2876\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E0\u28E4\u28E4\u28E4\u28E4\u2840\u2800\u2800\u2800\u28FF\u287F\u28E6\u28C4\u2840\u28F4\u287F\u281F\u280B\u2819\u283F\u2819\u2809\u2800\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2801\u281B\u2809\u28BB\u285F\u2800\u2820\u28F4\u28FF\u2840\u28E0\u285E\u2801\u2880\u28F4\u2806\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F4\u28FF\u280B\u2801\u2800\u28E0\u285F\u2801\u2800\u2800\u2800\u28FD\u28FF\u281F\u283B\u2876\u2808\u2817\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u28F4\u28EA\u28E1\u28FE\u28F7\u287F\u28F7\u28FE\u28FF\u28FF\u28DF\u28C3\u2800\u2800\u2800\u2808\u2800\u2800\u28FE\u280F\u28E8\u28FF\u280B\u2880\u28F4\u281F\u2801\u28C0\u28F4\u281E\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u283B\u28F7\u28F4\u283F\u281B\u281B\u281B\u281B\u28F7\u2844\u2838\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28A7\u28FF\u28FF\u281B\u28DF\u28FF\u28CF\u28E4\u283E\u283F\u283E\u2837\u28F6\u28CC\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u281F\u2801\u2800\u281B\u2801\u28E0\u287E\u280B\u2801\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u28FF\u2844\u2800\u2800\u2800\u2800\u28FC\u285F\u2800\u2801\u2800\u2800\u2800\u2800\u2880\u28E4\u2874\u2836\u281B\u281B\u280B\u2809\u2809\u2800\u2800\u2800\u2800\u2811\u2804\u2880\u2800\u2800\u2809\u28B3\u28C4\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2810\u281F\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BF\u28FF\u28C0\u28C0\u28E0\u28FC\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u2803\u2880\u2840\u28C0\u28E4\u2824\u2824\u28A4\u28C0\u2800\u2800\u2800\u28C0\u287F\u28A7\u2824\u28C4\u281B\u281B\u281B\u281B\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u281B\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2830\u283E\u283F\u281B\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u28B0\u28FF\u28C3\u28F4\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2808\u2818\u28A6\u2848\u2801\u2800\u2800\u2810\u2812\u2800\u2820\u28F4\u2813\u281B\u281B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B6\u28FF\u2847\u2801\u2801\u2864\u2890\u28F4\u28E6\u28E4\u2840\u2800\u2800\u2800\u2808\u283B\u28C4\u2800\u2800\u2800\u2800\u2801\u2800\u2808\u28BB\u285F\u28BB\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u28E4\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2874\u281E\u28BB\u2847\u2800\u2800\u28F4\u28E1\u28E4\u28E4\u28EE\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u28B9\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28BE\u2877\u2866\u28E4\u28C4\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u2864\u281E\u2809\u28FB\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28C0\u28E0\u28E4\u2824\u2836\u281A\u281B\u2809\u2800\u2800\u2800\u28B8\u2847\u2800\u2820\u28FF\u281B\u281B\u281B\u2889\u28F8\u2807\u2800\u2800\u2800\u2800\u2800\u2800\u2838\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28AE\u280A\u2800\u2809\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u28F0\u2847\n\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u28E4\u28E4\u2864\u2834\u2836\u281A\u281B\u280B\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28B7\u2800\u2800\u2808\u28BB\u28D2\u28D2\u28EB\u280F\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2876\u281B\u281B\u281B\u281B\u28BF\u281B\u2809\u28F7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F8\u280B\u2800\n\u28ED\u28FF\u280D\u2809\u2809\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2840\u2804\u2810\u282B\u2800\u28B8\u2847\u2800\u283B\u283D\u2801\u2808\u2801\u2800\u2800\u2800\u2800\u2880\u2876\u2826\u2800\u2838\u28E4\u281E\u28FB\u2806\u2800\u2808\u2840\u28F4\u281F\u28B3\u28C0\u28C0\u2800\u2800\u2880\u28E0\u281C\u2803\u2800\u2800\n\u287C\u283B\u28E6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E4\u28BE\u2865\u2824\u28E4\u28C0\u2800\u2800\u2818\u28E7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28DE\u2801\u2800\u2800\u2800\u2800\u2808\u2819\u28A6\u28C0\u28C0\u28E1\u280F\u2800\u28A8\u2807\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u2800\u2800\n\u2800\u2800\u2808\u281B\u28A6\u28C0\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2834\u280B\u2801\u2800\u2800\u2800\u28FF\u2808\u2800\u2800\u2800\u2800\u2809\u281B\u28E6\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28C0\u28C0\u2800\u2800\u2800\u2800\u2809\u28BD\u2801\u2800\u28E0\u281E\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2808\u2809\u281B\u281B\u281B\u281B\u281B\u281B\u281B\u280B\u2809\u2809\u2801\u2800\u2800\u2800\u2800\u2800\u28B8\u28FF\u2800\u2800\u2800\u28B0\u2840\u2800\u2800\u280F\u282B\u2800\u2800\u2800\u2800\u2880\u2800\u28F4\u28CB\u28FD\u28FF\u28C9\u28F9\u285F\u2812\u2836\u2824\u28A4\u2836\u28FA\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u287F\u2800\u2800\u2800\u2800\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u285E\u28F8\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28F7\u28F6\u28F6\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u28FF\u2807\u2800\u2800\u2800\u2800\u2839\u28F7\u2840\u2800\u2800\u2800\u2800\u28A0\u28CE\u2800\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u2843\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FB\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u2840\u2800\u2800\u2800\u2800\u2819\u2846\u28BF\u287F\u28BF\u28FB\u288D\u2809\u2809\u2819\u2832\u28C4\u2809\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28B8\u28E7\u285F\u28B9\u28E6\u2860\u2800\u2800\u2800\u2808\u28A3\u2800\u2819\u28A6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FD\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28A3\u28F3\u28DE\u2880\u285F\u28A7\u2844\u2800\u2800\u2800\u281B\u2842\u2800\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28BF\u28E6\u2840\u2800\u2800\u2800\u2800\u2819\u28BF\u28FF\u2867\u28EF\u28D9\u287E\u28D7\u2864\u2824\u28C0\u28C0\u28C0\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28E7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FF\u28FF\u28E6\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28B3\u28EE\u28E5\u28E5\u28ED\u28FF\u28FF\u28FF\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28F7\u28E6\u2840\u2880\u28C0\u2880\u2880\u28F4\u28BE\u28F7\u2876\u281E\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FB\u2886\u281E\u2830\u28FD\u28BF\u28CD\u28A2\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u283B\u28C6\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u287F\u28BF\u28FF\u28FF\u2819\u28FF\u287E\u2846\u2803\u2808\u28A7\u285F\u2847\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28A7\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u281E\u2801\u2800\u28B8\u287F\u2803\u2800\u284F\u2887\u285F\u2844\u28A0\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u2833\u28A4\u28C0\u2800\u2800\u2830\u280A\u2800\u2800\u2800\u28A0\u287F\u2803\u2800\u2818\u2800\u287F\u28F8\u2843\u283B\u28B7\u28F6\u28D2\u2832\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2811\u2822\u28C4\u2800\u2800\u2800\u28A0\u285F\u2801\u2800\u2800\u2800\u2800\u2837\u28FF\u28F7\u28F6\u28D6\u2852\u28FF\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u2810\u28F0\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u280B\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n");
-  console.log(import_picocolors10.default.bold(import_picocolors10.default.cyan(`  Bode Setup Wizard v${getVersion()}
+  console.log(import_picocolors11.default.bold(import_picocolors11.default.cyan(`  Bode Setup Wizard v${getVersion()}
 `)));
   const globalDir = getGlobalDir();
   await ensureDir(globalDir);
   await ensureDir(`${globalDir}/runs`);
   await ensureDir(`${globalDir}/skills`);
   await ensureDir(`${globalDir}/projects`);
-  console.log(import_picocolors10.default.green(`\u2713 Created ${globalDir}
+  console.log(import_picocolors11.default.green(`\u2713 Created ${globalDir}
 `));
   const existingConfig = (0, import_node_fs16.existsSync)(getGlobalConfigPath());
   let currentJiraSite = "";
@@ -46831,14 +46927,14 @@ async function setupAction(subcommand) {
       currentReviewModel = cfg.phases.review.model;
     }
     console.log(
-      import_picocolors10.default.dim(
+      import_picocolors11.default.dim(
         `Found existing config at ${getGlobalConfigPath()}. Press Enter to keep current values.
 `
       )
     );
   }
   await withSignal(async (signal) => {
-    console.log(import_picocolors10.default.bold("\u2500\u2500 Jira \u2500\u2500"));
+    console.log(import_picocolors11.default.bold("\u2500\u2500 Jira \u2500\u2500"));
     const jiraSite = await dist_default7(
       {
         message: "Jira site (e.g. mycompany.atlassian.net):",
@@ -46903,12 +46999,12 @@ async function setupAction(subcommand) {
           if (newEmail && newToken) {
             const retryResult = await testJiraConnection(jiraSite, newEmail, newToken, signal);
             if (retryResult.ok) {
-              console.log(import_picocolors10.default.green("\u2713 Connection successful!"));
+              console.log(import_picocolors11.default.green("\u2713 Connection successful!"));
               jiraEmail = newEmail;
               jiraToken = newToken;
             } else {
-              console.log(import_picocolors10.default.yellow(`\u26A0 Still failing: ${retryResult.error.message}`));
-              console.log(import_picocolors10.default.dim('Continuing with mock adapter. Run "bode setup" to reconfigure.'));
+              console.log(import_picocolors11.default.yellow(`\u26A0 Still failing: ${retryResult.error.message}`));
+              console.log(import_picocolors11.default.dim('Continuing with mock adapter. Run "bode setup" to reconfigure.'));
               jiraToken = "";
             }
           }
@@ -46917,7 +47013,7 @@ async function setupAction(subcommand) {
         }
       }
     }
-    console.log(import_picocolors10.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
+    console.log(import_picocolors11.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
     const vcsProvider = await dist_default13(
       {
         message: "VCS provider:",
@@ -46947,7 +47043,7 @@ async function setupAction(subcommand) {
     const results = [];
     const phaseSteps = [
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Planning Phase \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Planning Phase \u2500\u2500"));
         return selectCli("CLI for planning:", currentPlanningCli, signal);
       },
       async () => {
@@ -46963,7 +47059,7 @@ async function setupAction(subcommand) {
         { signal }
       ),
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Implementation Phase \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Implementation Phase \u2500\u2500"));
         return selectCli("CLI for implementation:", currentImplCli, signal);
       },
       async () => {
@@ -46979,7 +47075,7 @@ async function setupAction(subcommand) {
         { signal }
       ),
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Review Phase \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Review Phase \u2500\u2500"));
         return selectCli("CLI for review:", currentReviewCli, signal);
       },
       async () => {
@@ -47042,23 +47138,23 @@ comment_format:
 `;
     await writeText(getGlobalConfigPath(), configYaml);
     await chmodSensitive(getGlobalConfigPath());
-    console.log(import_picocolors10.default.green(`
+    console.log(import_picocolors11.default.green(`
 \u2713 Config saved to ${getGlobalConfigPath()}`));
     if (jiraToken) {
       console.log(
-        import_picocolors10.default.dim(
+        import_picocolors11.default.dim(
           process.platform === "win32" ? "  (Windows: ensure your user profile is not world-readable; consider DPAPI-encrypted storage.)" : "  (Permissions tightened to 0600.)"
         )
       );
     }
-    console.log(import_picocolors10.default.green("\u2713 Setup complete!\n"));
+    console.log(import_picocolors11.default.green("\u2713 Setup complete!\n"));
     console.log(
-      import_picocolors10.default.dim('Next: Run "bode setup project" to configure a project, then "bode start <TASK-KEY>".')
+      import_picocolors11.default.dim('Next: Run "bode setup project" to configure a project, then "bode start <TASK-KEY>".')
     );
   });
 }
 async function setupProjectAction() {
-  console.log(import_picocolors10.default.bold(import_picocolors10.default.cyan("Bode Project Setup\n")));
+  console.log(import_picocolors11.default.bold(import_picocolors11.default.cyan("Bode Project Setup\n")));
   await withSignal(async (signal) => {
     const projectsResult = await listProjects();
     const existingProjects = projectsResult.ok ? projectsResult.value : [];
@@ -47066,10 +47162,10 @@ async function setupProjectAction() {
     let existingProject = null;
     if (existingProjects.length > 0) {
       const projectChoices = existingProjects.map((p) => ({
-        name: `${p.name}  ${import_picocolors10.default.dim(`(${p.workdir})`)}`,
+        name: `${p.name}  ${import_picocolors11.default.dim(`(${p.workdir})`)}`,
         value: p.name
       }));
-      projectChoices.push({ name: import_picocolors10.default.green("+ Create new project"), value: "__new__" });
+      projectChoices.push({ name: import_picocolors11.default.green("+ Create new project"), value: "__new__" });
       const picked = await dist_default13(
         {
           message: "Select project or create new:",
@@ -47131,21 +47227,21 @@ async function setupProjectAction() {
         );
         const workdirPath = wd || defaultWorkdir;
         if (!workdirPath) {
-          console.error(import_picocolors10.default.red("Working directory is required."));
+          console.error(import_picocolors11.default.red("Working directory is required."));
           process.exit(1);
         }
         if (!(0, import_node_fs16.existsSync)(workdirPath)) {
-          console.error(import_picocolors10.default.red(`Directory does not exist: ${workdirPath}`));
+          console.error(import_picocolors11.default.red(`Directory does not exist: ${workdirPath}`));
           process.exit(1);
         }
         return workdirPath;
       },
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
         const vcsChoices = [
           { name: "GitHub (gh)", value: "github", description: "Uses gh CLI for PR creation" },
           { name: "GitLab (glab)", value: "gitlab", description: "Uses glab CLI for MR creation" },
-          { name: import_picocolors10.default.dim("\u2190 Back"), value: BACK, description: "Go back" }
+          { name: import_picocolors11.default.dim("\u2190 Back"), value: BACK, description: "Go back" }
         ];
         return dist_default13(
           {
@@ -47157,7 +47253,7 @@ async function setupProjectAction() {
         );
       },
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Jira (per-project override, Enter to use global) \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Jira (per-project override, Enter to use global) \u2500\u2500"));
         const jiraSite = await dist_default7(
           {
             message: "Jira site:",
@@ -47175,7 +47271,7 @@ async function setupProjectAction() {
         return { site: jiraSite, project: jiraProject };
       },
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Context \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Context \u2500\u2500"));
         const branch = await dist_default7(
           {
             message: "Default branch:",
@@ -47200,7 +47296,7 @@ async function setupProjectAction() {
         return { branch, paths: pathsRaw, files: filesRaw };
       },
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Additional Repositories \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Additional Repositories \u2500\u2500"));
         return dist_default7(
           {
             message: "Number of additional repos (0-10):",
@@ -47239,7 +47335,7 @@ async function setupProjectAction() {
         return repos2;
       },
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Branch Tool \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Branch Tool \u2500\u2500"));
         return dist_default7(
           {
             message: "Tool for AI to create branches (e.g. git):",
@@ -47251,7 +47347,7 @@ async function setupProjectAction() {
     ];
     const phaseSteps = [
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Planning Phase (override) \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Planning Phase (override) \u2500\u2500"));
         return selectCli("CLI:", basePlanningCli, signal);
       },
       async () => {
@@ -47260,7 +47356,7 @@ async function setupProjectAction() {
         return selectModel(cli, basePlanningModel, signal);
       },
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Implementation Phase (override) \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Implementation Phase (override) \u2500\u2500"));
         return selectCli("CLI:", baseImplCli, signal);
       },
       async () => {
@@ -47269,7 +47365,7 @@ async function setupProjectAction() {
         return selectModel(cli, baseImplModel, signal);
       },
       async () => {
-        console.log(import_picocolors10.default.bold("\n\u2500\u2500 Review Phase (override) \u2500\u2500"));
+        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Review Phase (override) \u2500\u2500"));
         return selectCli("CLI:", baseReviewCli, signal);
       },
       async () => {
@@ -47337,30 +47433,30 @@ async function setupProjectAction() {
     };
     const saveResult = await saveProjectConfig(project);
     if (!saveResult.ok) {
-      console.error(import_picocolors10.default.red(`Failed to save project: ${saveResult.error.message}`));
+      console.error(import_picocolors11.default.red(`Failed to save project: ${saveResult.error.message}`));
       process.exit(1);
     }
     if (existingProject) {
       console.log(
-        import_picocolors10.default.green(`
+        import_picocolors11.default.green(`
 \u2713 Project "${selectedName}" updated in ~/.bode/projects/${selectedName}.yml`)
       );
     } else {
       console.log(
-        import_picocolors10.default.green(`
+        import_picocolors11.default.green(`
 \u2713 Project "${selectedName}" saved to ~/.bode/projects/${selectedName}.yml`)
       );
     }
     console.log(
-      import_picocolors10.default.dim(`Now run "bode start <TASK-KEY> --project ${selectedName}" to use this project.`)
+      import_picocolors11.default.dim(`Now run "bode start <TASK-KEY> --project ${selectedName}" to use this project.`)
     );
   });
 }
-var import_picocolors10, import_node_fs16;
+var import_picocolors11, import_node_fs16;
 var init_setup = __esm({
   "src/cli/actions/setup.ts"() {
     "use strict";
-    import_picocolors10 = __toESM(require_picocolors());
+    import_picocolors11 = __toESM(require_picocolors());
     init_ora();
     init_dist17();
     init_defaults();
@@ -47385,13 +47481,13 @@ __export(continue_exports, {
 async function continueAction(taskKey, options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors11.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors12.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const baseConfig = configResult.value;
   const projectResult = await resolveProject(baseConfig, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors11.default.red(projectResult.error.message));
+    console.error(import_picocolors12.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
@@ -47406,7 +47502,7 @@ async function continueAction(taskKey, options) {
   const jira = tracker.adapter;
   const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);
   if (!lockResult.ok) {
-    console.error(import_picocolors11.default.red(lockResult.error.message));
+    console.error(import_picocolors12.default.red(lockResult.error.message));
     process.exit(1);
   }
   registerLockReleaseHandlers(lockResult.value.release);
@@ -47414,7 +47510,7 @@ async function continueAction(taskKey, options) {
   if (options.dangerouslyApproveAll) {
     const plan = await planDangerousMode(config2);
     if (!plan.approved) {
-      console.log(import_picocolors11.default.dim("Aborted by user."));
+      console.log(import_picocolors12.default.dim("Aborted by user."));
       process.exit(0);
     }
     dangerousBypass = true;
@@ -47428,38 +47524,38 @@ async function continueAction(taskKey, options) {
     dangerousBypass
   });
   if (!result.ok) {
-    console.error(import_picocolors11.default.red(`Error: ${result.error.message}`));
+    console.error(import_picocolors12.default.red(`Error: ${result.error.message}`));
     process.exit(1);
   }
   const advanceVal = result.value;
   if (advanceVal.kind === "conflict") {
-    console.error(import_picocolors11.default.yellow("\nConflicts detected with base branch!"));
-    console.error(import_picocolors11.default.dim('Resolve conflicts manually, then run "bode continue" again.'));
-    console.error(import_picocolors11.default.dim(`Jira label "bode:conflict" added to ${taskKey}.`));
+    console.error(import_picocolors12.default.yellow("\nConflicts detected with base branch!"));
+    console.error(import_picocolors12.default.dim('Resolve conflicts manually, then run "bode continue" again.'));
+    console.error(import_picocolors12.default.dim(`Jira label "bode:conflict" added to ${taskKey}.`));
     process.exit(1);
   }
   if (advanceVal.kind === "pr-created") {
-    console.log(import_picocolors11.default.green(`
-PR created: ${import_picocolors11.default.bold(advanceVal.prUrl)}`));
-    console.log(import_picocolors11.default.dim('Review the PR manually. Run "bode done" when ready to finalize.'));
+    console.log(import_picocolors12.default.green(`
+PR created: ${import_picocolors12.default.bold(advanceVal.prUrl)}`));
+    console.log(import_picocolors12.default.dim('Review the PR manually. Run "bode done" when ready to finalize.'));
     return;
   }
   if (advanceVal.kind === "phase") {
     const { meta: meta3, phaseResult } = advanceVal;
     if (phaseResult.kind === "success") {
-      console.log(import_picocolors11.default.green(`
+      console.log(import_picocolors12.default.green(`
 Phase complete. Status: ${meta3.status}`));
       if (meta3.status === "reviewed") {
-        console.log(import_picocolors11.default.dim('Run "bode continue" to create PR and move to awaiting-merge.'));
+        console.log(import_picocolors12.default.dim('Run "bode continue" to create PR and move to awaiting-merge.'));
       } else {
-        console.log(import_picocolors11.default.dim(`Run "bode continue ${taskKey}" to advance.`));
+        console.log(import_picocolors12.default.dim(`Run "bode continue ${taskKey}" to advance.`));
       }
     } else if (phaseResult.kind === "missing-artifact") {
       const decision = await handleMissingArtifact("phase", taskKey);
       if (decision === "abort") process.exit(1);
     } else {
       console.error(
-        import_picocolors11.default.red(
+        import_picocolors12.default.red(
           `
 Phase failed: ${phaseResult.kind === "failed" ? phaseResult.reason : "timed out"}`
         )
@@ -47468,7 +47564,7 @@ Phase failed: ${phaseResult.kind === "failed" ? phaseResult.reason : "timed out"
     }
   }
 }
-var import_picocolors11;
+var import_picocolors12;
 var init_continue = __esm({
   "src/cli/actions/continue.ts"() {
     "use strict";
@@ -47480,7 +47576,7 @@ var init_continue = __esm({
     init_missing_artifact();
     init_lockfile();
     init_lock_release();
-    import_picocolors11 = __toESM(require_picocolors());
+    import_picocolors12 = __toESM(require_picocolors());
   }
 });
 
@@ -47492,41 +47588,41 @@ __export(status_exports, {
 async function statusAction(taskKey) {
   const result = await loadRunMeta(taskKey);
   if (!result.ok) {
-    console.error(import_picocolors12.default.red(`Error: ${result.error.message}`));
+    console.error(import_picocolors13.default.red(`Error: ${result.error.message}`));
     process.exit(1);
   }
   if (!result.value) {
-    console.error(import_picocolors12.default.yellow(`No run found for ${taskKey}`));
+    console.error(import_picocolors13.default.yellow(`No run found for ${taskKey}`));
     process.exit(1);
   }
   const meta3 = result.value;
-  console.log(`Task: ${import_picocolors12.default.bold(meta3.taskKey)} - ${meta3.jiraSummary}`);
-  console.log(`Status: ${import_picocolors12.default.cyan(getPhaseStatusLabel(meta3.status))}`);
+  console.log(`Task: ${import_picocolors13.default.bold(meta3.taskKey)} - ${meta3.jiraSummary}`);
+  console.log(`Status: ${import_picocolors13.default.cyan(getPhaseStatusLabel(meta3.status))}`);
   if (meta3.branch) {
-    console.log(`Branch: ${import_picocolors12.default.dim(meta3.branch)} (from ${meta3.baseBranch ?? "unknown"})`);
+    console.log(`Branch: ${import_picocolors13.default.dim(meta3.branch)} (from ${meta3.baseBranch ?? "unknown"})`);
   }
   if (meta3.prUrl) {
-    console.log(`PR: ${import_picocolors12.default.cyan(meta3.prUrl)}`);
+    console.log(`PR: ${import_picocolors13.default.cyan(meta3.prUrl)}`);
   }
   if (meta3.conflict) {
-    console.log(`Conflict: ${import_picocolors12.default.red("YES")}`);
+    console.log(`Conflict: ${import_picocolors13.default.red("YES")}`);
   }
   if (meta3.projectName) {
-    console.log(`Project: ${import_picocolors12.default.dim(meta3.projectName)}`);
+    console.log(`Project: ${import_picocolors13.default.dim(meta3.projectName)}`);
   }
   console.log(`Started: ${new Date(meta3.startedAt).toLocaleString()}`);
   console.log(`Updated: ${new Date(meta3.updatedAt).toLocaleString()}`);
   if (meta3.error) {
-    console.log(`Error: ${import_picocolors12.default.red(meta3.error)}`);
+    console.log(`Error: ${import_picocolors13.default.red(meta3.error)}`);
   }
 }
-var import_picocolors12;
+var import_picocolors13;
 var init_status = __esm({
   "src/cli/actions/status.ts"() {
     "use strict";
     init_run_meta();
     init_phase();
-    import_picocolors12 = __toESM(require_picocolors());
+    import_picocolors13 = __toESM(require_picocolors());
   }
 });
 
@@ -47538,7 +47634,7 @@ __export(show_exports, {
 async function showAction(artifact, taskKey) {
   const normalized = artifact.toLowerCase();
   if (!VALID_ARTIFACTS.includes(normalized)) {
-    console.error(import_picocolors13.default.red(`Invalid artifact: "${artifact}". Valid: ${VALID_ARTIFACTS.join(", ")}`));
+    console.error(import_picocolors14.default.red(`Invalid artifact: "${artifact}". Valid: ${VALID_ARTIFACTS.join(", ")}`));
     process.exit(1);
   }
   let filename;
@@ -47559,18 +47655,18 @@ async function showAction(artifact, taskKey) {
   const path3 = `${getRunDir(taskKey)}/${filename}`;
   const content = await readText(path3);
   if (!content) {
-    console.error(import_picocolors13.default.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
+    console.error(import_picocolors14.default.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
     process.exit(1);
   }
   console.log(content);
 }
-var import_picocolors13, VALID_ARTIFACTS;
+var import_picocolors14, VALID_ARTIFACTS;
 var init_show = __esm({
   "src/cli/actions/show.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_picocolors13 = __toESM(require_picocolors());
+    import_picocolors14 = __toESM(require_picocolors());
     VALID_ARTIFACTS = ["plan", "planning", "implementation", "review"];
   }
 });
@@ -47582,35 +47678,35 @@ __export(log_exports, {
 });
 async function logAction(taskKey) {
   const { readdir: readdir4 } = await import("node:fs/promises");
-  const { join: join17 } = await import("node:path");
+  const { join: join18 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
     const files = await readdir4(runDir);
     const logFiles = files.filter((f) => f.endsWith(".log")).sort();
     if (logFiles.length === 0) {
-      console.error(import_picocolors14.default.yellow(`No logs found for ${taskKey}`));
+      console.error(import_picocolors15.default.yellow(`No logs found for ${taskKey}`));
       return;
     }
     const latest = logFiles[logFiles.length - 1];
     if (!latest) {
-      console.error(import_picocolors14.default.yellow("No log file available"));
+      console.error(import_picocolors15.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join17(runDir, latest));
+    const content = await readText(join18(runDir, latest));
     if (content) {
       console.log(content);
     }
   } catch {
-    console.error(import_picocolors14.default.yellow(`No run directory found for ${taskKey}`));
+    console.error(import_picocolors15.default.yellow(`No run directory found for ${taskKey}`));
   }
 }
-var import_picocolors14;
+var import_picocolors15;
 var init_log = __esm({
   "src/cli/actions/log.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_picocolors14 = __toESM(require_picocolors());
+    import_picocolors15 = __toESM(require_picocolors());
   }
 });
 
@@ -47621,12 +47717,12 @@ __export(done_exports, {
 });
 async function doneAction(taskKey, options) {
   if (!options.yes) {
-    console.log(import_picocolors15.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
+    console.log(import_picocolors16.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
     return;
   }
   const result = await loadRunMeta(taskKey);
   if (!result.ok || !result.value) {
-    console.error(import_picocolors15.default.red(`No run found for ${taskKey}`));
+    console.error(import_picocolors16.default.red(`No run found for ${taskKey}`));
     process.exit(1);
   }
   const meta3 = result.value;
@@ -47653,22 +47749,22 @@ async function doneAction(taskKey, options) {
   }
   if (options.autoApprovePrMerge && meta3.prNumber) {
     console.log(
-      import_picocolors15.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
+      import_picocolors16.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
     );
     const mergeResult = await mergePR(meta3.prNumber, provider);
     if (!mergeResult.ok) {
-      console.error(import_picocolors15.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
-      console.error(import_picocolors15.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
+      console.error(import_picocolors16.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
+      console.error(import_picocolors16.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
     } else {
-      console.log(import_picocolors15.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
+      console.log(import_picocolors16.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
     }
   } else if (meta3.prUrl) {
-    console.log(import_picocolors15.default.dim(`
+    console.log(import_picocolors16.default.dim(`
 PR pending: ${meta3.prUrl} \u2014 merge manually when ready.`));
   }
   if (meta3.baseBranch) {
     console.log(
-      import_picocolors15.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
+      import_picocolors16.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
     );
   }
   await finalize2(taskKey, meta3, config2, projectCfg);
@@ -47684,9 +47780,9 @@ async function finalize2(taskKey, meta3, config2, projectCfg) {
     if (doneTarget.trim() !== "") {
       const transResult = await jira.setStatus(taskKey, doneTarget);
       if (!transResult.ok) {
-        console.warn(import_picocolors15.default.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
+        console.warn(import_picocolors16.default.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
         console.warn(
-          import_picocolors15.default.dim("  Configure jira.transitions.done in your project YAML to match your workflow.")
+          import_picocolors16.default.dim("  Configure jira.transitions.done in your project YAML to match your workflow.")
         );
       }
     }
@@ -47712,7 +47808,7 @@ async function removeBodeLabels(taskKey, config2, meta3) {
     });
   }
 }
-var import_picocolors15;
+var import_picocolors16;
 var init_done = __esm({
   "src/cli/actions/done.ts"() {
     "use strict";
@@ -47723,7 +47819,7 @@ var init_done = __esm({
     init_transitions();
     init_projects();
     init_summary();
-    import_picocolors15 = __toESM(require_picocolors());
+    import_picocolors16 = __toESM(require_picocolors());
   }
 });
 
@@ -47737,25 +47833,25 @@ async function listAction() {
   try {
     const entries = await (0, import_promises12.readdir)(runsDir);
     if (entries.length === 0) {
-      console.log(import_picocolors16.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+      console.log(import_picocolors17.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
       return;
     }
     for (const entry of entries) {
       const result = await loadRunMeta(entry);
       if (result.ok && result.value) {
         const meta3 = result.value;
-        const branchInfo = meta3.branch ? import_picocolors16.default.dim(` (${meta3.branch})`) : "";
-        const conflictInfo = meta3.conflict ? import_picocolors16.default.red(" [CONFLICT]") : "";
+        const branchInfo = meta3.branch ? import_picocolors17.default.dim(` (${meta3.branch})`) : "";
+        const conflictInfo = meta3.conflict ? import_picocolors17.default.red(" [CONFLICT]") : "";
         console.log(
-          `${import_picocolors16.default.bold(meta3.taskKey)} ${import_picocolors16.default.dim("-")} ${meta3.jiraSummary} ${import_picocolors16.default.dim("|")} ${getPhaseStatusLabel(meta3.status)}${branchInfo}${conflictInfo}`
+          `${import_picocolors17.default.bold(meta3.taskKey)} ${import_picocolors17.default.dim("-")} ${meta3.jiraSummary} ${import_picocolors17.default.dim("|")} ${getPhaseStatusLabel(meta3.status)}${branchInfo}${conflictInfo}`
         );
       }
     }
   } catch {
-    console.log(import_picocolors16.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+    console.log(import_picocolors17.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
   }
 }
-var import_promises12, import_picocolors16;
+var import_promises12, import_picocolors17;
 var init_list = __esm({
   "src/cli/actions/list.ts"() {
     "use strict";
@@ -47763,7 +47859,7 @@ var init_list = __esm({
     init_defaults();
     init_run_meta();
     init_phase();
-    import_picocolors16 = __toESM(require_picocolors());
+    import_picocolors17 = __toESM(require_picocolors());
   }
 });
 
@@ -47779,18 +47875,18 @@ async function skillsAction(options) {
       globalDir: void 0
     });
     if (result.ok) {
-      console.log(`${import_picocolors17.default.bold(phase)}: ${import_picocolors17.default.cyan(result.value)}`);
+      console.log(`${import_picocolors18.default.bold(phase)}: ${import_picocolors18.default.cyan(result.value)}`);
     } else {
-      console.log(`${import_picocolors17.default.bold(phase)}: ${import_picocolors17.default.yellow("not found")}`);
+      console.log(`${import_picocolors18.default.bold(phase)}: ${import_picocolors18.default.yellow("not found")}`);
     }
   }
 }
-var import_picocolors17, PHASES;
+var import_picocolors18, PHASES;
 var init_skills = __esm({
   "src/cli/actions/skills.ts"() {
     "use strict";
     init_resolver();
-    import_picocolors17 = __toESM(require_picocolors());
+    import_picocolors18 = __toESM(require_picocolors());
     PHASES = ["planning", "implementation", "review"];
   }
 });
@@ -47801,8 +47897,8 @@ __export(doctor_exports, {
   doctorAction: () => doctorAction
 });
 function fmt(c) {
-  const symbol2 = c.status === "ok" ? import_picocolors18.default.green("\u2713") : c.status === "warn" ? import_picocolors18.default.yellow("\u26A0") : import_picocolors18.default.red("\u2717");
-  return `${symbol2} ${import_picocolors18.default.bold(c.name.padEnd(28))} ${c.detail}`;
+  const symbol2 = c.status === "ok" ? import_picocolors19.default.green("\u2713") : c.status === "warn" ? import_picocolors19.default.yellow("\u26A0") : import_picocolors19.default.red("\u2717");
+  return `${symbol2} ${import_picocolors19.default.bold(c.name.padEnd(28))} ${c.detail}`;
 }
 async function checkNodeVersion() {
   const v = process.versions.node;
@@ -47819,12 +47915,12 @@ async function checkNodeVersion() {
 async function checkBinaryAvailable(name, binary) {
   const isWindows2 = process.platform === "win32";
   try {
-    const { stdout } = await execFileAsync5(binary, ["--version"]);
+    const { stdout } = await execFileAsync6(binary, ["--version"]);
     const version2 = stdout.trim().split("\n")[0] ?? "";
     return { name, status: "ok", detail: version2 || "installed" };
   } catch {
     try {
-      await execFileAsync5(isWindows2 ? "where" : "which", [binary]);
+      await execFileAsync6(isWindows2 ? "where" : "which", [binary]);
       return { name, status: "ok", detail: "installed (no --version)" };
     } catch {
       return { name, status: "warn", detail: `${binary} not found on PATH` };
@@ -47864,8 +47960,8 @@ async function checkRunsDir() {
 async function doctorAction() {
   const workdir = process.cwd();
   console.log("");
-  console.log(import_picocolors18.default.bold(`bode doctor`) + import_picocolors18.default.dim(`  v${getVersion()}`));
-  console.log(import_picocolors18.default.dim("\u2500".repeat(64)));
+  console.log(import_picocolors19.default.bold(`bode doctor`) + import_picocolors19.default.dim(`  v${getVersion()}`));
+  console.log(import_picocolors19.default.dim("\u2500".repeat(64)));
   const checks = [];
   checks.push(await checkNodeVersion());
   checks.push(await checkGlobalConfig());
@@ -47881,7 +47977,7 @@ async function doctorAction() {
     checks.push({
       name: "Git remote",
       status: env2.vcsProvider ? "ok" : "warn",
-      detail: `${env2.gitRemoteUrl}  ${import_picocolors18.default.dim(`(${provider})`)}`
+      detail: `${env2.gitRemoteUrl}  ${import_picocolors19.default.dim(`(${provider})`)}`
     });
   } else {
     checks.push({
@@ -47927,32 +48023,32 @@ async function doctorAction() {
   for (const c of checks) console.log(fmt(c));
   const fails = checks.filter((c) => c.status === "fail").length;
   const warns = checks.filter((c) => c.status === "warn").length;
-  console.log(import_picocolors18.default.dim("\u2500".repeat(64)));
+  console.log(import_picocolors19.default.dim("\u2500".repeat(64)));
   if (fails === 0 && warns === 0) {
-    console.log(import_picocolors18.default.green(`All ${checks.length} checks passed.`));
+    console.log(import_picocolors19.default.green(`All ${checks.length} checks passed.`));
     process.exit(0);
   }
   if (fails === 0) {
-    console.log(import_picocolors18.default.yellow(`${warns} warning(s), no failures.`));
+    console.log(import_picocolors19.default.yellow(`${warns} warning(s), no failures.`));
     process.exit(0);
   }
-  console.log(import_picocolors18.default.red(`${fails} failure(s), ${warns} warning(s).`));
+  console.log(import_picocolors19.default.red(`${fails} failure(s), ${warns} warning(s).`));
   process.exit(1);
 }
-var import_picocolors18, import_node_fs17, import_node_child_process7, import_node_util14, execFileAsync5;
+var import_picocolors19, import_node_fs17, import_node_child_process8, import_node_util15, execFileAsync6;
 var init_doctor = __esm({
   "src/cli/actions/doctor.ts"() {
     "use strict";
-    import_picocolors18 = __toESM(require_picocolors());
+    import_picocolors19 = __toESM(require_picocolors());
     import_node_fs17 = require("node:fs");
-    import_node_child_process7 = require("node:child_process");
-    import_node_util14 = require("node:util");
+    import_node_child_process8 = require("node:child_process");
+    import_node_util15 = require("node:util");
     init_auto_detect();
     init_loader();
     init_defaults();
     init_registry();
     init_version();
-    execFileAsync5 = (0, import_node_util14.promisify)(import_node_child_process7.execFile);
+    execFileAsync6 = (0, import_node_util15.promisify)(import_node_child_process8.execFile);
   }
 });
 
@@ -48026,62 +48122,200 @@ async function telemetryAction(subcommand) {
     case "on":
     case "enable": {
       const s = await setTelemetryEnabled(true);
-      console.log(import_picocolors19.default.green("\u2713 Telemetry enabled."));
-      console.log(import_picocolors19.default.dim(`  Machine ID: ${s.machineId}`));
-      console.log(import_picocolors19.default.dim(`  Events log: ${__testing3.EVENTS_FILE}`));
-      console.log(import_picocolors19.default.dim("  Default endpoint: none (local-only). Set telemetry.endpoint in"));
-      console.log(import_picocolors19.default.dim("  config to forward events to your own collector."));
+      console.log(import_picocolors20.default.green("\u2713 Telemetry enabled."));
+      console.log(import_picocolors20.default.dim(`  Machine ID: ${s.machineId}`));
+      console.log(import_picocolors20.default.dim(`  Events log: ${__testing3.EVENTS_FILE}`));
+      console.log(import_picocolors20.default.dim("  Default endpoint: none (local-only). Set telemetry.endpoint in"));
+      console.log(import_picocolors20.default.dim("  config to forward events to your own collector."));
       console.log("");
-      console.log(import_picocolors19.default.bold("What gets recorded:"));
-      console.log(import_picocolors19.default.dim("  command name, success/failure, duration, tracker kind, CLI adapter,"));
-      console.log(import_picocolors19.default.dim("  bode version, Node version, platform, machine UUID."));
-      console.log(import_picocolors19.default.bold("What never gets recorded:"));
-      console.log(import_picocolors19.default.dim("  task content, ticket IDs, code, paths, credentials, your identity."));
+      console.log(import_picocolors20.default.bold("What gets recorded:"));
+      console.log(import_picocolors20.default.dim("  command name, success/failure, duration, tracker kind, CLI adapter,"));
+      console.log(import_picocolors20.default.dim("  bode version, Node version, platform, machine UUID."));
+      console.log(import_picocolors20.default.bold("What never gets recorded:"));
+      console.log(import_picocolors20.default.dim("  task content, ticket IDs, code, paths, credentials, your identity."));
       break;
     }
     case "off":
     case "disable": {
       await setTelemetryEnabled(false);
-      console.log(import_picocolors19.default.yellow("Telemetry disabled. Recorded events remain on disk."));
-      console.log(import_picocolors19.default.dim(`  To delete them: rm -rf ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors20.default.yellow("Telemetry disabled. Recorded events remain on disk."));
+      console.log(import_picocolors20.default.dim(`  To delete them: rm -rf ${__testing3.TELEMETRY_DIR}`));
       break;
     }
     case "status": {
       const enabled = await isTelemetryEnabled();
-      console.log(enabled ? import_picocolors19.default.green("Telemetry: ENABLED") : import_picocolors19.default.dim("Telemetry: disabled"));
-      console.log(import_picocolors19.default.dim(`  Storage: ${__testing3.TELEMETRY_DIR}`));
-      console.log(import_picocolors19.default.dim(`  Toggle: bode telemetry on   |   bode telemetry off`));
-      console.log(import_picocolors19.default.dim(`  Preview: bode telemetry preview`));
+      console.log(enabled ? import_picocolors20.default.green("Telemetry: ENABLED") : import_picocolors20.default.dim("Telemetry: disabled"));
+      console.log(import_picocolors20.default.dim(`  Storage: ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors20.default.dim(`  Toggle: bode telemetry on   |   bode telemetry off`));
+      console.log(import_picocolors20.default.dim(`  Preview: bode telemetry preview`));
       break;
     }
     case "preview": {
       const events = await readRecentEvents(20);
       if (events.length === 0) {
-        console.log(import_picocolors19.default.dim("No telemetry events recorded yet."));
+        console.log(import_picocolors20.default.dim("No telemetry events recorded yet."));
         return;
       }
-      console.log(import_picocolors19.default.bold(`Last ${events.length} events:`));
+      console.log(import_picocolors20.default.bold(`Last ${events.length} events:`));
       for (const e of events) {
-        const status = e.success ? import_picocolors19.default.green("\u2713") : import_picocolors19.default.red("\u2717");
-        const dur = e.duration_ms ? import_picocolors19.default.dim(` (${e.duration_ms}ms)`) : "";
+        const status = e.success ? import_picocolors20.default.green("\u2713") : import_picocolors20.default.red("\u2717");
+        const dur = e.duration_ms ? import_picocolors20.default.dim(` (${e.duration_ms}ms)`) : "";
         console.log(
-          `  ${status} ${import_picocolors19.default.cyan(e.command.padEnd(12))} ${import_picocolors19.default.dim(e.ts)} ${import_picocolors19.default.dim(`v${e.bode_version}`)}${dur}`
+          `  ${status} ${import_picocolors20.default.cyan(e.command.padEnd(12))} ${import_picocolors20.default.dim(e.ts)} ${import_picocolors20.default.dim(`v${e.bode_version}`)}${dur}`
         );
       }
       break;
     }
     default:
-      console.error(import_picocolors19.default.red(`Unknown subcommand: ${cmd}`));
-      console.error(import_picocolors19.default.dim("Usage: bode telemetry [on|off|status|preview]"));
+      console.error(import_picocolors20.default.red(`Unknown subcommand: ${cmd}`));
+      console.error(import_picocolors20.default.dim("Usage: bode telemetry [on|off|status|preview]"));
       process.exit(1);
   }
 }
-var import_picocolors19;
+var import_picocolors20;
 var init_telemetry2 = __esm({
   "src/cli/actions/telemetry.ts"() {
     "use strict";
-    import_picocolors19 = __toESM(require_picocolors());
+    import_picocolors20 = __toESM(require_picocolors());
     init_telemetry();
+  }
+});
+
+// src/cli/actions/compare.ts
+var compare_exports = {};
+__export(compare_exports, {
+  compareAction: () => compareAction
+});
+async function compareAction(taskKey, options) {
+  const agentSpec = options.agents?.trim();
+  if (!agentSpec) {
+    console.error(import_picocolors21.default.red("--agents <list> is required"));
+    console.error(import_picocolors21.default.dim("Example: --agents claude-code,codex"));
+    console.error(import_picocolors21.default.dim("         --agents claude-code:claude-opus-4-7,codex:gpt-5.5"));
+    process.exit(1);
+  }
+  const specs = agentSpec.split(",").map((s) => s.trim()).filter(Boolean);
+  if (specs.length < 2) {
+    console.error(import_picocolors21.default.red("Need at least two agents to compare. Got: " + specs.length));
+    process.exit(1);
+  }
+  const configResult = await loadConfig();
+  if (!configResult.ok) {
+    console.error(import_picocolors21.default.red(`Configuration error: ${configResult.error.message}`));
+    process.exit(1);
+  }
+  const projectResult = await resolveProject(configResult.value, { projectName: options.project });
+  if (!projectResult.ok) {
+    console.error(import_picocolors21.default.red(projectResult.error.message));
+    process.exit(1);
+  }
+  const { config: config2, projectConfig } = projectResult.value;
+  const tracker = selectTracker({
+    jira: config2.jira,
+    workdir: projectConfig.workdir,
+    ...config2.linear ? { linear: config2.linear } : {},
+    ...config2.notion ? { notion: config2.notion } : {},
+    ...config2.trello ? { trello: config2.trello } : {}
+  });
+  const issueResult = await tracker.adapter.fetchTask(taskKey);
+  if (!issueResult.ok) {
+    console.error(import_picocolors21.default.red(`Tracker error: ${issueResult.error.message}`));
+    process.exit(1);
+  }
+  const skill = await loadSkillPrompt("planning", {
+    projectRoot: projectConfig.workdir,
+    globalDir: void 0
+  });
+  if (!skill.ok) {
+    console.error(import_picocolors21.default.red(`Skill load failed: ${skill.error.message}`));
+    process.exit(1);
+  }
+  const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").replace(/T/, "_").slice(0, 19);
+  const outDir = (0, import_node_path20.join)((0, import_node_os6.homedir)(), ".bode", "comparisons", `${taskKey}-${timestamp}`);
+  await (0, import_promises14.mkdir)(outDir, { recursive: true });
+  console.log(import_picocolors21.default.cyan(`Comparing ${specs.length} agents on planning phase for ${taskKey}`));
+  console.log(import_picocolors21.default.dim(`Output: ${outDir}`));
+  console.log("");
+  const results = [];
+  for (const spec of specs) {
+    const [cli, model] = spec.includes(":") ? spec.split(":") : [spec, void 0];
+    const cliName = cli ?? "";
+    const adapterR = getAdapter(cliName);
+    if (!adapterR.ok) {
+      console.error(import_picocolors21.default.red(`\u2717 ${spec}: ${adapterR.error.message}`));
+      continue;
+    }
+    const phaseConfig = config2.phases.planning;
+    const useModel = model ?? phaseConfig.model;
+    const prompt = buildPrompt(skill.value, {
+      jiraIssue: issueResult.value,
+      projectAgentsMd: void 0,
+      repoFileTree: void 0,
+      priorArtifact: void 0
+    });
+    console.log(import_picocolors21.default.dim(`Running ${spec}...`));
+    const start = Date.now();
+    const invokeR = await adapterR.value.invoke(
+      prompt,
+      { cli: cliName, model: useModel, timeout_minutes: phaseConfig.timeout_minutes },
+      { interactive: false, workdir: projectConfig.workdir }
+    );
+    const durationMs = Date.now() - start;
+    if (!invokeR.ok) {
+      console.error(import_picocolors21.default.red(`  \u2717 ${spec} failed: ${invokeR.error.message}`));
+      results.push({
+        spec,
+        artifact: `(failed: ${invokeR.error.message})`,
+        exitCode: -1,
+        durationMs
+      });
+      continue;
+    }
+    const safe = spec.replace(/[^a-z0-9]+/gi, "-");
+    const path3 = (0, import_node_path20.join)(outDir, `${safe}.md`);
+    await (0, import_promises14.writeFile)(path3, invokeR.value.stdout, "utf-8");
+    console.log(import_picocolors21.default.green(`  \u2713 ${spec} \u2192 ${path3} (${invokeR.value.durationMs}ms)`));
+    results.push({
+      spec,
+      artifact: invokeR.value.stdout,
+      exitCode: invokeR.value.exitCode,
+      durationMs: invokeR.value.durationMs
+    });
+  }
+  const summaryPath = (0, import_node_path20.join)(outDir, "summary.md");
+  const summary = `# Agent comparison \u2014 ${taskKey}
+
+Date: ${(/* @__PURE__ */ new Date()).toISOString()}
+Phase: planning
+
+` + results.map(
+    (r) => `## ${r.spec}
+
+- exit code: ${r.exitCode}
+- duration: ${r.durationMs}ms
+- bytes: ${r.artifact.length}
+`
+  ).join("\n");
+  await (0, import_promises14.writeFile)(summaryPath, summary, "utf-8");
+  console.log("");
+  console.log(import_picocolors21.default.bold("Done."));
+  console.log(import_picocolors21.default.dim(`Summary: ${summaryPath}`));
+  console.log(import_picocolors21.default.dim(`Individual artifacts in ${outDir}/`));
+}
+var import_picocolors21, import_promises14, import_node_path20, import_node_os6;
+var init_compare = __esm({
+  "src/cli/actions/compare.ts"() {
+    "use strict";
+    import_picocolors21 = __toESM(require_picocolors());
+    import_promises14 = require("node:fs/promises");
+    import_node_path20 = require("node:path");
+    import_node_os6 = require("node:os");
+    init_loader();
+    init_project_resolver();
+    init_registry();
+    init_factory();
+    init_prompt_builder();
+    init_resolver();
   }
 });
 
@@ -48185,6 +48419,10 @@ function createCommands(program3) {
   program3.command("telemetry [subcommand]").description("Opt-in telemetry: bode telemetry [on|off|status|preview]").action(async (subcommand) => {
     const { telemetryAction: telemetryAction2 } = await Promise.resolve().then(() => (init_telemetry2(), telemetry_exports));
     await telemetryAction2(subcommand);
+  });
+  program3.command("compare <taskKey>").description("Run planning phase across multiple agents (headless) and compare outputs").requiredOption("--agents <list>", "Comma-separated agents (e.g. claude-code,codex)").option("--project <name>", "Project name from ~/.bode/projects/").action(async (taskKey, options) => {
+    const { compareAction: compareAction2 } = await Promise.resolve().then(() => (init_compare(), compare_exports));
+    await compareAction2(taskKey, options);
   });
 }
 

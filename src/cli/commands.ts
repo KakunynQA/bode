@@ -178,4 +178,14 @@ export function createCommands(program: Command): void {
 			const { telemetryAction } = await import('./actions/telemetry.ts');
 			await telemetryAction(subcommand);
 		});
+
+	program
+		.command('compare <taskKey>')
+		.description('Run planning phase across multiple agents (headless) and compare outputs')
+		.requiredOption('--agents <list>', 'Comma-separated agents (e.g. claude-code,codex)')
+		.option('--project <name>', 'Project name from ~/.bode/projects/')
+		.action(async (taskKey: string, options: { agents: string; project?: string }) => {
+			const { compareAction } = await import('./actions/compare.ts');
+			await compareAction(taskKey, options);
+		});
 }

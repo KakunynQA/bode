@@ -1,0 +1,60 @@
+name: Release SEA binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            os: linux
+            arch: x64
+          - runner: macos-13
+            os: darwin
+            arch: x64
+          - runner: macos-latest
+            os: darwin
+            arch: arm64
+          - runner: windows-latest
+            os: win32
+            arch: x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/build-sea.mjs
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: bode-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/bode-${{ matrix.os }}-${{ matrix.arch }}*
+          retention-days: 7
+
+  release:
+    name: Publish to GitHub Releases
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/bode-*
+          generate_release_notes: true

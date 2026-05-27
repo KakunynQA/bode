@@ -4,6 +4,62 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0] — 2026-05-27
+
+Closes Wave 4 + the doable parts of Wave 5. After this, only items that need human/external action remain open (publish to npm, demo video, launch post, GitHub App, skill marketplace).
+
+### Added — docs site scaffold (#22)
+
+- VitePress structure at `docs/`. Config in `docs/.vitepress/config.mts`.
+- Home page + getting-started + trackers overview written out. Other pages stubbed by the sidebar config.
+- Build with `npx vitepress build docs` (no commitment to add the dep yet — opt-in for whoever maintains the docs site).
+
+### Added — release SEA workflow (#18 follow-up)
+
+- `.github/workflows/release-sea.yml` — on `v*` tag, builds standalone binaries on linux/darwin-x64/darwin-arm64/win32 runners using `scripts/build-sea.mjs`, uploads to GitHub Releases.
+- Homebrew tap and scoop manifest auto-bump are a follow-up; for now the formula templates ship with `REPLACE_ME_ON_RELEASE` placeholders for hashes.
+
+### Added — plugin hooks (#27)
+
+- `src/orchestrator/hooks.ts` — `HookPoint = pre_planning | post_planning | ... | pre_pr | post_pr`.
+- Configure in YAML:
+  ```yaml
+  hooks:
+    pre_implementation:
+      - npm run lint:fix
+    post_review:
+      - run: ./.bode/hooks/notify.sh
+        non_blocking: true
+  ```
+- Each command runs in the project workdir with env vars: `BODE_TASK_KEY`, `BODE_PHASE`, `BODE_HOOK`, `BODE_WORKDIR`.
+- Non-zero exit aborts the phase unless `non_blocking: true`.
+- Engine invokes `pre_<phase>` before transition + AI invocation; `post_<phase>` after the artifact lands.
+
+### Added — agent comparison mode (#26)
+
+- `bode compare <taskKey> --agents claude-code,codex` runs the planning phase headless against multiple agents, writes individual artifacts + a summary to `~/.bode/comparisons/<task>-<timestamp>/`.
+- Per-agent model override: `--agents claude-code:claude-opus-4-7,codex:gpt-5.5`.
+- Planning phase only. Full-flow comparison is Wave 6.
+
+### Tests
+
+- `tests/unit/orchestrator/hooks.test.ts` (4): resolveHooks ordering + entry shapes.
+
+Total: 213 → 217.
+
+### Status of remaining issues
+
+The roadmap is now functionally closed except for items that require human/external action or are explicitly gated:
+
+- **#21 publish to npm** — needs an npm account + 2FA token. Workflow + `files:` whitelist already in place since v0.11.0.
+- **#23 demo video** — script writing + recording. Outside what bode the CLI can build.
+- **#24 launch post** — same. When ready, hit HN/X/dev.to.
+- **#25 skill marketplace** — needs centralized infrastructure. Gated to Wave 5.
+- **#28 GitHub App** — server-side infrastructure. Gated to Wave 5.
+- **#36 Wave 6 maturity** — explicit gate, post-Wave-4 with real adoption.
+
+These are being closed with notes pointing here. None block daily use.
+
 ## [0.27.0] — 2026-05-27
 
 Wave 3 — DX polish. Closes #17, #18, #19, #20.

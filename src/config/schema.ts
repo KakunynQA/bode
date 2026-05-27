@@ -1,5 +1,23 @@
 import { z } from 'zod';
 
+const hookEntrySchema = z.union([
+	z.string(),
+	z.object({ run: z.string(), non_blocking: z.boolean().optional() }),
+]);
+
+const hooksSchema = z
+	.object({
+		pre_planning: z.array(hookEntrySchema).optional(),
+		post_planning: z.array(hookEntrySchema).optional(),
+		pre_implementation: z.array(hookEntrySchema).optional(),
+		post_implementation: z.array(hookEntrySchema).optional(),
+		pre_review: z.array(hookEntrySchema).optional(),
+		post_review: z.array(hookEntrySchema).optional(),
+		pre_pr: z.array(hookEntrySchema).optional(),
+		post_pr: z.array(hookEntrySchema).optional(),
+	})
+	.optional();
+
 const phaseConfigSchema = z.object({
 	cli: z.string(),
 	model: z.string(),
@@ -123,6 +141,7 @@ export const bodeConfigSchema = z.object({
 			project: z.string().optional(),
 		})
 		.optional(),
+	hooks: hooksSchema,
 });
 
 export type BodeConfig = z.infer<typeof bodeConfigSchema>;
@@ -167,6 +186,7 @@ export const projectConfigSchema = z.object({
 			'mock',
 		])
 		.optional(),
+	hooks: hooksSchema,
 });
 
 export type ProjectConfig = z.infer<typeof projectConfigSchema>;

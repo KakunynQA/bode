@@ -8,6 +8,7 @@ import { resolveVcsProvider } from '~/config/loader.ts';
 import { resolveJiraTransition } from '~/config/transitions.ts';
 import { printPhaseArtifacts } from '~/cli/summary.ts';
 import { getPhaseNameForStatus } from '~/types/phase.ts';
+import { runHook, type HookPoint } from './hooks.ts';
 import type { Result } from '~/types/result.ts';
 import pc from 'picocolors';
 import ora from 'ora';
@@ -71,6 +72,26 @@ export async function advancePhase(
 		? null
 		: ora(`Running ${getPhaseStatusLabel(executingStatus)} phase...`).start();
 
+	const phaseName = getPhaseNameForStatus(executingStatus);
+	const workdir = options.projectConfig?.workdir ?? options.projectRoot ?? process.cwd();
+	if (phaseName) {
+		const prePoint = `pre_${phaseName}` as HookPoint;
+		const preHook = await runHook(
+			prePoint,
+			{ taskKey, phase: phaseName, workdir },
+			config,
+			options.projectConfig
+		);
+		if (!preHook.ok) {
+			return {
+				ok: false,
+				error: new Error(
+					`Hook ${prePoint} failed: ${preHook.failedCommand}\n  ${preHook.error.message}`
+				),
+			};
+		}
+	}
+
 	const transitionResult = await transitionForPhase(
 		taskKey,
 		executingStatus,
@@ -112,9 +133,20 @@ export async function advancePhase(
 			`${getPhaseStatusLabel(nextStatus)} complete (${formatDuration(result.durationMs)})`
 		);
 
-		const phaseName = getPhaseNameForStatus(executingStatus);
 		if (phaseName) {
 			await printPhaseArtifacts(taskKey, phaseName);
+			const postPoint = `post_${phaseName}` as HookPoint;
+			const postHook = await runHook(
+				postPoint,
+				{ taskKey, phase: phaseName, workdir },
+				config,
+				options.projectConfig
+			);
+			if (!postHook.ok) {
+				console.warn(
+					pc.yellow(`[hook ${postPoint}] failed: ${postHook.failedCommand} — continuing.`)
+				);
+			}
 		}
 
 		await postPhaseSummary(
