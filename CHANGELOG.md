@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] — 2026-05-27
+
+**Architectural shift — closes #35.** Bode no longer shells out to `git` directly. Every git operation (branch create/push/checkout/delete, fetch, conflict check, stash, status, switch-to-base) is now the AI's responsibility, performed inside its interactive session via tool calls during the implementation/PR-creation phases. Consistent with v0.16.0 where the AI took over PR creation.
+
+### Removed
+
+- `src/adapters/vcs/git.ts` — deleted. All `git` shellouts removed.
+- `branch-manager.ts`: removed `startBranch`, `branchNameForTask`, `checkForConflicts`, `createPullRequest`, `switchToBase`, `cleanupBranch`, `getCurrentBranchName`. Only `mergePR` remains (it shells to `gh pr merge` / `glab mr merge`, not git).
+- `VcsAdapter.detectRemote` — unused; removed from interface and both adapter implementations.
+- `bode start`: no longer creates a branch, no longer checks workdir cleanliness, no longer prompts stash/retry/abort. Goes straight to the planning phase.
+- `bode abort`: no longer deletes branches. Prints cleanup instructions instead.
+- `bode done`: no longer switches to base branch. Prints the suggested `git checkout` command.
+- Conflict check before PR is no longer a bode operation. It's part of the AI's PR-creation skill prompt.
+- Per-phase summary no longer prints `git diff --shortstat` — the user already saw the diff live in the AI session.
+
+### Added
+
+- **`branch.txt` handoff file** at `~/.bode/runs/<KEY>/branch.txt`. The AI writes the working branch name there at the end of implementation; bode reads it and persists to `meta.json`. Used by `bode status` and `bode abort` cleanup instructions.
+- **`<branch-context>` block in the prompt**, phase-aware:
+  - Planning → read-only, no branches.
+  - Implementation → instructs the AI to `git checkout -b <prefix>/<key> <base>` + `git push -u origin <branch>` BEFORE any code changes, with prefix mapping by issue type (Story→feat, Bug→fix, Task→chore, Improvement→refactor).
+  - Review → read-only on existing branch.
+- **Conflict-check step prepended to the PR-creation prompt** in `pr-creator.ts`. AI runs `git fetch origin` + `git merge-base --is-ancestor` and aborts the PR if conflicts are detected.
+
+### Trade-offs
+
+- Conflict check moves from instant (bode) to AI-token-spending (prompt). Marginal cost — already in the same AI session.
+- Bode loses fast pre-validation of dirty workdir. The AI sees it in its session and is instructed to ask the user before stashing.
+- The previously bundled "branch convention" mapping moves from `branchNameForTask` (TypeScript) to `suggestedBranchName` (prompt builder). Same table.
+
+### Files touched
+
+- Deleted: `src/adapters/vcs/git.ts`, `tests/unit/orchestrator/branch-manager.test.ts`.
+- Heavily modified: `src/orchestrator/{engine,phase-runner,branch-manager,pr-creator}.ts`, `src/cli/actions/{start,done,abort}.ts`, `src/skills/prompt-builder.ts`, `src/skills/defaults/implementation.md`.
+- Lighter touch: `src/cli/summary.ts` (drop diff stat), `src/adapters/vcs/{github,gitlab}.ts` (drop detectRemote + git fallback in error path), `src/types/vcs.ts` (drop detectRemote).
+
 ## [0.17.0] — 2026-05-27
 
 Wave 0 hardening pass — addresses 6 of the open hardening issues at once.

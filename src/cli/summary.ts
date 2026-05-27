@@ -1,42 +1,17 @@
 import pc from 'picocolors';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { getRunDir } from '~/config/defaults.ts';
 import type { RunMeta } from '~/storage/run-meta.ts';
 
 const PHASE_FILES = ['planning', 'implementation', 'review'] as const;
 
-const execFileAsync = promisify(execFile);
-
 /**
- * Reads `git diff --stat <base>...HEAD` against the project workdir. Falls
- * back to a one-liner descriptor when git or the base branch is unavailable.
- * Returns null when there is nothing meaningful to report (e.g. no workdir).
+ * As of v0.18.0, bode does not shell out to git. The per-phase summary stops
+ * printing `git diff --shortstat` — the user already saw the diff live in the
+ * AI's interactive session.
  */
-async function getDiffSummary(
-	workdir: string | undefined,
-	baseBranch: string | undefined
-): Promise<string | null> {
-	if (!workdir || !baseBranch) return null;
-	try {
-		const { stdout } = await execFileAsync('git', ['diff', '--shortstat', `${baseBranch}...HEAD`], {
-			cwd: workdir,
-		});
-		const trimmed = stdout.trim();
-		if (!trimmed) return 'no file changes detected';
-		return trimmed;
-	} catch {
-		return null;
-	}
-}
-
-export async function printPhaseArtifacts(
-	taskKey: string,
-	phaseName: string,
-	options?: { workdir?: string | undefined; baseBranch?: string | undefined }
-): Promise<void> {
+export async function printPhaseArtifacts(taskKey: string, phaseName: string): Promise<void> {
 	const runDir = getRunDir(taskKey);
 	const logPath = join(runDir, `${phaseName}.log`);
 	const artifactPath = join(runDir, `${phaseName}.md`);
@@ -47,16 +22,6 @@ export async function printPhaseArtifacts(
 	}
 	if (existsSync(logPath)) {
 		lines.push(`  Log:      ${pc.dim(logPath)}`);
-	}
-
-	const diff = await getDiffSummary(options?.workdir, options?.baseBranch);
-	if (diff) {
-		const isEmpty = diff === 'no file changes detected';
-		const label = isEmpty
-			? pc.yellow(diff) +
-				pc.dim(' — running --auto without --dangerously-approve-all? See `bode start --help`.')
-			: diff;
-		lines.push(`  Diff:     ${label}`);
 	}
 
 	if (lines.length > 0) {

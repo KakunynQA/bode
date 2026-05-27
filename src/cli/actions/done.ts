@@ -1,5 +1,5 @@
 import { loadRunMeta, saveRunMeta, type RunMeta } from '~/storage/run-meta.ts';
-import { switchToBase, mergePR } from '~/orchestrator/branch-manager.ts';
+import { mergePR } from '~/orchestrator/branch-manager.ts';
 import { loadConfig, resolveVcsProvider } from '~/config/loader.ts';
 import { createJiraAdapter } from '~/adapters/jira/factory.ts';
 import { resolveJiraTransition } from '~/config/transitions.ts';
@@ -66,14 +66,10 @@ export async function doneAction(
 		console.log(pc.dim(`\nPR pending: ${meta.prUrl} — merge manually when ready.`));
 	}
 
-	const workdir = meta.workdir ?? process.cwd();
-	const switchResult = await switchToBase(workdir, meta.baseBranch);
-	if (!switchResult.ok) {
-		console.error(
-			pc.yellow(`Could not switch to ${meta.baseBranch}: ${switchResult.error.message}`)
+	if (meta.baseBranch) {
+		console.log(
+			pc.dim(`Switch back to ${meta.baseBranch} manually: \`git checkout ${meta.baseBranch}\``)
 		);
-	} else {
-		console.log(pc.dim(`Switched to ${meta.baseBranch}`));
 	}
 
 	await finalize(taskKey, meta, config, projectCfg);

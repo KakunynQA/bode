@@ -22,5 +22,4 @@ export interface VcsAdapter {
 	}): Promise<Result<PullRequest>>;
 	addComment(prNumber: number, body: string, signal?: AbortSignal): Promise<Result<void>>;
 	mergePR(prNumber: number, signal?: AbortSignal): Promise<Result<void>>;
-	detectRemote(): Promise<Result<{ type: 'github' | 'gitlab'; org: string; repo: string }>>;
 }

@@ -3,8 +3,7 @@ import { loadRunMeta, createRun, saveRunMeta } from '~/storage/run-meta.ts';
 import { createJiraAdapter } from '~/adapters/jira/factory.ts';
 import { advancePhase } from '~/orchestrator/engine.ts';
 import { resolveProject } from '~/config/project-resolver.ts';
-import { startBranch, mergePR, switchToBase } from '~/orchestrator/branch-manager.ts';
-import { isClean, stash } from '~/adapters/vcs/git.ts';
+import { mergePR } from '~/orchestrator/branch-manager.ts';
 import { abortRun } from './abort.ts';
 import { handlePromptError } from '~/utils/prompt.ts';
 import { planDangerousMode } from '~/cli/dangerous-check.ts';
@@ -126,66 +125,23 @@ export async function startAction(
 		}
 	}
 
-	if (!isContinuing) {
-		const cleanResult = await isClean(projectConfig.workdir);
-		if (cleanResult.ok && !cleanResult.value) {
-			console.log(pc.yellow('Working directory has uncommitted changes.'));
-
-			try {
-				const action = await select({
-					message: 'What to do?',
-					choices: [
-						{ name: 'Stash changes and continue', value: 'stash' },
-						{ name: 'Retry (I will handle it manually)', value: 'retry' },
-						{ name: 'Abort', value: 'abort' },
-					],
-				});
-
-				if (action === 'abort') process.exit(0);
-				if (action === 'retry') {
-					console.log(pc.dim('Clean up manually and run the command again.'));
-					process.exit(0);
-				}
-				if (action === 'stash') {
-					const stashResult = await stash(projectConfig.workdir, `bode:auto-stash:${taskKey}`);
-					if (!stashResult.ok) {
-						console.error(pc.red(`Stash failed: ${stashResult.error.message}`));
-						process.exit(1);
-					}
-					console.log(pc.green('Changes stashed. Proceeding...'));
-				}
-			} catch (err) {
-				handlePromptError(err);
-				process.exit(1);
-			}
-		}
-	}
-
 	const baseBranch = options.fromBranch ?? projectConfig.default_branch ?? 'main';
 
+	// v0.18.0: bode no longer creates branches or checks workdir cleanliness.
+	// The AI handles both during the implementation phase (#35). Save run meta
+	// with branch: undefined — it gets populated when the AI writes branch.txt
+	// during the implementation phase handoff.
 	if (!isContinuing) {
-		console.log(pc.dim(`Creating branch from ${baseBranch}...`));
-
-		const branchResult = await startBranch(
-			projectConfig.workdir,
-			taskKey,
-			issue.issueType,
-			baseBranch
-		);
-		if (!branchResult.ok) {
-			console.error(pc.red(`Branch error: ${branchResult.error.message}`));
-			process.exit(1);
-		}
-
-		const branch = branchResult.value;
-		console.log(pc.green(`Branch created: ${branch} (from ${baseBranch})`));
-
 		await createRun(taskKey, issue.summary, {
-			branch,
 			baseBranch,
 			projectName: projectConfig.name,
 			workdir: projectConfig.workdir,
 		});
+		console.log(
+			pc.dim(
+				`Base branch: ${baseBranch} (the AI will create the working branch during implementation)`
+			)
+		);
 	}
 
 	const isAuto = options.auto ?? false;
@@ -315,15 +271,12 @@ export async function startAction(
 				}
 
 				console.log(pc.green(`PR #${advanceVal.meta.prNumber} merged and branch deleted.`));
-
 				if (advanceVal.meta.baseBranch) {
-					const switchResult = await switchToBase(
-						projectConfig.workdir,
-						advanceVal.meta.baseBranch
+					console.log(
+						pc.dim(
+							`Switch back to ${advanceVal.meta.baseBranch} manually: \`git checkout ${advanceVal.meta.baseBranch}\``
+						)
 					);
-					if (switchResult.ok) {
-						console.log(pc.dim(`Switched to ${advanceVal.meta.baseBranch}`));
-					}
 				}
 
 				const { resolveJiraTransition } = await import('~/config/transitions.ts');

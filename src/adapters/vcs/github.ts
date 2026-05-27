@@ -5,6 +5,13 @@ import type { Result } from '~/types/result.ts';
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * GitHub VCS adapter. As of v0.18.0, bode does not create PRs directly —
+ * the AI does that during the awaiting-merge handoff via its own `gh` tool
+ * call. The methods below remain for `bode done --auto-approve-pr-merge`
+ * (mergePR) and the rare programmatic case where someone wants to add a PR
+ * comment from bode itself. None of them shell out to `git`.
+ */
 export class GitHubAdapter implements VcsAdapter {
 	async createPullRequest(options: {
 		title: string;
@@ -41,19 +48,15 @@ export class GitHubAdapter implements VcsAdapter {
 				const err = e as { message?: string; stderr?: string };
 				const combined = `${err.message ?? ''}\n${err.stderr ?? ''}`;
 				if (/Could not resolve to a Repository/i.test(combined)) {
-					const remoteRes = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
-						...(options.workdir ? { cwd: options.workdir } : {}),
-					}).catch(() => ({ stdout: '<unknown>', stderr: '' }));
 					return {
 						ok: false,
 						error: new Error(
 							`gh pr create failed: GitHub does not recognize this repository.\n` +
-								`  Workdir:      ${options.workdir ?? process.cwd()}\n` +
-								`  Local remote: ${remoteRes.stdout.trim()}\n` +
+								`  Workdir: ${options.workdir ?? process.cwd()}\n` +
 								`  Checklist:\n` +
-								`    - Does the repo exist on GitHub under that org/name?\n` +
+								`    - Does the repo exist on GitHub under the right org/name?\n` +
 								`    - Is your gh auth pointing to the right account? Run: gh auth status\n` +
-								`    - Update the git remote if needed: git remote set-url origin <url>`
+								`    - If the local git remote is wrong, fix with: git remote set-url origin <url>`
 						),
 					};
 				}
@@ -87,33 +90,6 @@ export class GitHubAdapter implements VcsAdapter {
 				signal: signal ?? undefined,
 			});
 			return { ok: true, value: undefined };
-		} catch (error) {
-			return { ok: false, error: error as Error };
-		}
-	}
-
-	async detectRemote(): Promise<Result<{ type: 'github' | 'gitlab'; org: string; repo: string }>> {
-		try {
-			const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin']);
-			const url = stdout.trim();
-
-			const sshMatch = url.match(/git@github\.com:(.+?)\/(.+?)(?:\.git)?$/);
-			if (sshMatch?.[1] && sshMatch[2]) {
-				return {
-					ok: true,
-					value: { type: 'github', org: sshMatch[1], repo: sshMatch[2] },
-				};
-			}
-
-			const httpsMatch = url.match(/https:\/\/github\.com\/(.+?)\/(.+?)(?:\.git)?$/);
-			if (httpsMatch?.[1] && httpsMatch[2]) {
-				return {
-					ok: true,
-					value: { type: 'github', org: httpsMatch[1], repo: httpsMatch[2] },
-				};
-			}
-
-			return { ok: false, error: new Error('Could not parse GitHub remote URL') };
 		} catch (error) {
 			return { ok: false, error: error as Error };
 		}

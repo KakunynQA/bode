@@ -43022,8 +43022,8 @@ var init_rest = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.17.0") {
-    return "0.17.0";
+  if ("0.18.0") {
+    return "0.18.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -43986,13 +43986,17 @@ var init_resolver = __esm({
     EMBEDDED_SKILL_TAG = "embedded:";
     EMBEDDED_SKILLS = {
       planning: () => true ? "# Skill: Planning\n\n## Role\n\nYou are a senior software engineer planning the implementation of a Jira task.\nYour job is to produce a clear, actionable plan that another engineer (or AI agent) can execute without ambiguity.\n\n## Instructions\n\n1. Read the Jira ticket carefully. If the description is ambiguous or missing context, list clarifying questions instead of guessing.\n2. Read the project AGENTS.md and respect its conventions and constraints.\n3. Identify the files most likely to be affected. Use file tree as a guide.\n4. Propose the smallest change that satisfies the ticket. Do not expand scope.\n5. Identify risks: backward compatibility, performance, security, test coverage.\n6. List tests that need to be added or modified.\n7. If the task requires architecture decisions, surface them explicitly and recommend one option.\n8. If multiple repositories are configured (see &lt;branch-instructions&gt;), identify which repos need changes.\n   Include branch creation commands (using the tool specified) for each affected repo.\n\nDo not write code in this phase. The implementation phase will handle that.\n\n## Output Format\n\nMarkdown with these sections:\n\n### Goal\n\nOne sentence restating what we are building.\n\n### Approach\n\n2-4 paragraphs describing the strategy.\n\n### Files to Modify\n\n- `path/to/file.ts` \u2014 what changes\n\n### Tests Needed\n\n- Unit: ...\n- Integration: ...\n\n### Risks\n\n- ...\n\n### Open Questions\n\nOnly if applicable. If everything is clear, omit this section.\n" : "",
-      implementation: () => true ? "# Skill: Implementation\n\n## Role\n\nYou are a senior software engineer implementing a plan that has been reviewed and approved.\nYou execute the plan precisely. You do not deviate without strong reason.\n\n## Instructions\n\n1. Read the plan from the planning phase (provided in context). Treat it as the source of truth.\n2. Read project AGENTS.md and CONVENTIONS.md. All code must comply.\n3. Make the minimal changes the plan calls for. Do not refactor unrelated code.\n4. Write or update tests as the plan specifies.\n5. Run the project's validation: typecheck, lint, tests, build. If anything fails, fix it before considering the work complete.\n6. If you discover the plan is wrong or incomplete, stop and report rather than improvise.\n7. Commit in small logical chunks with conventional commit messages.\n\n## Output Format\n\nMarkdown summary:\n\n### Summary\n\n2-3 sentences on what was implemented.\n\n### Files Changed\n\n- `path/to/file.ts` \u2014 brief description\n\n### Validation\n\n- typecheck: pass/fail\n- lint: pass/fail\n- tests: N passed, M added\n- build: pass/fail\n\n### Deviations from Plan\n\nList anything you did differently from the plan, and why.\n\n### Notes for Reviewer\n\nAnything the human reviewer should pay attention to.\n" : "",
+      implementation: () => true ? "# Skill: Implementation\n\n## Role\n\nYou are a senior software engineer implementing a plan that has been reviewed and approved.\nYou execute the plan precisely. You do not deviate without strong reason.\n\n## Instructions\n\n1. **Create the working branch FIRST** \u2014 before any code changes. See the `<branch-context>` block in the prompt for the convention and the exact `git checkout -b ...` command to run. Then `git push -u origin <branch>`. If the workdir has uncommitted changes, ask the user before stashing or discarding.\n2. Read the plan from the planning phase (provided in context). Treat it as the source of truth.\n3. Read project AGENTS.md and CONVENTIONS.md. All code must comply.\n4. Make the minimal changes the plan calls for. Do not refactor unrelated code.\n5. Write or update tests as the plan specifies.\n6. Run the project's validation: typecheck, lint, tests, build. If anything fails, fix it before considering the work complete.\n7. If you discover the plan is wrong or incomplete, stop and report rather than improvise.\n8. Commit in small logical chunks with conventional commit messages. Push to origin when done.\n9. **Write the branch name** (just the name, no newline) to the file path given in the `<bode-handoff>` block \u2014 that's how bode knows what branch you used.\n\n## Output Format\n\nMarkdown summary:\n\n### Summary\n\n2-3 sentences on what was implemented.\n\n### Files Changed\n\n- `path/to/file.ts` \u2014 brief description\n\n### Validation\n\n- typecheck: pass/fail\n- lint: pass/fail\n- tests: N passed, M added\n- build: pass/fail\n\n### Deviations from Plan\n\nList anything you did differently from the plan, and why.\n\n### Notes for Reviewer\n\nAnything the human reviewer should pay attention to.\n" : "",
       review: () => true ? "# Skill: Review\n\n## Role\n\nYou are a senior reviewer doing a critical code review on a pull request.\nYour goal is to catch bugs, design problems, and convention violations before a human reviews.\nYou are NOT here to praise. You are here to find problems.\n\n## Instructions\n\n1. Read the plan, implementation summary, and the actual diff.\n2. Read AGENTS.md and CONVENTIONS.md. Flag any violations.\n3. Check for:\n   - Logic bugs (off-by-one, null handling, race conditions)\n   - Missing error handling\n   - Tests that don't actually test what they claim\n   - Code that doesn't match the plan\n   - Performance issues (N+1, unnecessary loops)\n   - Security issues (injection, secrets in code, unsafe defaults)\n   - Convention violations (naming, file structure, import order)\n4. Be specific. Cite file and line. Explain what is wrong and how to fix.\n5. If everything looks good, say so clearly. Do not invent problems.\n\n## Output Format\n\nMarkdown:\n\n### Verdict\n\nOne of: `APPROVE`, `REQUEST_CHANGES`, or `COMMENT`.\n\n### Blocking Issues\n\nFor each: file:line, what's wrong, suggested fix. Empty if none.\n\n### Non-blocking Suggestions\n\nStyle, naming, opportunities for cleanup. Empty if none.\n\n### Summary\n\n2-3 sentences.\n" : ""
     };
   }
 });
 
 // src/skills/prompt-builder.ts
+function suggestedBranchName(taskKey, issueType) {
+  const prefix = ISSUE_TYPE_TO_PREFIX[issueType.toLowerCase()] ?? "feat";
+  return `${prefix}/${taskKey.toLowerCase()}`;
+}
 function buildPrompt(skillContent, context) {
   const parts = [skillContent];
   parts.push("\n## Context\n");
@@ -44042,11 +44046,13 @@ ${context.priorArtifact}
 </untrusted-prior-artifact>`
     );
   }
+  const branchBlock = buildBranchBlock(context);
+  if (branchBlock) parts.push(branchBlock);
   if (context.repos && context.repos.length > 0) {
     const tool = context.branchTool ?? "git";
     const mainWd = context.mainWorkdir ?? "";
     const lines = [
-      "\n<branch-instructions>",
+      "\n<sibling-repos>",
       "This task may involve changes across multiple repositories.",
       `Primary working directory: \`${mainWd}\``,
       "",
@@ -44057,38 +44063,117 @@ ${context.priorArtifact}
     }
     lines.push(
       "",
-      "During planning, identify which repositories need changes.",
-      `For each affected repo, create a branch using \`${tool}\`:`,
+      "For each repo that needs changes, create a branch using the same name as the primary:",
       "",
       `  git -C <workdir> checkout -b <branch-name> <base-branch>`,
+      `  git -C <workdir> push -u origin <branch-name>`,
       "",
-      "Use the same branch name across all affected repos.",
-      "Only create branches in repos you determine need changes.",
-      "</branch-instructions>"
+      "Use the same branch name across all affected repos. Use the `" + tool + "` tool.",
+      "</sibling-repos>"
     );
     parts.push(lines.join("\n"));
   }
   if (context.artifactPath) {
-    parts.push(
-      [
-        "\n<bode-handoff>",
-        "IMPORTANT \u2014 when you are finished with this phase, you MUST:",
-        `  1. Write your final markdown artifact to exactly this path:`,
-        `     ${context.artifactPath}`,
-        "     Overwrite if it already exists. Write only the artifact content \u2014 no commentary outside it.",
-        "  2. Then exit the session (type /exit, or quit normally).",
-        "",
-        "Bode reads that file after you exit to know the phase succeeded.",
-        "If the file is missing or empty when you exit, bode will ask the user what happened.",
-        "</bode-handoff>"
-      ].join("\n")
+    const handoffLines = [
+      "\n<bode-handoff>",
+      "IMPORTANT \u2014 when you are finished with this phase, you MUST:",
+      `  1. Write your final markdown artifact to exactly this path:`,
+      `     ${context.artifactPath}`,
+      "     Overwrite if it already exists. Write only the artifact content \u2014 no commentary outside it."
+    ];
+    if (context.branchFile && context.phaseName === "implementation") {
+      handoffLines.push(
+        `  2. Write the working branch name (just the name, no newline) to:`,
+        `     ${context.branchFile}`,
+        "     Bode reads this to track the branch for status and abort cleanup."
+      );
+      handoffLines.push(`  3. Then exit the session (type /exit, or quit normally).`);
+    } else {
+      handoffLines.push(`  2. Then exit the session (type /exit, or quit normally).`);
+    }
+    handoffLines.push(
+      "",
+      "Bode reads those files after you exit to know the phase succeeded.",
+      "If the artifact file is missing or empty when you exit, bode will ask the user what happened.",
+      "</bode-handoff>"
     );
+    parts.push(handoffLines.join("\n"));
   }
   return parts.join("\n");
 }
+function buildBranchBlock(context) {
+  const phase = context.phaseName;
+  const base = context.baseBranch ?? "main";
+  const current = context.currentBranch;
+  const workdir = context.mainWorkdir ?? "";
+  const suggested = suggestedBranchName(context.jiraIssue.key, context.jiraIssue.issueType);
+  if (phase === "planning") {
+    return [
+      "\n<branch-context>",
+      "Planning phase \u2014 READ-ONLY.",
+      `You are on the base branch (${base}). Do not create branches or modify files in this phase.`,
+      "Your job is to produce a written plan in the artifact file.",
+      "</branch-context>"
+    ].join("\n");
+  }
+  if (phase === "implementation") {
+    const lines = [
+      "\n<branch-context>",
+      "Implementation phase \u2014 CODE CHANGES EXPECTED.",
+      `Workdir: ${workdir}`,
+      `Base branch: ${base}`,
+      "",
+      "BEFORE making any code changes, create and switch to a working branch:"
+    ];
+    if (current) {
+      lines.push(
+        `  (a branch \`${current}\` already exists in run meta; check it out: \`git checkout ${current}\` or use it as-is)`
+      );
+    } else {
+      lines.push(
+        "  Branch naming convention:",
+        "    Story       \u2192 feat/<lowercase-key>",
+        "    Bug         \u2192 fix/<lowercase-key>",
+        "    Task        \u2192 chore/<lowercase-key>",
+        "    Improvement \u2192 refactor/<lowercase-key>",
+        "",
+        `  Suggested for this task: \`${suggested}\``,
+        "",
+        "  Run:",
+        `    git checkout -b ${suggested} ${base}`,
+        `    git push -u origin ${suggested}`,
+        "",
+        "If the working directory has uncommitted changes, ASK the user before stashing or discarding.",
+        "If you prefer a different branch name, use it \u2014 just write whatever name you used to branch.txt at the end."
+      );
+    }
+    lines.push("</branch-context>");
+    return lines.join("\n");
+  }
+  if (phase === "review") {
+    return [
+      "\n<branch-context>",
+      `Review phase \u2014 READ-ONLY review of the working branch (${current ?? "<unknown>"}).`,
+      "Do not modify code or change branches.",
+      "</branch-context>"
+    ].join("\n");
+  }
+  return null;
+}
+var ISSUE_TYPE_TO_PREFIX;
 var init_prompt_builder = __esm({
   "src/skills/prompt-builder.ts"() {
     "use strict";
+    ISSUE_TYPE_TO_PREFIX = {
+      story: "feat",
+      "user story": "feat",
+      bug: "fix",
+      task: "chore",
+      improvement: "refactor",
+      "sub-task": "feat",
+      epic: "feat",
+      spike: "chore"
+    };
   }
 });
 
@@ -44300,12 +44385,21 @@ async function runPhase(taskKey, status, config2, jira, options) {
   const runDir = getRunDir(taskKey);
   const logPath = (0, import_node_path12.join)(runDir, `${phaseName}.log`);
   const artifactPath = (0, import_node_path12.join)(runDir, `${phaseName}.md`);
+  const branchFile = (0, import_node_path12.join)(runDir, "branch.txt");
+  const currentMetaResult = await loadRunMeta(taskKey);
+  const currentMeta = currentMetaResult.ok ? currentMetaResult.value : null;
+  const baseBranch = currentMeta?.baseBranch;
+  const currentBranch = currentMeta?.branch;
   const prompt = buildPrompt(skillResult.value, {
     jiraIssue: issue2,
     projectAgentsMd,
     repoFileTree,
     priorArtifact,
     artifactPath,
+    branchFile,
+    phaseName,
+    ...baseBranch ? { baseBranch } : {},
+    ...currentBranch ? { currentBranch } : {},
     ...repos ? { repos } : {},
     ...options.projectConfig?.branch_tool ? { branchTool: options.projectConfig.branch_tool } : {},
     ...options.projectRoot ? { mainWorkdir: options.projectRoot } : {}
@@ -44389,11 +44483,23 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
       await jira.addLabel(taskKey, labelsConfig[nextLabelKey]);
     }
   }
+  let aiBranch = null;
+  if ((0, import_node_fs10.existsSync)(branchFile)) {
+    const raw = await readText(branchFile);
+    const trimmed = raw?.trim();
+    if (trimmed && trimmed.length > 0 && trimmed.length < 200) {
+      aiBranch = trimmed;
+    }
+  }
   const nextStatus = getNextPhase(status);
-  if (nextStatus) {
+  if (nextStatus || aiBranch) {
     const metaResult = await loadRunMeta(taskKey);
     if (metaResult.ok && metaResult.value) {
-      await saveRunMeta({ ...metaResult.value, status: nextStatus });
+      await saveRunMeta({
+        ...metaResult.value,
+        ...nextStatus ? { status: nextStatus } : {},
+        ...aiBranch ? { branch: aiBranch } : {}
+      });
     }
   }
   return {
@@ -44475,403 +44581,6 @@ var init_phase_runner = __esm({
   }
 });
 
-// src/adapters/vcs/git.ts
-async function git(workdir, args, signal) {
-  try {
-    const result = await execFileAsync("git", args, {
-      cwd: workdir,
-      signal: signal ?? void 0
-    });
-    return { ok: true, value: { stdout: result.stdout.trim(), stderr: result.stderr.trim() } };
-  } catch (error52) {
-    return { ok: false, error: error52 };
-  }
-}
-async function createBranch(workdir, name, from, signal) {
-  const result = await git(workdir, ["checkout", "-b", name, from], signal);
-  if (!result.ok)
-    return {
-      ok: false,
-      error: new Error(`Failed to create branch ${name} from ${from}: ${result.error.message}`)
-    };
-  return { ok: true, value: void 0 };
-}
-async function checkout(workdir, branch, signal) {
-  const result = await git(workdir, ["checkout", branch], signal);
-  if (!result.ok)
-    return { ok: false, error: new Error(`Failed to checkout ${branch}: ${result.error.message}`) };
-  return { ok: true, value: void 0 };
-}
-async function pushBranch(workdir, name, signal) {
-  const result = await git(workdir, ["push", "-u", "origin", name], signal);
-  if (!result.ok)
-    return {
-      ok: false,
-      error: new Error(`Failed to push branch ${name}: ${result.error.message}`)
-    };
-  return { ok: true, value: void 0 };
-}
-async function deleteBranch(workdir, name, signal) {
-  const result = await git(workdir, ["branch", "-D", name], signal);
-  if (!result.ok)
-    return {
-      ok: false,
-      error: new Error(`Failed to delete branch ${name}: ${result.error.message}`)
-    };
-  return { ok: true, value: void 0 };
-}
-async function fetchRemote(workdir, remote, signal) {
-  const result = await git(workdir, ["fetch", remote], signal);
-  if (!result.ok)
-    return { ok: false, error: new Error(`Failed to fetch ${remote}: ${result.error.message}`) };
-  return { ok: true, value: void 0 };
-}
-async function isAncestor(workdir, ancestor, ref) {
-  const result = await git(workdir, ["merge-base", "--is-ancestor", ancestor, ref]);
-  if (!result.ok) return { ok: true, value: false };
-  return { ok: true, value: true };
-}
-async function hasConflicts(workdir, base, head) {
-  const result = await git(workdir, [
-    "diff",
-    "--name-only",
-    "--diff-filter=U",
-    `${base}...${head}`
-  ]);
-  if (!result.ok) return { ok: false, error: result.error };
-  return { ok: true, value: result.value.stdout.length > 0 };
-}
-async function stash(workdir, message, signal) {
-  const args = ["stash", "push"];
-  if (message) args.push("-m", message);
-  const result = await git(workdir, args, signal);
-  if (!result.ok) return result;
-  return { ok: true, value: void 0 };
-}
-async function isClean(workdir) {
-  const result = await git(workdir, ["status", "--porcelain"]);
-  if (!result.ok) return { ok: false, error: result.error };
-  return { ok: true, value: result.value.stdout.length === 0 };
-}
-var import_node_child_process3, import_node_util10, execFileAsync;
-var init_git = __esm({
-  "src/adapters/vcs/git.ts"() {
-    "use strict";
-    import_node_child_process3 = require("node:child_process");
-    import_node_util10 = require("node:util");
-    execFileAsync = (0, import_node_util10.promisify)(import_node_child_process3.execFile);
-  }
-});
-
-// src/adapters/vcs/github.ts
-var import_node_child_process4, import_node_util11, execFileAsync2, GitHubAdapter;
-var init_github = __esm({
-  "src/adapters/vcs/github.ts"() {
-    "use strict";
-    import_node_child_process4 = require("node:child_process");
-    import_node_util11 = require("node:util");
-    execFileAsync2 = (0, import_node_util11.promisify)(import_node_child_process4.execFile);
-    GitHubAdapter = class {
-      async createPullRequest(options) {
-        try {
-          const args = [
-            "pr",
-            "create",
-            "--title",
-            options.title,
-            "--body",
-            options.body,
-            "--head",
-            options.head
-          ];
-          if (options.base) {
-            args.push("--base", options.base);
-          }
-          const execOpts = {};
-          if (options.signal) execOpts.signal = options.signal;
-          if (options.workdir) execOpts.cwd = options.workdir;
-          let stdout;
-          try {
-            const res = await execFileAsync2("gh", args, execOpts);
-            stdout = res.stdout;
-          } catch (e) {
-            const err = e;
-            const combined = `${err.message ?? ""}
-${err.stderr ?? ""}`;
-            if (/Could not resolve to a Repository/i.test(combined)) {
-              const remoteRes = await execFileAsync2("git", ["remote", "get-url", "origin"], {
-                ...options.workdir ? { cwd: options.workdir } : {}
-              }).catch(() => ({ stdout: "<unknown>", stderr: "" }));
-              return {
-                ok: false,
-                error: new Error(
-                  `gh pr create failed: GitHub does not recognize this repository.
-  Workdir:      ${options.workdir ?? process.cwd()}
-  Local remote: ${remoteRes.stdout.trim()}
-  Checklist:
-    - Does the repo exist on GitHub under that org/name?
-    - Is your gh auth pointing to the right account? Run: gh auth status
-    - Update the git remote if needed: git remote set-url origin <url>`
-                )
-              };
-            }
-            throw e;
-          }
-          const urlMatch = stdout.match(/https:\/\/[^\s]*\/pull\/\d+/);
-          const url2 = urlMatch?.[0] ?? stdout.trim().split("\n").pop() ?? "";
-          const numberMatch = url2.match(/\/pull\/(\d+)/);
-          const prNumber = numberMatch?.[1] ? parseInt(numberMatch[1], 10) : 0;
-          return {
-            ok: true,
-            value: {
-              number: prNumber,
-              url: url2,
-              title: options.title,
-              body: options.body,
-              headBranch: options.head,
-              baseBranch: options.base ?? "main"
-            }
-          };
-        } catch (error52) {
-          return { ok: false, error: error52 };
-        }
-      }
-      async addComment(prNumber, body, signal) {
-        try {
-          await execFileAsync2("gh", ["pr", "comment", String(prNumber), "--body", body], {
-            signal: signal ?? void 0
-          });
-          return { ok: true, value: void 0 };
-        } catch (error52) {
-          return { ok: false, error: error52 };
-        }
-      }
-      async detectRemote() {
-        try {
-          const { stdout } = await execFileAsync2("git", ["remote", "get-url", "origin"]);
-          const url2 = stdout.trim();
-          const sshMatch = url2.match(/git@github\.com:(.+?)\/(.+?)(?:\.git)?$/);
-          if (sshMatch?.[1] && sshMatch[2]) {
-            return {
-              ok: true,
-              value: { type: "github", org: sshMatch[1], repo: sshMatch[2] }
-            };
-          }
-          const httpsMatch = url2.match(/https:\/\/github\.com\/(.+?)\/(.+?)(?:\.git)?$/);
-          if (httpsMatch?.[1] && httpsMatch[2]) {
-            return {
-              ok: true,
-              value: { type: "github", org: httpsMatch[1], repo: httpsMatch[2] }
-            };
-          }
-          return { ok: false, error: new Error("Could not parse GitHub remote URL") };
-        } catch (error52) {
-          return { ok: false, error: error52 };
-        }
-      }
-      async mergePR(prNumber, signal) {
-        try {
-          await execFileAsync2("gh", ["pr", "merge", String(prNumber), "--squash", "--delete-branch"], {
-            signal: signal ?? void 0
-          });
-          return { ok: true, value: void 0 };
-        } catch (error52) {
-          return { ok: false, error: error52 };
-        }
-      }
-    };
-  }
-});
-
-// src/adapters/vcs/gitlab.ts
-var import_node_child_process5, import_node_util12, execFileAsync3, GitLabAdapter;
-var init_gitlab = __esm({
-  "src/adapters/vcs/gitlab.ts"() {
-    "use strict";
-    import_node_child_process5 = require("node:child_process");
-    import_node_util12 = require("node:util");
-    execFileAsync3 = (0, import_node_util12.promisify)(import_node_child_process5.execFile);
-    GitLabAdapter = class {
-      async createPullRequest(options) {
-        try {
-          const args = [
-            "mr",
-            "create",
-            "--title",
-            options.title,
-            "--description",
-            options.body,
-            "--source-branch",
-            options.head,
-            "--target-branch",
-            options.base ?? "main",
-            "--no-editor"
-          ];
-          const execOpts = {};
-          if (options.signal) execOpts.signal = options.signal;
-          if (options.workdir) execOpts.cwd = options.workdir;
-          const { stdout } = await execFileAsync3("glab", args, execOpts);
-          const urlMatch = stdout.match(/https:\/\/[^\s]*\/-\/merge_requests\/\d+/);
-          const url2 = urlMatch?.[0] ?? stdout.trim().split("\n").pop() ?? "";
-          const numberMatch = url2.match(/\/merge_requests\/(\d+)/);
-          const mrNumber = numberMatch?.[1] ? parseInt(numberMatch[1], 10) : 0;
-          return {
-            ok: true,
-            value: {
-              number: mrNumber,
-              url: url2,
-              title: options.title,
-              body: options.body,
-              headBranch: options.head,
-              baseBranch: options.base ?? "main"
-            }
-          };
-        } catch (error52) {
-          return { ok: false, error: error52 };
-        }
-      }
-      async addComment(prNumber, body, signal) {
-        try {
-          await execFileAsync3("glab", ["mr", "note", String(prNumber), "--message", body], {
-            signal: signal ?? void 0
-          });
-          return { ok: true, value: void 0 };
-        } catch (error52) {
-          return { ok: false, error: error52 };
-        }
-      }
-      async detectRemote() {
-        try {
-          const { stdout } = await execFileAsync3("git", ["remote", "get-url", "origin"]);
-          const url2 = stdout.trim();
-          const sshMatch = url2.match(/git@(gitlab\..+?):(.+?)\/(.+?)(?:\.git)?$/);
-          if (sshMatch?.[1] && sshMatch[2] && sshMatch[3]) {
-            return {
-              ok: true,
-              value: {
-                type: "gitlab",
-                org: sshMatch[2],
-                repo: sshMatch[3]
-              }
-            };
-          }
-          const httpsMatch = url2.match(/https:\/\/(gitlab\..+?)\/(.+?)\/(.+?)(?:\.git)?$/);
-          if (httpsMatch?.[1] && httpsMatch[2] && httpsMatch[3]) {
-            return {
-              ok: true,
-              value: {
-                type: "gitlab",
-                org: httpsMatch[2],
-                repo: httpsMatch[3]
-              }
-            };
-          }
-          return { ok: false, error: new Error("Could not parse GitLab remote URL") };
-        } catch (error52) {
-          return { ok: false, error: error52 };
-        }
-      }
-      async mergePR(prNumber, signal) {
-        try {
-          await execFileAsync3("glab", ["mr", "merge", String(prNumber), "--squash", "--yes"], {
-            signal: signal ?? void 0
-          });
-          return { ok: true, value: void 0 };
-        } catch (error52) {
-          return { ok: false, error: error52 };
-        }
-      }
-    };
-  }
-});
-
-// src/adapters/vcs/factory.ts
-function createVcsAdapter(provider) {
-  switch (provider) {
-    case "gitlab":
-      return new GitLabAdapter();
-    case "github":
-    default:
-      return new GitHubAdapter();
-  }
-}
-var init_factory2 = __esm({
-  "src/adapters/vcs/factory.ts"() {
-    "use strict";
-    init_github();
-    init_gitlab();
-  }
-});
-
-// src/orchestrator/branch-manager.ts
-function branchNameForTask(taskKey, issueType) {
-  const prefix = ISSUE_TYPE_TO_PREFIX[issueType.toLowerCase()] ?? "feat";
-  return `${prefix}/${taskKey.toLowerCase()}`;
-}
-async function startBranch(workdir, taskKey, issueType, baseBranch, signal) {
-  const cleanResult = await isClean(workdir);
-  if (!cleanResult.ok) return cleanResult;
-  if (!cleanResult.value) {
-    return {
-      ok: false,
-      error: new Error("Working directory is not clean. Commit or stash changes first.")
-    };
-  }
-  const branchName = branchNameForTask(taskKey, issueType);
-  const createResult = await createBranch(workdir, branchName, baseBranch, signal);
-  if (!createResult.ok) return createResult;
-  const pushResult = await pushBranch(workdir, branchName, signal);
-  if (!pushResult.ok) {
-    return {
-      ok: false,
-      error: new Error(`Branch created locally but push failed: ${pushResult.error.message}`)
-    };
-  }
-  return { ok: true, value: branchName };
-}
-async function checkForConflicts(workdir, baseBranch, taskBranch, signal) {
-  const fetchResult = await fetchRemote(workdir, "origin", signal);
-  if (!fetchResult.ok) return fetchResult;
-  const ancestorResult = await isAncestor(workdir, `origin/${baseBranch}`, taskBranch);
-  if (!ancestorResult.ok) return ancestorResult;
-  if (ancestorResult.value) {
-    return { ok: true, value: false };
-  }
-  const conflictResult = await hasConflicts(workdir, `origin/${baseBranch}`, taskBranch);
-  if (!conflictResult.ok) return conflictResult;
-  return { ok: true, value: conflictResult.value };
-}
-async function switchToBase(workdir, baseBranch) {
-  return checkout(workdir, baseBranch);
-}
-async function cleanupBranch(workdir, branch, baseBranch) {
-  const switchResult = await checkout(workdir, baseBranch);
-  if (!switchResult.ok) return switchResult;
-  return deleteBranch(workdir, branch);
-}
-async function mergePR(prNumber, provider, signal) {
-  const vcs = createVcsAdapter(provider);
-  return vcs.mergePR(prNumber, signal);
-}
-var ISSUE_TYPE_TO_PREFIX;
-var init_branch_manager = __esm({
-  "src/orchestrator/branch-manager.ts"() {
-    "use strict";
-    init_git();
-    init_factory2();
-    ISSUE_TYPE_TO_PREFIX = {
-      story: "feat",
-      "user story": "feat",
-      bug: "fix",
-      task: "chore",
-      improvement: "refactor",
-      "sub-task": "feat",
-      epic: "feat",
-      spike: "chore"
-    };
-  }
-});
-
 // src/config/transitions.ts
 var transitions_exports = {};
 __export(transitions_exports, {
@@ -44905,20 +44614,7 @@ var init_transitions = __esm({
 });
 
 // src/cli/summary.ts
-async function getDiffSummary(workdir, baseBranch) {
-  if (!workdir || !baseBranch) return null;
-  try {
-    const { stdout } = await execFileAsync4("git", ["diff", "--shortstat", `${baseBranch}...HEAD`], {
-      cwd: workdir
-    });
-    const trimmed = stdout.trim();
-    if (!trimmed) return "no file changes detected";
-    return trimmed;
-  } catch {
-    return null;
-  }
-}
-async function printPhaseArtifacts(taskKey, phaseName, options) {
+async function printPhaseArtifacts(taskKey, phaseName) {
   const runDir = getRunDir(taskKey);
   const logPath = (0, import_node_path13.join)(runDir, `${phaseName}.log`);
   const artifactPath = (0, import_node_path13.join)(runDir, `${phaseName}.md`);
@@ -44928,12 +44624,6 @@ async function printPhaseArtifacts(taskKey, phaseName, options) {
   }
   if ((0, import_node_fs11.existsSync)(logPath)) {
     lines.push(`  Log:      ${import_picocolors3.default.dim(logPath)}`);
-  }
-  const diff = await getDiffSummary(options?.workdir, options?.baseBranch);
-  if (diff) {
-    const isEmpty = diff === "no file changes detected";
-    const label = isEmpty ? import_picocolors3.default.yellow(diff) + import_picocolors3.default.dim(" \u2014 running --auto without --dangerously-approve-all? See `bode start --help`.") : diff;
-    lines.push(`  Diff:     ${label}`);
   }
   if (lines.length > 0) {
     console.log(lines.join("\n"));
@@ -44994,18 +44684,15 @@ function formatDuration(ms) {
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m`;
 }
-var import_picocolors3, import_node_fs11, import_node_path13, import_node_child_process6, import_node_util13, PHASE_FILES, execFileAsync4;
+var import_picocolors3, import_node_fs11, import_node_path13, PHASE_FILES;
 var init_summary = __esm({
   "src/cli/summary.ts"() {
     "use strict";
     import_picocolors3 = __toESM(require_picocolors());
     import_node_fs11 = require("node:fs");
     import_node_path13 = require("node:path");
-    import_node_child_process6 = require("node:child_process");
-    import_node_util13 = require("node:util");
     init_defaults();
     PHASE_FILES = ["planning", "implementation", "review"];
-    execFileAsync4 = (0, import_node_util13.promisify)(import_node_child_process6.execFile);
   }
 });
 
@@ -45100,21 +44787,25 @@ function buildPrPrompt(a) {
     `- Tool:         ${a.tool}`,
     ``,
     `## Steps`,
-    `1. Read your own artifacts to recall what changed (already inlined below).`,
-    `2. Craft a clear, specific PR title (avoid generic "${a.taskKey}: ${a.summary}" boilerplate \u2014 use what you actually did).`,
-    `3. Craft a PR body in markdown that includes:`,
+    `1. Conflict check FIRST. Run these in the workdir:`,
+    `     git fetch origin`,
+    `     git merge-base --is-ancestor origin/${a.baseBranch} HEAD`,
+    `   If the second command exits non-zero (conflicts), STOP \u2014 do NOT open the PR. Report the conflicting files to the user and exit. Do not write anything to ${a.prFile}.`,
+    `2. Read your own artifacts to recall what changed (already inlined below).`,
+    `3. Craft a clear, specific PR title (avoid generic "${a.taskKey}: ${a.summary}" boilerplate \u2014 use what you actually did).`,
+    `4. Craft a PR body in markdown that includes:`,
     `     - Summary of what changed and why`,
     `     - Notable design decisions`,
     `     - Test coverage you added or relied on`,
     `     - Anything reviewers should look at carefully`,
     `     - The review verdict if one is included`,
-    `4. Run \`${a.tool}\` to create the PR. Example shape:`,
+    `5. Run \`${a.tool}\` to create the PR. Example shape:`,
     `     \`${a.createCmd}\``,
     `   Run it from the workdir above \u2014 your terminal is already there.`,
-    `5. After it succeeds, write ONLY the PR URL on a single line to:`,
+    `6. After it succeeds, write ONLY the PR URL on a single line to:`,
     `     ${a.prFile}`,
     `   No extra text, no markdown, no commentary \u2014 just the URL.`,
-    `6. Exit the session.`,
+    `7. Exit the session.`,
     ``,
     `## Constraints`,
     `- Do NOT modify code, run tests, or change branches. Your only job is to open the PR.`,
@@ -45227,10 +44918,7 @@ ${phaseResult.error.message}`
     );
     const phaseName = getPhaseNameForStatus(executingStatus);
     if (phaseName) {
-      await printPhaseArtifacts(taskKey, phaseName, {
-        workdir: options.projectConfig?.workdir,
-        baseBranch: meta3.baseBranch
-      });
+      await printPhaseArtifacts(taskKey, phaseName);
     }
     await postPhaseSummary(
       taskKey,
@@ -45275,36 +44963,12 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
   if (!workdir || !branch || !baseBranch) {
     return {
       ok: false,
-      error: new Error("Missing branch info. Cannot check for conflicts or create PR.")
+      error: new Error(
+        "Missing branch info. The implementation phase should have created a branch and persisted it to meta via branch.txt."
+      )
     };
   }
-  const spinner = ora("Checking for conflicts...").start();
-  const conflictResult = await checkForConflicts(workdir, baseBranch, branch, options.signal);
-  if (!conflictResult.ok) {
-    spinner.fail(`Conflict check failed: ${conflictResult.error.message}`);
-    return conflictResult;
-  }
-  if (conflictResult.value) {
-    spinner.warn("Conflicts detected!");
-    const updatedMeta2 = {
-      ...meta3,
-      status: "awaiting-merge",
-      conflict: true,
-      updatedAt: Date.now()
-    };
-    await saveRunMeta(updatedMeta2);
-    const labels = config2.jira_labels;
-    if (labels) {
-      await jira.addLabel(taskKey, "bode:conflict");
-    }
-    await postJiraComment(
-      taskKey,
-      jira,
-      `**[Bode Conflict]** Conflicts detected with \`${baseBranch}\`. Manual resolution required.`
-    );
-    return { ok: true, value: { kind: "conflict", meta: updatedMeta2 } };
-  }
-  spinner.succeed("No conflicts. Handing off to AI to open the pull request...");
+  console.log(import_picocolors4.default.dim("Handing off to AI to open the pull request (with conflict check)..."));
   const issueResult = await jira.getIssue(taskKey, options.signal);
   const summary = issueResult.ok ? issueResult.value.summary : meta3.jiraSummary;
   const { createPullRequestViaAI: createPullRequestViaAI2 } = await Promise.resolve().then(() => (init_pr_creator(), pr_creator_exports));
@@ -45351,7 +45015,7 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
     `**[Bode PR]** Created: ${prResult.value.url}
 Branch: \`${branch}\` \u2192 \`${baseBranch}\``
   );
-  spinner.succeed(`PR created: ${prResult.value.url}`);
+  console.log(import_picocolors4.default.green(`PR created: ${prResult.value.url}`));
   return { ok: true, value: { kind: "pr-created", meta: updatedMeta, prUrl: prResult.value.url } };
 }
 async function transitionForPhase(taskKey, status, jira, config2, projectConfig) {
@@ -45422,13 +45086,206 @@ var init_engine = __esm({
     init_phase();
     init_run_meta();
     init_phase_runner();
-    init_branch_manager();
     init_loader();
     init_transitions();
     init_summary();
     init_phase();
     import_picocolors4 = __toESM(require_picocolors());
     init_ora();
+  }
+});
+
+// src/adapters/vcs/github.ts
+var import_node_child_process3, import_node_util10, execFileAsync, GitHubAdapter;
+var init_github = __esm({
+  "src/adapters/vcs/github.ts"() {
+    "use strict";
+    import_node_child_process3 = require("node:child_process");
+    import_node_util10 = require("node:util");
+    execFileAsync = (0, import_node_util10.promisify)(import_node_child_process3.execFile);
+    GitHubAdapter = class {
+      async createPullRequest(options) {
+        try {
+          const args = [
+            "pr",
+            "create",
+            "--title",
+            options.title,
+            "--body",
+            options.body,
+            "--head",
+            options.head
+          ];
+          if (options.base) {
+            args.push("--base", options.base);
+          }
+          const execOpts = {};
+          if (options.signal) execOpts.signal = options.signal;
+          if (options.workdir) execOpts.cwd = options.workdir;
+          let stdout;
+          try {
+            const res = await execFileAsync("gh", args, execOpts);
+            stdout = res.stdout;
+          } catch (e) {
+            const err = e;
+            const combined = `${err.message ?? ""}
+${err.stderr ?? ""}`;
+            if (/Could not resolve to a Repository/i.test(combined)) {
+              return {
+                ok: false,
+                error: new Error(
+                  `gh pr create failed: GitHub does not recognize this repository.
+  Workdir: ${options.workdir ?? process.cwd()}
+  Checklist:
+    - Does the repo exist on GitHub under the right org/name?
+    - Is your gh auth pointing to the right account? Run: gh auth status
+    - If the local git remote is wrong, fix with: git remote set-url origin <url>`
+                )
+              };
+            }
+            throw e;
+          }
+          const urlMatch = stdout.match(/https:\/\/[^\s]*\/pull\/\d+/);
+          const url2 = urlMatch?.[0] ?? stdout.trim().split("\n").pop() ?? "";
+          const numberMatch = url2.match(/\/pull\/(\d+)/);
+          const prNumber = numberMatch?.[1] ? parseInt(numberMatch[1], 10) : 0;
+          return {
+            ok: true,
+            value: {
+              number: prNumber,
+              url: url2,
+              title: options.title,
+              body: options.body,
+              headBranch: options.head,
+              baseBranch: options.base ?? "main"
+            }
+          };
+        } catch (error52) {
+          return { ok: false, error: error52 };
+        }
+      }
+      async addComment(prNumber, body, signal) {
+        try {
+          await execFileAsync("gh", ["pr", "comment", String(prNumber), "--body", body], {
+            signal: signal ?? void 0
+          });
+          return { ok: true, value: void 0 };
+        } catch (error52) {
+          return { ok: false, error: error52 };
+        }
+      }
+      async mergePR(prNumber, signal) {
+        try {
+          await execFileAsync("gh", ["pr", "merge", String(prNumber), "--squash", "--delete-branch"], {
+            signal: signal ?? void 0
+          });
+          return { ok: true, value: void 0 };
+        } catch (error52) {
+          return { ok: false, error: error52 };
+        }
+      }
+    };
+  }
+});
+
+// src/adapters/vcs/gitlab.ts
+var import_node_child_process4, import_node_util11, execFileAsync2, GitLabAdapter;
+var init_gitlab = __esm({
+  "src/adapters/vcs/gitlab.ts"() {
+    "use strict";
+    import_node_child_process4 = require("node:child_process");
+    import_node_util11 = require("node:util");
+    execFileAsync2 = (0, import_node_util11.promisify)(import_node_child_process4.execFile);
+    GitLabAdapter = class {
+      async createPullRequest(options) {
+        try {
+          const args = [
+            "mr",
+            "create",
+            "--title",
+            options.title,
+            "--description",
+            options.body,
+            "--source-branch",
+            options.head,
+            "--target-branch",
+            options.base ?? "main",
+            "--no-editor"
+          ];
+          const execOpts = {};
+          if (options.signal) execOpts.signal = options.signal;
+          if (options.workdir) execOpts.cwd = options.workdir;
+          const { stdout } = await execFileAsync2("glab", args, execOpts);
+          const urlMatch = stdout.match(/https:\/\/[^\s]*\/-\/merge_requests\/\d+/);
+          const url2 = urlMatch?.[0] ?? stdout.trim().split("\n").pop() ?? "";
+          const numberMatch = url2.match(/\/merge_requests\/(\d+)/);
+          const mrNumber = numberMatch?.[1] ? parseInt(numberMatch[1], 10) : 0;
+          return {
+            ok: true,
+            value: {
+              number: mrNumber,
+              url: url2,
+              title: options.title,
+              body: options.body,
+              headBranch: options.head,
+              baseBranch: options.base ?? "main"
+            }
+          };
+        } catch (error52) {
+          return { ok: false, error: error52 };
+        }
+      }
+      async addComment(prNumber, body, signal) {
+        try {
+          await execFileAsync2("glab", ["mr", "note", String(prNumber), "--message", body], {
+            signal: signal ?? void 0
+          });
+          return { ok: true, value: void 0 };
+        } catch (error52) {
+          return { ok: false, error: error52 };
+        }
+      }
+      async mergePR(prNumber, signal) {
+        try {
+          await execFileAsync2("glab", ["mr", "merge", String(prNumber), "--squash", "--yes"], {
+            signal: signal ?? void 0
+          });
+          return { ok: true, value: void 0 };
+        } catch (error52) {
+          return { ok: false, error: error52 };
+        }
+      }
+    };
+  }
+});
+
+// src/adapters/vcs/factory.ts
+function createVcsAdapter(provider) {
+  switch (provider) {
+    case "gitlab":
+      return new GitLabAdapter();
+    case "github":
+    default:
+      return new GitHubAdapter();
+  }
+}
+var init_factory2 = __esm({
+  "src/adapters/vcs/factory.ts"() {
+    "use strict";
+    init_github();
+    init_gitlab();
+  }
+});
+
+// src/orchestrator/branch-manager.ts
+async function mergePR(prNumber, provider, signal) {
+  const vcs = createVcsAdapter(provider);
+  return vcs.mergePR(prNumber, signal);
+}
+var init_branch_manager = __esm({
+  "src/orchestrator/branch-manager.ts"() {
+    "use strict";
+    init_factory2();
   }
 });
 
@@ -45444,19 +45301,7 @@ async function abortRun(taskKey) {
     return { ok: false, error: new Error(`No run found for ${taskKey}`) };
   }
   const meta3 = result.value;
-  if (meta3.branch && meta3.baseBranch) {
-    const workdir = meta3.workdir ?? process.cwd();
-    const cleanupResult = await cleanupBranch(workdir, meta3.branch, meta3.baseBranch);
-    if (!cleanupResult.ok) {
-      return {
-        ok: false,
-        error: new Error(
-          `Could not clean up branch ${meta3.branch}: ${cleanupResult.error.message}`
-        )
-      };
-    }
-  }
-  await saveRunMeta({ ...meta3, status: "aborted" });
+  await saveRunMeta({ ...meta3, status: "aborted", updatedAt: Date.now() });
   return { ok: true, value: void 0 };
 }
 async function abortAction(taskKey, options) {
@@ -45467,11 +45312,23 @@ async function abortAction(taskKey, options) {
   const result = await abortRun(taskKey);
   if (!result.ok) {
     console.error(import_picocolors5.default.red(result.error.message));
-    console.error(import_picocolors5.default.dim("You may need to delete the branch manually."));
     process.exit(1);
   }
+  const metaR = await loadRunMeta(taskKey);
+  const meta3 = metaR.ok ? metaR.value : null;
   console.log(import_picocolors5.default.green(`Task ${taskKey} aborted.`));
   console.log(import_picocolors5.default.dim(`Run data preserved at ${getRunDir(taskKey)}`));
+  if (meta3?.branch) {
+    console.log("");
+    console.log(
+      import_picocolors5.default.yellow(
+        `Branch ${import_picocolors5.default.bold(meta3.branch)} may still exist locally and/or on origin. Clean up with:`
+      )
+    );
+    console.log(import_picocolors5.default.dim(`  git checkout ${meta3.baseBranch ?? "main"}`));
+    console.log(import_picocolors5.default.dim(`  git branch -D ${meta3.branch}`));
+    console.log(import_picocolors5.default.dim(`  git push origin --delete ${meta3.branch}`));
+  }
 }
 var import_picocolors5;
 var init_abort = __esm({
@@ -45479,7 +45336,6 @@ var init_abort = __esm({
     "use strict";
     init_run_meta();
     init_defaults();
-    init_branch_manager();
     import_picocolors5 = __toESM(require_picocolors());
   }
 });
@@ -45690,59 +45546,18 @@ async function startAction(taskKey, options) {
       process.exit(1);
     }
   }
-  if (!isContinuing) {
-    const cleanResult = await isClean(projectConfig.workdir);
-    if (cleanResult.ok && !cleanResult.value) {
-      console.log(import_picocolors8.default.yellow("Working directory has uncommitted changes."));
-      try {
-        const action = await dist_default13({
-          message: "What to do?",
-          choices: [
-            { name: "Stash changes and continue", value: "stash" },
-            { name: "Retry (I will handle it manually)", value: "retry" },
-            { name: "Abort", value: "abort" }
-          ]
-        });
-        if (action === "abort") process.exit(0);
-        if (action === "retry") {
-          console.log(import_picocolors8.default.dim("Clean up manually and run the command again."));
-          process.exit(0);
-        }
-        if (action === "stash") {
-          const stashResult = await stash(projectConfig.workdir, `bode:auto-stash:${taskKey}`);
-          if (!stashResult.ok) {
-            console.error(import_picocolors8.default.red(`Stash failed: ${stashResult.error.message}`));
-            process.exit(1);
-          }
-          console.log(import_picocolors8.default.green("Changes stashed. Proceeding..."));
-        }
-      } catch (err) {
-        handlePromptError(err);
-        process.exit(1);
-      }
-    }
-  }
   const baseBranch = options.fromBranch ?? projectConfig.default_branch ?? "main";
   if (!isContinuing) {
-    console.log(import_picocolors8.default.dim(`Creating branch from ${baseBranch}...`));
-    const branchResult = await startBranch(
-      projectConfig.workdir,
-      taskKey,
-      issue2.issueType,
-      baseBranch
-    );
-    if (!branchResult.ok) {
-      console.error(import_picocolors8.default.red(`Branch error: ${branchResult.error.message}`));
-      process.exit(1);
-    }
-    const branch = branchResult.value;
-    console.log(import_picocolors8.default.green(`Branch created: ${branch} (from ${baseBranch})`));
     await createRun(taskKey, issue2.summary, {
-      branch,
       baseBranch,
       projectName: projectConfig.name,
       workdir: projectConfig.workdir
     });
+    console.log(
+      import_picocolors8.default.dim(
+        `Base branch: ${baseBranch} (the AI will create the working branch during implementation)`
+      )
+    );
   }
   const isAuto = options.auto ?? false;
   const isDangerous = options.dangerouslyAutoMerge ?? false;
@@ -45856,13 +45671,11 @@ PR created: ${import_picocolors8.default.bold(advanceVal.prUrl)}`));
         }
         console.log(import_picocolors8.default.green(`PR #${advanceVal.meta.prNumber} merged and branch deleted.`));
         if (advanceVal.meta.baseBranch) {
-          const switchResult = await switchToBase(
-            projectConfig.workdir,
-            advanceVal.meta.baseBranch
+          console.log(
+            import_picocolors8.default.dim(
+              `Switch back to ${advanceVal.meta.baseBranch} manually: \`git checkout ${advanceVal.meta.baseBranch}\``
+            )
           );
-          if (switchResult.ok) {
-            console.log(import_picocolors8.default.dim(`Switched to ${advanceVal.meta.baseBranch}`));
-          }
         }
         const { resolveJiraTransition: resolveJiraTransition2 } = await Promise.resolve().then(() => (init_transitions(), transitions_exports));
         const doneTarget = resolveJiraTransition2("done", config2, projectConfig);
@@ -45911,7 +45724,6 @@ var init_start = __esm({
     init_engine();
     init_project_resolver();
     init_branch_manager();
-    init_git();
     init_abort();
     init_prompt();
     init_dangerous_check();
@@ -46196,14 +46008,10 @@ async function doneAction(taskKey, options) {
     console.log(import_picocolors13.default.dim(`
 PR pending: ${meta3.prUrl} \u2014 merge manually when ready.`));
   }
-  const workdir = meta3.workdir ?? process.cwd();
-  const switchResult = await switchToBase(workdir, meta3.baseBranch);
-  if (!switchResult.ok) {
-    console.error(
-      import_picocolors13.default.yellow(`Could not switch to ${meta3.baseBranch}: ${switchResult.error.message}`)
+  if (meta3.baseBranch) {
+    console.log(
+      import_picocolors13.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
     );
-  } else {
-    console.log(import_picocolors13.default.dim(`Switched to ${meta3.baseBranch}`));
   }
   await finalize2(taskKey, meta3, config2, projectCfg);
 }

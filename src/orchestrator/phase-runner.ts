@@ -90,6 +90,13 @@ export async function runPhase(
 	const runDir = getRunDir(taskKey);
 	const logPath = join(runDir, `${phaseName}.log`);
 	const artifactPath = join(runDir, `${phaseName}.md`);
+	const branchFile = join(runDir, 'branch.txt');
+
+	// Load current branch + base branch from meta so the prompt can tell the AI.
+	const currentMetaResult = await loadRunMeta(taskKey);
+	const currentMeta = currentMetaResult.ok ? currentMetaResult.value : null;
+	const baseBranch = currentMeta?.baseBranch;
+	const currentBranch = currentMeta?.branch;
 
 	const prompt = buildPrompt(skillResult.value, {
 		jiraIssue: issue,
@@ -97,6 +104,10 @@ export async function runPhase(
 		repoFileTree,
 		priorArtifact,
 		artifactPath,
+		branchFile,
+		phaseName,
+		...(baseBranch ? { baseBranch } : {}),
+		...(currentBranch ? { currentBranch } : {}),
 		...(repos ? { repos } : {}),
 		...(options.projectConfig?.branch_tool
 			? { branchTool: options.projectConfig.branch_tool }
@@ -198,11 +209,27 @@ export async function runPhase(
 		}
 	}
 
+	// v0.18.0: if the AI created/switched a branch during this phase, it writes
+	// the name to <runs>/<KEY>/branch.txt as the handoff. Read it and persist
+	// to meta. branch.txt may be missing on read-only phases — that's fine.
+	let aiBranch: string | null = null;
+	if (existsSync(branchFile)) {
+		const raw = await readText(branchFile);
+		const trimmed = raw?.trim();
+		if (trimmed && trimmed.length > 0 && trimmed.length < 200) {
+			aiBranch = trimmed;
+		}
+	}
+
 	const nextStatus = getNextPhase(status);
-	if (nextStatus) {
+	if (nextStatus || aiBranch) {
 		const metaResult = await loadRunMeta(taskKey);
 		if (metaResult.ok && metaResult.value) {
-			await saveRunMeta({ ...metaResult.value, status: nextStatus });
+			await saveRunMeta({
+				...metaResult.value,
+				...(nextStatus ? { status: nextStatus } : {}),
+				...(aiBranch ? { branch: aiBranch } : {}),
+			});
 		}
 	}
 

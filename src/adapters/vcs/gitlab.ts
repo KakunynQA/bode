@@ -5,6 +5,11 @@ import type { Result } from '~/types/result.ts';
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * GitLab VCS adapter. Mirror of GitHubAdapter — as of v0.18.0, bode does not
+ * shell out to git. The MR is opened by the AI; bode's `mergePR` is invoked
+ * by `bode done --auto-approve-pr-merge` and uses `glab` (not git).
+ */
 export class GitLabAdapter implements VcsAdapter {
 	async createPullRequest(options: {
 		title: string;
@@ -62,41 +67,6 @@ export class GitLabAdapter implements VcsAdapter {
 				signal: signal ?? undefined,
 			});
 			return { ok: true, value: undefined };
-		} catch (error) {
-			return { ok: false, error: error as Error };
-		}
-	}
-
-	async detectRemote(): Promise<Result<{ type: 'github' | 'gitlab'; org: string; repo: string }>> {
-		try {
-			const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin']);
-			const url = stdout.trim();
-
-			const sshMatch = url.match(/git@(gitlab\..+?):(.+?)\/(.+?)(?:\.git)?$/);
-			if (sshMatch?.[1] && sshMatch[2] && sshMatch[3]) {
-				return {
-					ok: true,
-					value: {
-						type: 'gitlab',
-						org: sshMatch[2],
-						repo: sshMatch[3],
-					},
-				};
-			}
-
-			const httpsMatch = url.match(/https:\/\/(gitlab\..+?)\/(.+?)\/(.+?)(?:\.git)?$/);
-			if (httpsMatch?.[1] && httpsMatch[2] && httpsMatch[3]) {
-				return {
-					ok: true,
-					value: {
-						type: 'gitlab',
-						org: httpsMatch[2],
-						repo: httpsMatch[3],
-					},
-				};
-			}
-
-			return { ok: false, error: new Error('Could not parse GitLab remote URL') };
 		} catch (error) {
 			return { ok: false, error: error as Error };
 		}

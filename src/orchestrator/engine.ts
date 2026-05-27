@@ -4,7 +4,6 @@ import { getNextPhase, getPhaseStatusLabel } from '~/types/phase.ts';
 import type { JiraAdapter } from '~/types/jira.ts';
 import { loadRunMeta, saveRunMeta, type RunMeta } from '~/storage/run-meta.ts';
 import { runPhase, type PhaseRunResult } from './phase-runner.ts';
-import { checkForConflicts } from './branch-manager.ts';
 import { resolveVcsProvider } from '~/config/loader.ts';
 import { resolveJiraTransition } from '~/config/transitions.ts';
 import { printPhaseArtifacts } from '~/cli/summary.ts';
@@ -115,10 +114,7 @@ export async function advancePhase(
 
 		const phaseName = getPhaseNameForStatus(executingStatus);
 		if (phaseName) {
-			await printPhaseArtifacts(taskKey, phaseName, {
-				workdir: options.projectConfig?.workdir,
-				baseBranch: meta.baseBranch,
-			});
+			await printPhaseArtifacts(taskKey, phaseName);
 		}
 
 		await postPhaseSummary(
@@ -172,44 +168,15 @@ async function advanceToAwaitingMerge(
 	if (!workdir || !branch || !baseBranch) {
 		return {
 			ok: false,
-			error: new Error('Missing branch info. Cannot check for conflicts or create PR.'),
+			error: new Error(
+				'Missing branch info. The implementation phase should have created a branch and persisted it to meta via branch.txt.'
+			),
 		};
 	}
 
-	const spinner = ora('Checking for conflicts...').start();
-
-	const conflictResult = await checkForConflicts(workdir, baseBranch, branch, options.signal);
-	if (!conflictResult.ok) {
-		spinner.fail(`Conflict check failed: ${conflictResult.error.message}`);
-		return conflictResult;
-	}
-
-	if (conflictResult.value) {
-		spinner.warn('Conflicts detected!');
-
-		const updatedMeta: RunMeta = {
-			...meta,
-			status: 'awaiting-merge',
-			conflict: true,
-			updatedAt: Date.now(),
-		};
-		await saveRunMeta(updatedMeta);
-
-		const labels = config.jira_labels;
-		if (labels) {
-			await jira.addLabel(taskKey, 'bode:conflict');
-		}
-
-		await postJiraComment(
-			taskKey,
-			jira,
-			`**[Bode Conflict]** Conflicts detected with \`${baseBranch}\`. Manual resolution required.`
-		);
-
-		return { ok: true, value: { kind: 'conflict', meta: updatedMeta } };
-	}
-
-	spinner.succeed('No conflicts. Handing off to AI to open the pull request...');
+	// v0.18.0: conflict check is now part of the AI's PR-creation skill prompt.
+	// Bode no longer runs git from its own process.
+	console.log(pc.dim('Handing off to AI to open the pull request (with conflict check)...'));
 
 	const issueResult = await jira.getIssue(taskKey, options.signal);
 	const summary = issueResult.ok ? issueResult.value.summary : meta.jiraSummary;
@@ -264,7 +231,7 @@ async function advanceToAwaitingMerge(
 		`**[Bode PR]** Created: ${prResult.value.url}\nBranch: \`${branch}\` → \`${baseBranch}\``
 	);
 
-	spinner.succeed(`PR created: ${prResult.value.url}`);
+	console.log(pc.green(`PR created: ${prResult.value.url}`));
 
 	return { ok: true, value: { kind: 'pr-created', meta: updatedMeta, prUrl: prResult.value.url } };
 }
