@@ -120,4 +120,12 @@ export function createCommands(program: Command): void {
 			const { skillsAction } = await import('./actions/skills.ts');
 			await skillsAction(options);
 		});
+
+	program
+		.command('doctor')
+		.description('Diagnose bode environment, config, AI CLIs, and VCS tooling')
+		.action(async () => {
+			const { doctorAction } = await import('./actions/doctor.ts');
+			await doctorAction();
+		});
 }

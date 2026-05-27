@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v0.19.0) that orchestrates AI coding work through configurable phases (planning, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). Since v0.18.0, bode does NOT shell out to `git` — the AI handles all git operations in its session. Bode syncs progress to Jira and reads handoff files (`<phase>.md`, `branch.txt`, `pr.txt`) to track state. Runs are protected by per-task lockfiles (v0.19.0) and meta.json writes are atomic (v0.19.0). See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local CLI (v0.20.0) that orchestrates AI coding work through configurable phases (planning, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). Since v0.18.0, bode does NOT shell out to `git` — the AI handles all git operations in its session. Bode syncs progress to Jira and reads handoff files (`<phase>.md`, `branch.txt`, `pr.txt`) to track state. Runs are protected by per-task lockfiles and meta.json writes are atomic (v0.19.0). v0.20.0 added `bode doctor`, `.bode.yml` repo-local config, and env auto-detect foundation. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 

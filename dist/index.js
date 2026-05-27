@@ -42633,7 +42633,39 @@ var init_projects = __esm({
 });
 
 // src/config/project-resolver.ts
+async function loadRepoLocalProject(cwd) {
+  let dir = cwd;
+  while (true) {
+    const candidate = (0, import_node_path7.join)(dir, ".bode.yml");
+    if ((0, import_node_fs5.existsSync)(candidate)) {
+      try {
+        const raw = await (0, import_promises5.readFile)(candidate, "utf-8");
+        const parsed = (0, import_yaml3.parse)(raw);
+        if (parsed && typeof parsed === "object") {
+          const withDefaults = { workdir: dir, name: "repo-local", ...parsed };
+          const result = projectConfigSchema.safeParse(withDefaults);
+          if (result.success) return result.data;
+        }
+      } catch {
+      }
+      return null;
+    }
+    const parent = (0, import_node_path7.join)(dir, "..");
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
 async function resolveProject(config2, options) {
+  const cwd = options.cwd ?? process.cwd();
+  if (!options.projectName) {
+    const repoLocal = await loadRepoLocalProject(cwd);
+    if (repoLocal) {
+      return {
+        ok: true,
+        value: { config: mergeProjectConfig(config2, repoLocal), projectConfig: repoLocal }
+      };
+    }
+  }
   const projectsResult = await listProjects();
   if (!projectsResult.ok) return projectsResult;
   const projects = projectsResult.value;
@@ -42641,7 +42673,9 @@ async function resolveProject(config2, options) {
     return {
       ok: false,
       error: new Error(
-        'No projects configured. Run "bode setup project" to create one, or check ~/.bode/projects/'
+        `No project found. Either:
+  - add a .bode.yml to ${cwd} (or an ancestor directory), or
+  - run "bode setup-project" to create one in ~/.bode/projects/`
       )
     };
   }
@@ -42733,12 +42767,18 @@ function projectConfigToYaml(p) {
   }
   return lines.join("\n") + "\n";
 }
+var import_node_fs5, import_promises5, import_node_path7, import_yaml3;
 var init_project_resolver = __esm({
   "src/config/project-resolver.ts"() {
     "use strict";
     init_dist17();
+    import_node_fs5 = require("node:fs");
+    import_promises5 = require("node:fs/promises");
+    import_node_path7 = require("node:path");
+    import_yaml3 = __toESM(require_dist());
     init_projects();
     init_loader();
+    init_schema();
     init_defaults();
     init_fs();
   }
@@ -43037,18 +43077,18 @@ var init_rest = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.19.0") {
-    return "0.19.0";
+  if ("0.20.0") {
+    return "0.20.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
-      (0, import_node_path7.join)(__dirname, "..", "..", "package.json"),
-      (0, import_node_path7.join)(__dirname, "..", "package.json")
+      (0, import_node_path8.join)(__dirname, "..", "..", "package.json"),
+      (0, import_node_path8.join)(__dirname, "..", "package.json")
     ];
     for (const path3 of candidates) {
-      if ((0, import_node_fs5.existsSync)(path3)) {
+      if ((0, import_node_fs6.existsSync)(path3)) {
         try {
-          const pkg = JSON.parse((0, import_node_fs5.readFileSync)(path3, "utf-8"));
+          const pkg = JSON.parse((0, import_node_fs6.readFileSync)(path3, "utf-8"));
           if (pkg.version) return pkg.version;
         } catch {
         }
@@ -43057,12 +43097,12 @@ function getVersion() {
   }
   return FALLBACK_VERSION;
 }
-var import_node_fs5, import_node_path7, FALLBACK_VERSION;
+var import_node_fs6, import_node_path8, FALLBACK_VERSION;
 var init_version = __esm({
   "src/utils/version.ts"() {
     "use strict";
-    import_node_fs5 = require("node:fs");
-    import_node_path7 = require("node:path");
+    import_node_fs6 = require("node:fs");
+    import_node_path8 = require("node:path");
     FALLBACK_VERSION = "0.0.0-dev";
   }
 });
@@ -43186,7 +43226,7 @@ async function setupAction(subcommand) {
   await ensureDir(`${globalDir}/projects`);
   console.log(import_picocolors2.default.green(`\u2713 Created ${globalDir}
 `));
-  const existingConfig = (0, import_node_fs6.existsSync)(getGlobalConfigPath());
+  const existingConfig = (0, import_node_fs7.existsSync)(getGlobalConfigPath());
   let currentJiraSite = "";
   let currentProject = "";
   let currentJiraEmail = "";
@@ -43518,7 +43558,7 @@ async function setupProjectAction() {
           console.error(import_picocolors2.default.red("Working directory is required."));
           process.exit(1);
         }
-        if (!(0, import_node_fs6.existsSync)(workdirPath)) {
+        if (!(0, import_node_fs7.existsSync)(workdirPath)) {
           console.error(import_picocolors2.default.red(`Directory does not exist: ${workdirPath}`));
           process.exit(1);
         }
@@ -43740,7 +43780,7 @@ async function setupProjectAction() {
     );
   });
 }
-var import_picocolors2, import_node_fs6;
+var import_picocolors2, import_node_fs7;
 var init_setup = __esm({
   "src/cli/actions/setup.ts"() {
     "use strict";
@@ -43748,7 +43788,7 @@ var init_setup = __esm({
     init_ora();
     init_dist17();
     init_defaults();
-    import_node_fs6 = require("node:fs");
+    import_node_fs7 = require("node:fs");
     init_fs();
     init_loader();
     init_registry();
@@ -43764,7 +43804,7 @@ var init_setup = __esm({
 // src/storage/run-meta.ts
 async function loadRunMeta(taskKey) {
   try {
-    const path3 = (0, import_node_path8.join)(getRunDir(taskKey), "meta.json");
+    const path3 = (0, import_node_path9.join)(getRunDir(taskKey), "meta.json");
     const data = await readJson(path3);
     return { ok: true, value: data };
   } catch (error52) {
@@ -43775,7 +43815,7 @@ async function saveRunMeta(meta3) {
   try {
     const dir = getRunDir(meta3.taskKey);
     await ensureDir(dir);
-    const path3 = (0, import_node_path8.join)(dir, "meta.json");
+    const path3 = (0, import_node_path9.join)(dir, "meta.json");
     await writeJson(path3, { ...meta3, updatedAt: Date.now() });
     return { ok: true, value: void 0 };
   } catch (error52) {
@@ -43798,13 +43838,13 @@ async function createRun(taskKey, summary, options) {
   if (!result.ok) return result;
   return { ok: true, value: meta3 };
 }
-var import_node_path8;
+var import_node_path9;
 var init_run_meta = __esm({
   "src/storage/run-meta.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_node_path8 = require("node:path");
+    import_node_path9 = require("node:path");
   }
 });
 
@@ -43947,23 +43987,23 @@ function getEmbeddedSkill(phase) {
 function getDevBundledPath(phase) {
   if (typeof __dirname === "undefined") return null;
   const candidates = [
-    (0, import_node_path9.join)(__dirname, "defaults", `${phase}.md`),
-    (0, import_node_path9.join)(__dirname, "..", "src", "skills", "defaults", `${phase}.md`),
-    (0, import_node_path9.join)(__dirname, "..", "skills", "defaults", `${phase}.md`),
-    (0, import_node_path9.join)(__dirname, "skills", "defaults", `${phase}.md`)
+    (0, import_node_path10.join)(__dirname, "defaults", `${phase}.md`),
+    (0, import_node_path10.join)(__dirname, "..", "src", "skills", "defaults", `${phase}.md`),
+    (0, import_node_path10.join)(__dirname, "..", "skills", "defaults", `${phase}.md`),
+    (0, import_node_path10.join)(__dirname, "skills", "defaults", `${phase}.md`)
   ];
   for (const c of candidates) {
-    if ((0, import_node_fs7.existsSync)(c)) return c;
+    if ((0, import_node_fs8.existsSync)(c)) return c;
   }
   return null;
 }
 async function resolveSkillPath(phase, options) {
-  const projectSkill = options.projectRoot ? (0, import_node_path9.join)(options.projectRoot, ".bode", "skills", `${phase}.md`) : null;
-  const globalSkill = (0, import_node_path9.join)(options.globalDir ?? getSkillsDir(), `${phase}.md`);
-  if (projectSkill && (0, import_node_fs7.existsSync)(projectSkill)) {
+  const projectSkill = options.projectRoot ? (0, import_node_path10.join)(options.projectRoot, ".bode", "skills", `${phase}.md`) : null;
+  const globalSkill = (0, import_node_path10.join)(options.globalDir ?? getSkillsDir(), `${phase}.md`);
+  if (projectSkill && (0, import_node_fs8.existsSync)(projectSkill)) {
     return { ok: true, value: projectSkill };
   }
-  if ((0, import_node_fs7.existsSync)(globalSkill)) {
+  if ((0, import_node_fs8.existsSync)(globalSkill)) {
     return { ok: true, value: globalSkill };
   }
   const dev = getDevBundledPath(phase);
@@ -43984,19 +44024,19 @@ async function loadSkillPrompt(phase, options) {
     return { ok: false, error: new Error(`Embedded skill missing: ${embeddedPhase}`) };
   }
   try {
-    const content = await (0, import_promises5.readFile)(resolved, "utf-8");
+    const content = await (0, import_promises6.readFile)(resolved, "utf-8");
     return { ok: true, value: content };
   } catch (error52) {
     return { ok: false, error: error52 };
   }
 }
-var import_node_fs7, import_node_path9, import_promises5, EMBEDDED_SKILL_TAG, EMBEDDED_SKILLS;
+var import_node_fs8, import_node_path10, import_promises6, EMBEDDED_SKILL_TAG, EMBEDDED_SKILLS;
 var init_resolver = __esm({
   "src/skills/resolver.ts"() {
     "use strict";
-    import_node_fs7 = require("node:fs");
-    import_node_path9 = require("node:path");
-    import_promises5 = require("node:fs/promises");
+    import_node_fs8 = require("node:fs");
+    import_node_path10 = require("node:path");
+    import_promises6 = require("node:fs/promises");
     init_defaults();
     EMBEDDED_SKILL_TAG = "embedded:";
     EMBEDDED_SKILLS = {
@@ -44203,10 +44243,10 @@ async function readAgentsMd(workdir, contextFiles) {
   const candidates = contextFiles ?? ["AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md"];
   const parts = [];
   for (const candidate of candidates) {
-    const fullPath = (0, import_node_path10.join)(workdir, candidate);
-    if ((0, import_node_fs8.existsSync)(fullPath)) {
+    const fullPath = (0, import_node_path11.join)(workdir, candidate);
+    if ((0, import_node_fs9.existsSync)(fullPath)) {
       try {
-        const content = await (0, import_promises6.readFile)(fullPath, "utf-8");
+        const content = await (0, import_promises7.readFile)(fullPath, "utf-8");
         if (content.trim()) {
           parts.push(`### ${candidate}
 
@@ -44223,8 +44263,8 @@ async function generateFileTree(workdir, contextPaths) {
   const lines = [];
   let count = 0;
   for (const basePath of paths) {
-    const fullBase = (0, import_node_path10.join)(workdir, basePath);
-    if (!(0, import_node_fs8.existsSync)(fullBase)) continue;
+    const fullBase = (0, import_node_path11.join)(workdir, basePath);
+    if (!(0, import_node_fs9.existsSync)(fullBase)) continue;
     await walkDir(fullBase, workdir, lines, 0, (ref) => {
       count = ref;
     });
@@ -44236,7 +44276,7 @@ async function walkDir(dirPath, rootDir, lines, depth, counter, prefix = "") {
   if (depth > FILE_TREE_MAX_DEPTH) return;
   let entries;
   try {
-    entries = await (0, import_promises6.readdir)(dirPath, { withFileTypes: true });
+    entries = await (0, import_promises7.readdir)(dirPath, { withFileTypes: true });
   } catch {
     return;
   }
@@ -44253,7 +44293,7 @@ async function walkDir(dirPath, rootDir, lines, depth, counter, prefix = "") {
     if (IGNORED_FILES.has(entry.name)) continue;
     if (entry.isDirectory()) {
       lines.push(`${prefix}${entry.name}/`);
-      await walkDir((0, import_node_path10.join)(dirPath, entry.name), rootDir, lines, depth + 1, counter, `${prefix}  `);
+      await walkDir((0, import_node_path11.join)(dirPath, entry.name), rootDir, lines, depth + 1, counter, `${prefix}  `);
       count = lines.length;
       counter(count);
     } else {
@@ -44263,13 +44303,13 @@ async function walkDir(dirPath, rootDir, lines, depth, counter, prefix = "") {
     }
   }
 }
-var import_node_fs8, import_promises6, import_node_path10, FILE_TREE_MAX_DEPTH, FILE_TREE_MAX_ENTRIES, IGNORED_DIRS, IGNORED_FILES;
+var import_node_fs9, import_promises7, import_node_path11, FILE_TREE_MAX_DEPTH, FILE_TREE_MAX_ENTRIES, IGNORED_DIRS, IGNORED_FILES;
 var init_context = __esm({
   "src/config/context.ts"() {
     "use strict";
-    import_node_fs8 = require("node:fs");
-    import_promises6 = require("node:fs/promises");
-    import_node_path10 = require("node:path");
+    import_node_fs9 = require("node:fs");
+    import_promises7 = require("node:fs/promises");
+    import_node_path11 = require("node:path");
     FILE_TREE_MAX_DEPTH = 4;
     FILE_TREE_MAX_ENTRIES = 200;
     IGNORED_DIRS = /* @__PURE__ */ new Set([
@@ -44310,11 +44350,11 @@ var init_context = __esm({
 
 // src/orchestrator/preflight.ts
 function resolveTarget(workdir, candidate) {
-  return (0, import_node_path11.isAbsolute)(candidate) ? candidate : (0, import_node_path11.join)(workdir, candidate);
+  return (0, import_node_path12.isAbsolute)(candidate) ? candidate : (0, import_node_path12.join)(workdir, candidate);
 }
 async function checkReadable(path3) {
   try {
-    await (0, import_promises7.access)(path3, import_node_fs9.constants.R_OK);
+    await (0, import_promises8.access)(path3, import_node_fs10.constants.R_OK);
     return "ok";
   } catch (err) {
     const code = err.code;
@@ -44347,13 +44387,13 @@ ${lines.join("\n")}
 Fix permissions or remove the path from your project config, then retry.`;
   return { ok: false, error: { message, issues } };
 }
-var import_promises7, import_node_fs9, import_node_path11;
+var import_promises8, import_node_fs10, import_node_path12;
 var init_preflight = __esm({
   "src/orchestrator/preflight.ts"() {
     "use strict";
-    import_promises7 = require("node:fs/promises");
-    import_node_fs9 = require("node:fs");
-    import_node_path11 = require("node:path");
+    import_promises8 = require("node:fs/promises");
+    import_node_fs10 = require("node:fs");
+    import_node_path12 = require("node:path");
   }
 });
 
@@ -44384,7 +44424,7 @@ async function runPhase(taskKey, status, config2, jira, options) {
   if (!issueResult.ok) return issueResult;
   const issue2 = issueResult.value;
   const priorPhaseFile = getPriorPhaseFile(phaseName);
-  const priorArtifact = priorPhaseFile ? await readText((0, import_node_path12.join)(getRunDir(taskKey), priorPhaseFile)) ?? void 0 : void 0;
+  const priorArtifact = priorPhaseFile ? await readText((0, import_node_path13.join)(getRunDir(taskKey), priorPhaseFile)) ?? void 0 : void 0;
   let projectAgentsMd;
   let repoFileTree;
   if (options.projectConfig) {
@@ -44398,9 +44438,9 @@ async function runPhase(taskKey, status, config2, jira, options) {
     return entry;
   });
   const runDir = getRunDir(taskKey);
-  const logPath = (0, import_node_path12.join)(runDir, `${phaseName}.log`);
-  const artifactPath = (0, import_node_path12.join)(runDir, `${phaseName}.md`);
-  const branchFile = (0, import_node_path12.join)(runDir, "branch.txt");
+  const logPath = (0, import_node_path13.join)(runDir, `${phaseName}.log`);
+  const artifactPath = (0, import_node_path13.join)(runDir, `${phaseName}.md`);
+  const branchFile = (0, import_node_path13.join)(runDir, "branch.txt");
   const currentMetaResult = await loadRunMeta(taskKey);
   const currentMeta = currentMetaResult.ok ? currentMetaResult.value : null;
   const baseBranch = currentMeta?.baseBranch;
@@ -44485,7 +44525,7 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
       value: { kind: "missing-artifact", logPath, durationMs: invocation.durationMs }
     };
   }
-  if (!(0, import_node_fs10.existsSync)(artifactPath)) {
+  if (!(0, import_node_fs11.existsSync)(artifactPath)) {
     await writeText(artifactPath, artifact);
   }
   const labelsConfig = config2.jira_labels;
@@ -44499,7 +44539,7 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
     }
   }
   let aiBranch = null;
-  if ((0, import_node_fs10.existsSync)(branchFile)) {
+  if ((0, import_node_fs11.existsSync)(branchFile)) {
     const raw = await readText(branchFile);
     const trimmed = raw?.trim();
     if (trimmed && trimmed.length > 0 && trimmed.length < 200) {
@@ -44528,9 +44568,9 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
   };
 }
 async function readArtifact(artifactPath, headlessStdout) {
-  if ((0, import_node_fs10.existsSync)(artifactPath)) {
+  if ((0, import_node_fs11.existsSync)(artifactPath)) {
     try {
-      const s = await (0, import_promises8.stat)(artifactPath);
+      const s = await (0, import_promises9.stat)(artifactPath);
       if (s.size > 0) {
         const content = await readText(artifactPath);
         if (content && content.trim().length > 0) return content;
@@ -44577,7 +44617,7 @@ function getNextLabelKey(phase) {
       return null;
   }
 }
-var import_node_path12, import_node_fs10, import_promises8;
+var import_node_path13, import_node_fs11, import_promises9;
 var init_phase_runner = __esm({
   "src/orchestrator/phase-runner.ts"() {
     "use strict";
@@ -44590,9 +44630,9 @@ var init_phase_runner = __esm({
     init_fs();
     init_context();
     init_preflight();
-    import_node_path12 = require("node:path");
-    import_node_fs10 = require("node:fs");
-    import_promises8 = require("node:fs/promises");
+    import_node_path13 = require("node:path");
+    import_node_fs11 = require("node:fs");
+    import_promises9 = require("node:fs/promises");
   }
 });
 
@@ -44631,13 +44671,13 @@ var init_transitions = __esm({
 // src/cli/summary.ts
 async function printPhaseArtifacts(taskKey, phaseName) {
   const runDir = getRunDir(taskKey);
-  const logPath = (0, import_node_path13.join)(runDir, `${phaseName}.log`);
-  const artifactPath = (0, import_node_path13.join)(runDir, `${phaseName}.md`);
+  const logPath = (0, import_node_path14.join)(runDir, `${phaseName}.log`);
+  const artifactPath = (0, import_node_path14.join)(runDir, `${phaseName}.md`);
   const lines = [];
-  if ((0, import_node_fs11.existsSync)(artifactPath)) {
+  if ((0, import_node_fs12.existsSync)(artifactPath)) {
     lines.push(`  Artifact: ${import_picocolors3.default.cyan(artifactPath)}`);
   }
-  if ((0, import_node_fs11.existsSync)(logPath)) {
+  if ((0, import_node_fs12.existsSync)(logPath)) {
     lines.push(`  Log:      ${import_picocolors3.default.dim(logPath)}`);
   }
   if (lines.length > 0) {
@@ -44672,10 +44712,10 @@ function printTaskSummary(meta3) {
   console.log(import_picocolors3.default.bold("  Artifacts"));
   let any2 = false;
   for (const phase of PHASE_FILES) {
-    const md = (0, import_node_path13.join)(runDir, `${phase}.md`);
-    const log = (0, import_node_path13.join)(runDir, `${phase}.log`);
-    const hasMd = (0, import_node_fs11.existsSync)(md);
-    const hasLog = (0, import_node_fs11.existsSync)(log);
+    const md = (0, import_node_path14.join)(runDir, `${phase}.md`);
+    const log = (0, import_node_path14.join)(runDir, `${phase}.log`);
+    const hasMd = (0, import_node_fs12.existsSync)(md);
+    const hasLog = (0, import_node_fs12.existsSync)(log);
     if (!hasMd && !hasLog) continue;
     any2 = true;
     console.log(`    ${import_picocolors3.default.cyan(phase)}`);
@@ -44699,13 +44739,13 @@ function formatDuration(ms) {
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m`;
 }
-var import_picocolors3, import_node_fs11, import_node_path13, PHASE_FILES;
+var import_picocolors3, import_node_fs12, import_node_path14, PHASE_FILES;
 var init_summary = __esm({
   "src/cli/summary.ts"() {
     "use strict";
     import_picocolors3 = __toESM(require_picocolors());
-    import_node_fs11 = require("node:fs");
-    import_node_path13 = require("node:path");
+    import_node_fs12 = require("node:fs");
+    import_node_path14 = require("node:path");
     init_defaults();
     PHASE_FILES = ["planning", "implementation", "review"];
   }
@@ -44719,14 +44759,14 @@ __export(pr_creator_exports, {
 });
 async function createPullRequestViaAI(args) {
   const runDir = getRunDir(args.taskKey);
-  const prFile = (0, import_node_path14.join)(runDir, "pr.txt");
-  const logPath = (0, import_node_path14.join)(runDir, "pr.log");
-  if ((0, import_node_fs12.existsSync)(prFile)) {
+  const prFile = (0, import_node_path15.join)(runDir, "pr.txt");
+  const logPath = (0, import_node_path15.join)(runDir, "pr.log");
+  if ((0, import_node_fs13.existsSync)(prFile)) {
     await writeText(prFile, "");
   }
-  const planning = await readText((0, import_node_path14.join)(runDir, "planning.md")) ?? "(no plan artifact)";
-  const implementation = await readText((0, import_node_path14.join)(runDir, "implementation.md")) ?? "(no implementation artifact)";
-  const review = await readText((0, import_node_path14.join)(runDir, "review.md")) ?? "(no review artifact)";
+  const planning = await readText((0, import_node_path15.join)(runDir, "planning.md")) ?? "(no plan artifact)";
+  const implementation = await readText((0, import_node_path15.join)(runDir, "implementation.md")) ?? "(no implementation artifact)";
+  const review = await readText((0, import_node_path15.join)(runDir, "review.md")) ?? "(no review artifact)";
   const tool = args.provider === "gitlab" ? "glab" : "gh";
   const createCmd = args.provider === "gitlab" ? `glab mr create --source-branch ${args.branch} --target-branch ${args.baseBranch} --title <title> --description <body> --no-editor` : `gh pr create --head ${args.branch} --base ${args.baseBranch} --title <title> --body <body>`;
   const prompt = buildPrPrompt({
@@ -44849,12 +44889,12 @@ function extractPrNumber(url2, provider) {
   const match = url2.match(re);
   return match?.[1] ? parseInt(match[1], 10) : 0;
 }
-var import_node_path14, import_node_fs12, __testing;
+var import_node_path15, import_node_fs13, __testing;
 var init_pr_creator = __esm({
   "src/orchestrator/pr-creator.ts"() {
     "use strict";
-    import_node_path14 = require("node:path");
-    import_node_fs12 = require("node:fs");
+    import_node_path15 = require("node:path");
+    import_node_fs13 = require("node:fs");
     init_fs();
     init_defaults();
     init_registry();
@@ -45477,13 +45517,13 @@ function isPidAlive(pid) {
   }
 }
 function lockPath(taskKey) {
-  return (0, import_node_path15.join)(getRunDir(taskKey), LOCK_FILE);
+  return (0, import_node_path16.join)(getRunDir(taskKey), LOCK_FILE);
 }
 async function readLock(taskKey) {
   const path3 = lockPath(taskKey);
-  if (!(0, import_node_fs13.existsSync)(path3)) return null;
+  if (!(0, import_node_fs14.existsSync)(path3)) return null;
   try {
-    const raw = await (0, import_promises9.readFile)(path3, "utf-8");
+    const raw = await (0, import_promises10.readFile)(path3, "utf-8");
     return JSON.parse(raw);
   } catch {
     return null;
@@ -45491,7 +45531,7 @@ async function readLock(taskKey) {
 }
 async function acquireLock(taskKey, command) {
   const path3 = lockPath(taskKey);
-  await (0, import_promises9.mkdir)((0, import_node_path15.join)(getRunDir(taskKey)), { recursive: true });
+  await (0, import_promises10.mkdir)((0, import_node_path16.join)(getRunDir(taskKey)), { recursive: true });
   const existing = await readLock(taskKey);
   if (existing) {
     const stale = existing.host !== (0, import_node_os4.hostname)() || !isPidAlive(existing.pid) || existing.pid === process.pid;
@@ -45512,25 +45552,25 @@ async function acquireLock(taskKey, command) {
     startedAt: Date.now(),
     command
   };
-  await (0, import_promises9.writeFile)(path3, JSON.stringify(info2, null, 2), "utf-8");
+  await (0, import_promises10.writeFile)(path3, JSON.stringify(info2, null, 2), "utf-8");
   const release = async () => {
     try {
       const current = await readLock(taskKey);
       if (current && current.pid === process.pid && current.host === (0, import_node_os4.hostname)()) {
-        await (0, import_promises9.unlink)(path3);
+        await (0, import_promises10.unlink)(path3);
       }
     } catch {
     }
   };
   return { ok: true, value: { release } };
 }
-var import_node_fs13, import_promises9, import_node_path15, import_node_os4, LOCK_FILE;
+var import_node_fs14, import_promises10, import_node_path16, import_node_os4, LOCK_FILE;
 var init_lockfile = __esm({
   "src/storage/lockfile.ts"() {
     "use strict";
-    import_node_fs13 = require("node:fs");
-    import_promises9 = require("node:fs/promises");
-    import_node_path15 = require("node:path");
+    import_node_fs14 = require("node:fs");
+    import_promises10 = require("node:fs/promises");
+    import_node_path16 = require("node:path");
     import_node_os4 = require("node:os");
     init_defaults();
     LOCK_FILE = ".lock";
@@ -46060,7 +46100,7 @@ __export(log_exports, {
 });
 async function logAction(taskKey) {
   const { readdir: readdir4 } = await import("node:fs/promises");
-  const { join: join13 } = await import("node:path");
+  const { join: join15 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
     const files = await readdir4(runDir);
@@ -46074,7 +46114,7 @@ async function logAction(taskKey) {
       console.error(import_picocolors12.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join13(runDir, latest));
+    const content = await readText(join15(runDir, latest));
     if (content) {
       console.log(content);
     }
@@ -46207,7 +46247,7 @@ __export(list_exports, {
 async function listAction() {
   const runsDir = getRunsDir();
   try {
-    const entries = await (0, import_promises10.readdir)(runsDir);
+    const entries = await (0, import_promises11.readdir)(runsDir);
     if (entries.length === 0) {
       console.log(import_picocolors14.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
       return;
@@ -46227,11 +46267,11 @@ async function listAction() {
     console.log(import_picocolors14.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
   }
 }
-var import_promises10, import_picocolors14;
+var import_promises11, import_picocolors14;
 var init_list = __esm({
   "src/cli/actions/list.ts"() {
     "use strict";
-    import_promises10 = require("node:fs/promises");
+    import_promises11 = require("node:fs/promises");
     init_defaults();
     init_run_meta();
     init_phase();
@@ -46264,6 +46304,246 @@ var init_skills = __esm({
     init_resolver();
     import_picocolors15 = __toESM(require_picocolors());
     PHASES = ["planning", "implementation", "review"];
+  }
+});
+
+// src/config/auto-detect.ts
+async function readGitRemote(workdir) {
+  try {
+    const { stdout } = await execFileAsync3("git", ["remote", "get-url", "origin"], {
+      cwd: workdir
+    });
+    return stdout.trim();
+  } catch {
+    return null;
+  }
+}
+function inferProvider(remoteUrl) {
+  if (/github\.com[:/]/.test(remoteUrl)) return "github";
+  if (/gitlab\.[^/]+[:/]/.test(remoteUrl)) return "gitlab";
+  return null;
+}
+function parseSlug(remoteUrl) {
+  const ssh = remoteUrl.match(/^[^@]+@[^:]+:([^/]+)\/([^/]+?)(?:\.git)?$/);
+  if (ssh?.[1] && ssh[2]) return { org: ssh[1], repo: ssh[2] };
+  const https = remoteUrl.match(/^https?:\/\/[^/]+\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/);
+  if (https?.[1] && https[2]) return { org: https[1], repo: https[2] };
+  return null;
+}
+async function probeBinary(binary) {
+  const isWindows2 = process.platform === "win32";
+  try {
+    await execFileAsync3(isWindows2 ? "where" : "which", [binary]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function detectAvailableCli() {
+  for (const probe of AI_CLI_PROBES) {
+    if (await probeBinary(probe.binary)) {
+      return probe.name;
+    }
+  }
+  return void 0;
+}
+function detectContextFiles(workdir) {
+  return CONTEXT_FILE_CANDIDATES.filter((rel) => (0, import_node_fs15.existsSync)((0, import_node_path17.join)(workdir, rel)));
+}
+async function detectEnv(workdir, options) {
+  const gitRemoteUrl = await readGitRemote(workdir) ?? void 0;
+  const vcsProvider = gitRemoteUrl ? inferProvider(gitRemoteUrl) ?? void 0 : void 0;
+  const repoSlug = gitRemoteUrl ? parseSlug(gitRemoteUrl) ?? void 0 : void 0;
+  const availableAiCli = await detectAvailableCli();
+  const contextFiles = detectContextFiles(workdir);
+  const hasRepoConfig = (0, import_node_fs15.existsSync)((0, import_node_path17.join)(workdir, ".bode.yml"));
+  const hasGlobalConfig = (0, import_node_fs15.existsSync)(options.globalConfigPath);
+  return {
+    ...gitRemoteUrl ? { gitRemoteUrl } : {},
+    ...vcsProvider ? { vcsProvider } : {},
+    ...repoSlug ? { repoSlug } : {},
+    ...availableAiCli ? { availableAiCli } : {},
+    contextFiles,
+    hasRepoConfig,
+    hasGlobalConfig
+  };
+}
+var import_node_fs15, import_node_child_process5, import_node_util12, import_node_path17, execFileAsync3, AI_CLI_PROBES, CONTEXT_FILE_CANDIDATES;
+var init_auto_detect = __esm({
+  "src/config/auto-detect.ts"() {
+    "use strict";
+    import_node_fs15 = require("node:fs");
+    import_node_child_process5 = require("node:child_process");
+    import_node_util12 = require("node:util");
+    import_node_path17 = require("node:path");
+    execFileAsync3 = (0, import_node_util12.promisify)(import_node_child_process5.execFile);
+    AI_CLI_PROBES = [
+      { name: "claude-code", binary: "claude" },
+      { name: "opencode", binary: "opencode" },
+      { name: "codex", binary: "codex" }
+    ];
+    CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md", "CONTRIBUTING.md"];
+  }
+});
+
+// src/cli/actions/doctor.ts
+var doctor_exports = {};
+__export(doctor_exports, {
+  doctorAction: () => doctorAction
+});
+function fmt(c) {
+  const symbol2 = c.status === "ok" ? import_picocolors16.default.green("\u2713") : c.status === "warn" ? import_picocolors16.default.yellow("\u26A0") : import_picocolors16.default.red("\u2717");
+  return `${symbol2} ${import_picocolors16.default.bold(c.name.padEnd(28))} ${c.detail}`;
+}
+async function checkNodeVersion() {
+  const v = process.versions.node;
+  const major = parseInt(v.split(".")[0] ?? "0", 10);
+  if (major >= 18) {
+    return { name: "Node.js", status: "ok", detail: `v${v}` };
+  }
+  return {
+    name: "Node.js",
+    status: "fail",
+    detail: `v${v} \u2014 bode requires Node >=18`
+  };
+}
+async function checkBinaryAvailable(name, binary) {
+  const isWindows2 = process.platform === "win32";
+  try {
+    const { stdout } = await execFileAsync4(binary, ["--version"]);
+    const version2 = stdout.trim().split("\n")[0] ?? "";
+    return { name, status: "ok", detail: version2 || "installed" };
+  } catch {
+    try {
+      await execFileAsync4(isWindows2 ? "where" : "which", [binary]);
+      return { name, status: "ok", detail: "installed (no --version)" };
+    } catch {
+      return { name, status: "warn", detail: `${binary} not found on PATH` };
+    }
+  }
+}
+async function checkGlobalConfig() {
+  const path3 = getGlobalConfigPath();
+  if (!(0, import_node_fs16.existsSync)(path3)) {
+    return {
+      name: "Global config",
+      status: "warn",
+      detail: `${path3} not found \u2014 run "bode setup" or rely on auto-detect`
+    };
+  }
+  const result = await loadConfig();
+  if (!result.ok) {
+    return {
+      name: "Global config",
+      status: "fail",
+      detail: `${path3} present but invalid: ${result.error.message}`
+    };
+  }
+  return { name: "Global config", status: "ok", detail: path3 };
+}
+async function checkRunsDir() {
+  const dir = getRunsDir();
+  if (!(0, import_node_fs16.existsSync)(dir)) {
+    return {
+      name: "Runs directory",
+      status: "warn",
+      detail: `${dir} (will be created on first run)`
+    };
+  }
+  return { name: "Runs directory", status: "ok", detail: dir };
+}
+async function doctorAction() {
+  const workdir = process.cwd();
+  console.log("");
+  console.log(import_picocolors16.default.bold(`bode doctor`) + import_picocolors16.default.dim(`  v${getVersion()}`));
+  console.log(import_picocolors16.default.dim("\u2500".repeat(64)));
+  const checks = [];
+  checks.push(await checkNodeVersion());
+  checks.push(await checkGlobalConfig());
+  checks.push(await checkRunsDir());
+  const env2 = await detectEnv(workdir, { globalConfigPath: getGlobalConfigPath() });
+  checks.push({
+    name: "Workdir (cwd)",
+    status: "ok",
+    detail: workdir
+  });
+  if (env2.gitRemoteUrl) {
+    const provider = env2.vcsProvider ?? "unknown";
+    checks.push({
+      name: "Git remote",
+      status: env2.vcsProvider ? "ok" : "warn",
+      detail: `${env2.gitRemoteUrl}  ${import_picocolors16.default.dim(`(${provider})`)}`
+    });
+  } else {
+    checks.push({
+      name: "Git remote",
+      status: "warn",
+      detail: "CWD is not a git repo or has no origin"
+    });
+  }
+  checks.push({
+    name: ".bode.yml (repo)",
+    status: env2.hasRepoConfig ? "ok" : "warn",
+    detail: env2.hasRepoConfig ? "present" : "not found (optional)"
+  });
+  checks.push({
+    name: "Context files",
+    status: env2.contextFiles.length > 0 ? "ok" : "warn",
+    detail: env2.contextFiles.length > 0 ? env2.contextFiles.join(", ") : "no AGENTS.md or CLAUDE.md"
+  });
+  const aiBinaries = [
+    { name: "claude (Claude Code)", binary: "claude" },
+    { name: "opencode", binary: "opencode" },
+    { name: "codex", binary: "codex" }
+  ];
+  const aiResults = await Promise.all(
+    aiBinaries.map((b) => checkBinaryAvailable(b.name, b.binary))
+  );
+  const anyAi = aiResults.some((r) => r.status === "ok");
+  if (!anyAi) {
+    checks.push({
+      name: "AI CLI",
+      status: "fail",
+      detail: "No AI CLI found. Install one of: claude, opencode, codex"
+    });
+  }
+  for (const r of aiResults) checks.push(r);
+  checks.push(await checkBinaryAvailable("gh (GitHub CLI)", "gh"));
+  checks.push(await checkBinaryAvailable("glab (GitLab CLI)", "glab"));
+  checks.push({
+    name: "CLI adapters",
+    status: "ok",
+    detail: listAdapterNames().join(", ")
+  });
+  for (const c of checks) console.log(fmt(c));
+  const fails = checks.filter((c) => c.status === "fail").length;
+  const warns = checks.filter((c) => c.status === "warn").length;
+  console.log(import_picocolors16.default.dim("\u2500".repeat(64)));
+  if (fails === 0 && warns === 0) {
+    console.log(import_picocolors16.default.green(`All ${checks.length} checks passed.`));
+    process.exit(0);
+  }
+  if (fails === 0) {
+    console.log(import_picocolors16.default.yellow(`${warns} warning(s), no failures.`));
+    process.exit(0);
+  }
+  console.log(import_picocolors16.default.red(`${fails} failure(s), ${warns} warning(s).`));
+  process.exit(1);
+}
+var import_picocolors16, import_node_fs16, import_node_child_process6, import_node_util13, execFileAsync4;
+var init_doctor = __esm({
+  "src/cli/actions/doctor.ts"() {
+    "use strict";
+    import_picocolors16 = __toESM(require_picocolors());
+    import_node_fs16 = require("node:fs");
+    import_node_child_process6 = require("node:child_process");
+    import_node_util13 = require("node:util");
+    init_auto_detect();
+    init_loader();
+    init_defaults();
+    init_registry();
+    init_version();
+    execFileAsync4 = (0, import_node_util13.promisify)(import_node_child_process6.execFile);
   }
 });
 
@@ -46341,6 +46621,10 @@ function createCommands(program3) {
   program3.command("skills").description("Show resolved skill paths and prompts").option("--project <name>", "Project name from ~/.bode/projects/").action(async (options) => {
     const { skillsAction: skillsAction2 } = await Promise.resolve().then(() => (init_skills(), skills_exports));
     await skillsAction2(options);
+  });
+  program3.command("doctor").description("Diagnose bode environment, config, AI CLIs, and VCS tooling").action(async () => {
+    const { doctorAction: doctorAction2 } = await Promise.resolve().then(() => (init_doctor(), doctor_exports));
+    await doctorAction2();
   });
 }
 

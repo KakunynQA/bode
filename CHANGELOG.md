@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] — 2026-05-27
+
+First Wave 1 release — starts the path to zero-config-first-run.
+
+### Added
+
+- **`bode doctor`** (#10). Diagnoses the environment: Node version, global config, runs directory, git remote (with auto-detected VCS provider), `.bode.yml` presence, context files (AGENTS.md / CLAUDE.md), each AI CLI (claude / opencode / codex), each VCS CLI (gh / glab), registered CLI adapter names. Prints green/yellow/red per check, exits non-zero on any failure. Useful for new users and bug reports.
+- **`.bode.yml` in repo root** (#8). New preferred project config location. `resolveProject` now walks up from CWD looking for `.bode.yml`; if found, it wins over the named-project flow (unless `--project` is passed explicitly). Default `workdir` is the directory containing the file. Repo-local config travels with the repo — no global setup needed for fresh clones.
+- **`src/config/auto-detect.ts`** (#7 partial). `detectEnv(workdir)` returns `{ gitRemoteUrl, vcsProvider, repoSlug, availableAiCli, contextFiles, hasRepoConfig, hasGlobalConfig }`. The foundation for future zero-config bootstrap; today consumed only by `bode doctor`, but the building block is in place.
+
+### Notes
+
+- Issue #7 (full auto-detect into start/continue) and #6 (`bode <prompt>` fast path) and #9 (Jira optional) are next — they all build on the new `auto-detect.ts` + `.bode.yml` foundation. Shipping them piecewise so each can be validated independently.
+- Issue #36 created for Wave 6 (post-Wave-4 comprehensive testing + architecture overhaul). Gated.
+
 ## [0.19.0] — 2026-05-27
 
 Closes Wave 0. Two concurrency-safety improvements that previously could lose data or corrupt state.

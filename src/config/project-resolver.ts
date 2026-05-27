@@ -1,7 +1,11 @@
 import { select } from '@inquirer/prompts';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { parse as parseYaml } from 'yaml';
 import { listProjects, loadProjectConfig } from '~/config/projects.ts';
 import { mergeProjectConfig } from '~/config/loader.ts';
-import type { BodeConfig, ProjectConfig } from '~/config/schema.ts';
+import { projectConfigSchema, type BodeConfig, type ProjectConfig } from '~/config/schema.ts';
 import { getProjectsDir } from '~/config/defaults.ts';
 import { ensureDir } from '~/utils/fs.ts';
 import type { Result } from '~/types/result.ts';
@@ -11,10 +15,59 @@ export type ResolvedProject = {
 	projectConfig: ProjectConfig;
 };
 
+/**
+ * Project resolution priority (v0.20.0):
+ *   1. `.bode.yml` in the current working directory (or nearest ancestor)
+ *   2. Named project via `--project` flag → ~/.bode/projects/<name>.yml
+ *   3. Default project from global config
+ *   4. Interactive picker over ~/.bode/projects/
+ *
+ * The repo-local `.bode.yml` is the new preferred location for new users —
+ * config travels with the repo, works without any global setup. The global
+ * `~/.bode/projects/` style remains supported (legacy + multi-repo use).
+ */
+async function loadRepoLocalProject(cwd: string): Promise<ProjectConfig | null> {
+	let dir = cwd;
+	while (true) {
+		const candidate = join(dir, '.bode.yml');
+		if (existsSync(candidate)) {
+			try {
+				const raw = await readFile(candidate, 'utf-8');
+				const parsed = parseYaml(raw);
+				// `.bode.yml` lives in the repo; default workdir = the dir containing it.
+				if (parsed && typeof parsed === 'object') {
+					const withDefaults = { workdir: dir, name: 'repo-local', ...parsed };
+					const result = projectConfigSchema.safeParse(withDefaults);
+					if (result.success) return result.data;
+				}
+			} catch {
+				// fall through
+			}
+			return null;
+		}
+		const parent = join(dir, '..');
+		if (parent === dir) return null;
+		dir = parent;
+	}
+}
+
 export async function resolveProject(
 	config: BodeConfig,
-	options: { projectName?: string | undefined }
+	options: { projectName?: string | undefined; cwd?: string | undefined }
 ): Promise<Result<ResolvedProject>> {
+	const cwd = options.cwd ?? process.cwd();
+
+	// Repo-local .bode.yml wins when --project is not explicitly set.
+	if (!options.projectName) {
+		const repoLocal = await loadRepoLocalProject(cwd);
+		if (repoLocal) {
+			return {
+				ok: true,
+				value: { config: mergeProjectConfig(config, repoLocal), projectConfig: repoLocal },
+			};
+		}
+	}
+
 	const projectsResult = await listProjects();
 	if (!projectsResult.ok) return projectsResult;
 
@@ -24,7 +77,9 @@ export async function resolveProject(
 		return {
 			ok: false,
 			error: new Error(
-				'No projects configured. Run "bode setup project" to create one, or check ~/.bode/projects/'
+				'No project found. Either:\n' +
+					`  - add a .bode.yml to ${cwd} (or an ancestor directory), or\n` +
+					'  - run "bode setup-project" to create one in ~/.bode/projects/'
 			),
 		};
 	}
