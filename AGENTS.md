@@ -31,7 +31,7 @@ npm i -g KakunynQA/bode
 
 ## Architecture Summary
 
-- TypeScript strict, Node.js runtime (>=18), no DB (filesystem at `~/.bode/`)
+- TypeScript strict, Node.js runtime (>=20), no DB (filesystem at `~/.bode/`)
 - Built with esbuild to single CJS bundle in `dist/index.js`
 - Jira via REST API v3 (Basic Auth with API Token) — mock adapter as fallback
 - AI CLIs invoked via `child_process` in headless mode through `CliAdapter` interface
@@ -97,7 +97,7 @@ Available models per CLI are defined in `src/adapters/cli/models.ts`.
 ## CI/CD
 
 GitHub Actions workflow at `.github/workflows/ci.yml`:
-- **Validate**: check + lint + format:check + test + build on Node 18/20/22/24
+- **Validate**: check + lint + format:check + test + build on Node 20/22/24
 - **Build Artifacts**: upload dist/index.js for Linux/Windows/macOS
 - **Release**: auto-release on `v*` tags with tarball + dist
 

@@ -86,7 +86,7 @@ Passes each AI CLI's bypass-approvals/sandbox flag automatically. Per-adapter ma
 ## Tech Stack
 
 - **Language:** TypeScript strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`)
-- **Runtime:** Node.js >=18, single CJS bundle built with esbuild → `dist/index.js`; also distributed as standalone single-file executables via Node SEA (`scripts/build-sea.mjs`)
+- **Runtime:** Node.js >=20, single CJS bundle built with esbuild → `dist/index.js`; also distributed as standalone single-file executables via Node SEA (`scripts/build-sea.mjs`)
 - **CLI framework:** `commander`
 - **Interactive prompts:** `@inquirer/prompts`
 - **Trackers:** Jira REST v3 + ADF helpers; Linear GraphQL; Notion REST; Trello REST; GitHub Issues via `gh` CLI; local markdown

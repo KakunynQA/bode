@@ -46749,8 +46749,8 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.28.2") {
-    return "0.28.2";
+  if ("0.29.0") {
+    return "0.29.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -47903,13 +47903,13 @@ function fmt(c) {
 async function checkNodeVersion() {
   const v = process.versions.node;
   const major = parseInt(v.split(".")[0] ?? "0", 10);
-  if (major >= 18) {
+  if (major >= 20) {
     return { name: "Node.js", status: "ok", detail: `v${v}` };
   }
   return {
     name: "Node.js",
     status: "fail",
-    detail: `v${v} \u2014 bode requires Node >=18`
+    detail: `v${v} \u2014 bode requires Node >=20`
   };
 }
 async function checkBinaryAvailable(name, binary) {

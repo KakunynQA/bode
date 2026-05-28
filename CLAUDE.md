@@ -45,7 +45,7 @@ If a request conflicts with `AGENTS.md`, `CONVENTIONS.md`, or `SPEC.md`, say so.
 ## Quick Reference
 
 - Stack: TypeScript strict, Node.js + esbuild, no DB (filesystem `~/.bode/`), MCP Atlassian for Jira, child_process for AI CLIs, branch management via GitAdapter, VCS adapters for GitHub/GitLab
-- Runtime: Node.js >=18, CJS bundle via esbuild
+- Runtime: Node.js >=20, CJS bundle via esbuild
 - Run dev: `npm run dev -- <subcommand>`
 - Validate: `npm run check; npm run lint; npm run test; npm run build`
 - Install globally: `npm run build && npm pack && npm i -g bode-*.tgz`

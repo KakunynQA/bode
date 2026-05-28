@@ -25,13 +25,13 @@ function fmt(c: CheckResult): string {
 async function checkNodeVersion(): Promise<CheckResult> {
 	const v = process.versions.node;
 	const major = parseInt(v.split('.')[0] ?? '0', 10);
-	if (major >= 18) {
+	if (major >= 20) {
 		return { name: 'Node.js', status: 'ok', detail: `v${v}` };
 	}
 	return {
 		name: 'Node.js',
 		status: 'fail',
-		detail: `v${v} — bode requires Node >=18`,
+		detail: `v${v} — bode requires Node >=20`,
 	};
 }
 

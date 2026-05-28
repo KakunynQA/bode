@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] — 2026-05-27
+
+**Drops Node.js 18 support.** Node 18 reached end-of-life in April 2025 and a transitive dependency (`@inquirer/core` via `@inquirer/prompts`) now requires `node:util#styleText`, which only exists in Node 20.12+. CI was red on Node 18 (`TypeError: styleText is not a function` at import time in any test that touches the prompts module); fixing this transparently is not possible without pinning the dependency to an older, unmaintained release.
+
+### Changed
+
+- **`engines.node`** — bumped from `>=18` to `>=20`. `npm install bode` on Node 18 will now refuse instead of installing and failing at runtime.
+- **esbuild target** — `node18` → `node20` so the bundle can use Node 20 built-ins directly.
+- **CI matrix** — `[18, 20, 22, 24]` → `[20, 22, 24]`. Node 18 job was the only red square.
+- **`bode doctor`** — Node version check now requires `>=20` (was `>=18`).
+- **Docs** — `AGENTS.md`, `CLAUDE.md`, `SPEC.md` updated to reflect the new minimum.
+
+### Notes
+
+Users still on Node 18: upgrade to Node 20 LTS (or 22 LTS). Both are supported through 2026 and beyond.
+
 ## [0.28.2] — 2026-05-27
 
 CI fix + full documentation pass to match the Wave 5 surface.
