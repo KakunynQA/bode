@@ -1,7 +1,7 @@
 import type { BodeConfig, ProjectConfig } from '~/config/schema.ts';
 import type { PhaseStatus } from '~/types/phase.ts';
 import { getNextPhase, getPhaseStatusLabel } from '~/types/phase.ts';
-import type { JiraAdapter } from '~/types/jira.ts';
+import type { IssueTrackerStrategy } from '~/types/issue-tracker.ts';
 import { loadRunMeta, saveRunMeta, type RunMeta } from '~/storage/run-meta.ts';
 import { runPhase, type PhaseRunResult } from './phase-runner.ts';
 import { resolveVcsProvider } from '~/config/loader.ts';
@@ -31,7 +31,7 @@ export type AdvanceOptions = {
 export async function advancePhase(
 	taskKey: string,
 	config: BodeConfig,
-	jira: JiraAdapter,
+	tracker: IssueTrackerStrategy,
 	options: AdvanceOptions
 ): Promise<Result<AdvanceResult>> {
 	const metaResult = await loadRunMeta(taskKey);
@@ -54,7 +54,7 @@ export async function advancePhase(
 	}
 
 	if (nextStatus === 'awaiting-merge') {
-		return await advanceToAwaitingMerge(taskKey, meta, config, jira, options);
+		return await advanceToAwaitingMerge(taskKey, meta, config, tracker, options);
 	}
 
 	const executingStatus = getExecutingStatus(nextStatus);
@@ -95,20 +95,20 @@ export async function advancePhase(
 	const transitionResult = await transitionForPhase(
 		taskKey,
 		executingStatus,
-		jira,
+		tracker,
 		config,
 		options.projectConfig
 	);
 	if (!transitionResult.ok) {
-		console.warn(pc.yellow(`[bode] Jira transition skipped: ${transitionResult.error.message}`));
+		console.warn(pc.yellow(`[bode] Tracker transition skipped: ${transitionResult.error.message}`));
 		console.warn(
 			pc.dim(
-				'  Configure jira.transitions in your project YAML (or global config) to match your workflow.'
+				'  Configure tracker transitions in your project YAML (or global config) to match your workflow.'
 			)
 		);
 	}
 
-	const phaseResult = await runPhase(taskKey, executingStatus, config, jira, {
+	const phaseResult = await runPhase(taskKey, executingStatus, config, tracker, {
 		projectRoot: options.projectRoot,
 		signal: options.signal,
 		projectConfig: options.projectConfig,
@@ -118,9 +118,9 @@ export async function advancePhase(
 
 	if (!phaseResult.ok) {
 		spinner?.fail(`Phase failed: ${phaseResult.error.message}`);
-		await postJiraComment(
+		await postTrackerComment(
 			taskKey,
-			jira,
+			tracker,
 			`**[Bode] Phase ${getPhaseStatusLabel(executingStatus)} failed**\n\n${phaseResult.error.message}`
 		);
 		return phaseResult;
@@ -155,7 +155,7 @@ export async function advancePhase(
 			result.artifact,
 			result.durationMs,
 			config,
-			jira
+			tracker
 		);
 	} else if (result.kind === 'missing-artifact') {
 		spinner?.warn(
@@ -163,16 +163,16 @@ export async function advancePhase(
 		);
 	} else if (result.kind === 'failed') {
 		spinner?.fail(`Phase failed: ${result.reason}`);
-		await postJiraComment(
+		await postTrackerComment(
 			taskKey,
-			jira,
+			tracker,
 			`**[Bode] Phase ${getPhaseStatusLabel(executingStatus)} failed**\n\n${result.reason}`
 		);
 	} else {
 		spinner?.warn('Phase timed out');
-		await postJiraComment(
+		await postTrackerComment(
 			taskKey,
-			jira,
+			tracker,
 			`**[Bode] Phase ${getPhaseStatusLabel(executingStatus)} timed out**`
 		);
 	}
@@ -189,7 +189,7 @@ async function advanceToAwaitingMerge(
 	taskKey: string,
 	meta: RunMeta,
 	config: BodeConfig,
-	jira: JiraAdapter,
+	tracker: IssueTrackerStrategy,
 	options: AdvanceOptions
 ): Promise<Result<AdvanceResult>> {
 	const workdir = options.projectConfig?.workdir ?? options.projectRoot;
@@ -206,12 +206,10 @@ async function advanceToAwaitingMerge(
 		};
 	}
 
-	// v0.18.0: conflict check is now part of the AI's PR-creation skill prompt.
-	// Bode no longer runs git from its own process.
 	console.log(pc.dim('Handing off to AI to open the pull request (with conflict check)...'));
 
-	const issueResult = await jira.fetchTask(taskKey, options.signal);
-	const summary = issueResult.ok ? issueResult.value.summary : meta.jiraSummary;
+	const issueResult = await tracker.fetchTask(taskKey, options.signal);
+	const summary = issueResult.ok ? issueResult.value.summary : meta.trackerSummary;
 
 	const { createPullRequestViaAI } = await import('./pr-creator.ts');
 	const prResult = await createPullRequestViaAI({
@@ -222,7 +220,7 @@ async function advanceToAwaitingMerge(
 		provider,
 		jiraSummary: summary,
 		config,
-		jira,
+		tracker,
 		...(options.projectConfig ? { projectConfig: options.projectConfig } : {}),
 		...(options.signal ? { signal: options.signal } : {}),
 		dangerousBypass: options.dangerousBypass ?? false,
@@ -241,25 +239,24 @@ async function advanceToAwaitingMerge(
 	};
 	await saveRunMeta(updatedMeta);
 
-	// Transition Jira to the configured "awaiting_merge" target (default "Code Review").
-	// This is the moment the work hands off to a human reviewer.
 	const mergeTransition = resolveJiraTransition('awaiting_merge', config, options.projectConfig);
 	if (mergeTransition.trim() !== '') {
-		const mergeTransResult = await jira.setStatus(taskKey, mergeTransition);
+		const mergeTransResult = await tracker.setStatus(taskKey, mergeTransition);
 		if (!mergeTransResult.ok) {
-			console.warn(pc.yellow(`[bode] Jira transition skipped: ${mergeTransResult.error.message}`));
+			console.warn(
+				pc.yellow(`[bode] Tracker transition skipped: ${mergeTransResult.error.message}`)
+			);
 			console.warn(
 				pc.dim(
-					'  Configure jira.transitions.awaiting_merge in your project YAML to match your workflow.'
+					'  Configure tracker transitions (awaiting_merge) in your project YAML to match your workflow.'
 				)
 			);
 		}
 	}
 
-	// Post PR comment on Jira
-	await postJiraComment(
+	await postTrackerComment(
 		taskKey,
-		jira,
+		tracker,
 		`**[Bode PR]** Created: ${prResult.value.url}\nBranch: \`${branch}\` → \`${baseBranch}\``
 	);
 
@@ -271,16 +268,15 @@ async function advanceToAwaitingMerge(
 async function transitionForPhase(
 	taskKey: string,
 	status: PhaseStatus,
-	jira: JiraAdapter,
+	tracker: IssueTrackerStrategy,
 	config: BodeConfig,
 	projectConfig?: ProjectConfig
 ): Promise<Result<void>> {
 	const phaseName = getPhaseNameForStatus(status);
 	if (!phaseName) return { ok: true, value: undefined };
 	const target = resolveJiraTransition(phaseName, config, projectConfig);
-	// Empty string = explicit "do not transition for this phase"
 	if (target.trim() === '') return { ok: true, value: undefined };
-	return await jira.setStatus(taskKey, target);
+	return await tracker.setStatus(taskKey, target);
 }
 
 async function postPhaseSummary(
@@ -289,7 +285,7 @@ async function postPhaseSummary(
 	artifact: string,
 	durationMs: number,
 	config: BodeConfig,
-	jira: JiraAdapter
+	tracker: IssueTrackerStrategy
 ): Promise<void> {
 	const phaseLabel = getPhaseStatusLabel(phaseStatus);
 	const maxChars = config.comment_format?.plan_inline_max_chars ?? 3000;
@@ -299,9 +295,9 @@ async function postPhaseSummary(
 	const summary = extractSummary(artifact, maxChars);
 	const duration = formatDuration(durationMs);
 
-	await postJiraComment(
+	await postTrackerComment(
 		taskKey,
-		jira,
+		tracker,
 		`**${prefix}[Bode ${phaseLabel}]** Completed in ${duration}.\n\n${summary}`
 	);
 }
@@ -325,8 +321,12 @@ function extractSummary(artifact: string, maxChars: number): string {
 	);
 }
 
-async function postJiraComment(taskKey: string, jira: JiraAdapter, body: string): Promise<void> {
-	await jira.postComment(taskKey, body);
+async function postTrackerComment(
+	taskKey: string,
+	tracker: IssueTrackerStrategy,
+	body: string
+): Promise<void> {
+	await tracker.postComment(taskKey, body);
 }
 
 function getExecutingStatus(nextStatus: PhaseStatus): PhaseStatus | null {
@@ -354,3 +354,5 @@ function formatDuration(ms: number): string {
 	const remainingSeconds = seconds % 60;
 	return `${minutes}m ${remainingSeconds}s`;
 }
+
+export const __testing = { getExecutingStatus, extractSummary, formatDuration };

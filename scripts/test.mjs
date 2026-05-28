@@ -14,9 +14,15 @@ function walk(dir) {
   return out;
 }
 
-const files = walk('tests/unit').sort();
+const all = process.argv.includes('--all');
+const dirs = ['tests/unit'];
+if (all) {
+  try { readdirSync('tests/integration'); dirs.push('tests/integration'); } catch {}
+  try { readdirSync('tests/smoke'); dirs.push('tests/smoke'); } catch {}
+}
+const files = dirs.flatMap(d => walk(d)).sort();
 if (files.length === 0) {
-  console.error('No test files found under tests/unit/');
+  console.error(`No test files found under ${dirs.join(', ')}`);
   process.exit(1);
 }
 

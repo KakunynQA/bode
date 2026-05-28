@@ -40,7 +40,7 @@ export function printTaskSummary(meta: RunMeta): void {
 	console.log(pc.dim('─'.repeat(60)));
 
 	const rows: [string, string][] = [
-		['Summary', meta.jiraSummary],
+		['Summary', meta.trackerSummary],
 		['Status', meta.status],
 	];
 

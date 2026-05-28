@@ -4,7 +4,7 @@ import { readText, writeText } from '~/utils/fs.ts';
 import { getRunDir } from '~/config/defaults.ts';
 import { getAdapter } from '~/adapters/cli/registry.ts';
 import type { BodeConfig, ProjectConfig } from '~/config/schema.ts';
-import type { JiraAdapter } from '~/types/jira.ts';
+import type { IssueTrackerStrategy } from '~/types/issue-tracker.ts';
 import type { Result } from '~/types/result.ts';
 import type { VcsProvider } from '~/types/vcs.ts';
 
@@ -32,7 +32,7 @@ export async function createPullRequestViaAI(args: {
 	provider: VcsProvider;
 	jiraSummary: string;
 	config: BodeConfig;
-	jira: JiraAdapter;
+	tracker: IssueTrackerStrategy;
 	projectConfig?: ProjectConfig | undefined;
 	signal?: AbortSignal | undefined;
 	dangerousBypass?: boolean;

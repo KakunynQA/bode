@@ -83,23 +83,25 @@ async function finalize(
 ): Promise<void> {
 	if (config) {
 		await removeBodeLabels(taskKey, config, meta);
-		const jira = selectTracker({
+		const trackerAdapter = selectTracker({
 			jira: config.jira,
 			workdir: meta.workdir ?? process.cwd(),
 		}).adapter;
 		const doneTarget = resolveJiraTransition('done', config, projectCfg);
 		if (doneTarget.trim() !== '') {
-			const transResult = await jira.setStatus(taskKey, doneTarget);
+			const transResult = await trackerAdapter.setStatus(taskKey, doneTarget);
 			if (!transResult.ok) {
-				console.warn(pc.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
+				console.warn(pc.yellow(`[bode] Tracker transition skipped: ${transResult.error.message}`));
 				console.warn(
-					pc.dim('  Configure jira.transitions.done in your project YAML to match your workflow.')
+					pc.dim(
+						'  Configure tracker transitions (done) in your project YAML to match your workflow.'
+					)
 				);
 			}
 		}
 		const useEmoji = config.comment_format?.use_emoji ?? true;
 		const prefix = useEmoji ? '🤖 ' : '';
-		await jira
+		await trackerAdapter
 			.addComment(taskKey, `**${prefix}[Bode]** Task complete. Artifacts archived locally.`)
 			.catch(() => {});
 	}
@@ -112,12 +114,12 @@ async function finalize(
 async function removeBodeLabels(taskKey: string, config: BodeConfig, meta: RunMeta): Promise<void> {
 	const labels = config.jira_labels;
 	if (!labels) return;
-	const jira = selectTracker({
+	const trackerAdapter = selectTracker({
 		jira: config.jira,
 		workdir: meta.workdir ?? process.cwd(),
 	}).adapter;
 	const allLabels = new Set<string>([...Object.values(labels), 'bode:conflict']);
 	for (const label of allLabels) {
-		await jira.removeTag(taskKey, label).catch(() => {});
+		await trackerAdapter.removeTag(taskKey, label).catch(() => {});
 	}
 }

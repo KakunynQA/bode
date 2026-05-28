@@ -1,6 +1,6 @@
 {
   "name": "bode",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "description": "Local CLI that orchestrates AI coding work through configurable phases",
   "author": "Kakunyn",
   "license": "MIT",
@@ -29,7 +29,9 @@
     "lint": "eslint src/ tests/ --config eslint.config.mjs",
     "format": "prettier --write src/ tests/",
     "format:check": "prettier --check src/ tests/",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "test:coverage": "c8 node scripts/test.mjs",
+    "test:all": "node scripts/test.mjs --all"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.5.0",
@@ -42,6 +44,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",
+    "c8": "^11.0.0",
     "esbuild": "^0.25.0",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",

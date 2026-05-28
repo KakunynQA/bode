@@ -53,7 +53,7 @@ export async function startAction(
 				? { tracker: config.tracker }
 				: {}),
 	});
-	const jira = tracker.adapter;
+	const trackerAdapter = tracker.adapter;
 	if (tracker.kind === 'local') {
 		console.log(pc.dim(`Tracker: local (.bode/tasks/) — no external tracker configured`));
 	} else if (tracker.kind !== 'jira') {
@@ -83,23 +83,27 @@ export async function startAction(
 
 	const spinner = ora(`Fetching ${taskKey}...`).start();
 
-	const issueResult = await jira.fetchTask(taskKey);
+	const issueResult = await trackerAdapter.fetchTask(taskKey);
 	if (!issueResult.ok) {
-		spinner.fail(`Jira error: ${issueResult.error.message}`);
+		spinner.fail(`Tracker error: ${issueResult.error.message}`);
 		process.exit(1);
 	}
 
 	const issue = issueResult.value;
 	spinner.succeed(`Found: ${issue.summary} [${issue.issueType}]`);
 
-	const transitionsResult = await jira.listStatuses(taskKey);
+	const transitionsResult = await trackerAdapter.listStatuses(taskKey);
 	if (!transitionsResult.ok) {
-		console.log(pc.yellow(`⚠ Cannot check Jira transitions: ${transitionsResult.error.message}`));
 		console.log(
-			pc.dim('  Jira card moves and comments will not work. Run "bode setup" to configure Jira.')
+			pc.yellow(`⚠ Cannot check tracker transitions: ${transitionsResult.error.message}`)
+		);
+		console.log(
+			pc.dim(
+				'  Tracker card moves and comments will not work. Run "bode setup" to configure your tracker.'
+			)
 		);
 	} else if (transitionsResult.value.length === 0) {
-		console.log(pc.yellow('⚠ No available Jira transitions for this issue.'));
+		console.log(pc.yellow('⚠ No available tracker transitions for this issue.'));
 		console.log(
 			pc.dim(
 				'  Card may not move automatically. Check that transitions are configured in your workflow.'
@@ -110,7 +114,7 @@ export async function startAction(
 			const label = t.toStatusName ?? t.name;
 			return t.name !== label ? `${t.name} → ${label}` : t.name;
 		});
-		console.log(pc.dim(`  Jira: available — ${names.join(', ')}`));
+		console.log(pc.dim(`  Tracker: available — ${names.join(', ')}`));
 	}
 
 	let isContinuing = false;
@@ -234,7 +238,7 @@ export async function startAction(
 	};
 
 	if (interactive) {
-		const result = await advancePhase(taskKey, config, jira, engineOpts);
+		const result = await advancePhase(taskKey, config, trackerAdapter, engineOpts);
 		if (!result.ok) {
 			console.error(pc.red(`Planning failed: ${result.error.message}`));
 			process.exit(1);
@@ -272,7 +276,7 @@ export async function startAction(
 	while (loopCount < maxLoops) {
 		loopCount++;
 
-		const result = await advancePhase(taskKey, config, jira, engineOpts);
+		const result = await advancePhase(taskKey, config, trackerAdapter, engineOpts);
 		if (!result.ok) {
 			console.error(pc.red(`Error in phase ${loopCount}: ${result.error.message}`));
 			process.exit(1);
@@ -311,7 +315,7 @@ export async function startAction(
 
 				const { resolveJiraTransition } = await import('~/config/transitions.ts');
 				const doneTarget = resolveJiraTransition('done', config, projectConfig);
-				await jira.setStatus(taskKey, doneTarget).catch(() => {});
+				await trackerAdapter.setStatus(taskKey, doneTarget).catch(() => {});
 
 				const finalMeta = { ...advanceVal.meta, status: 'done' as const, updatedAt: Date.now() };
 				await saveRunMeta(finalMeta);

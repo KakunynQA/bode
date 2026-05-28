@@ -6,7 +6,7 @@ import type { Result } from '~/types/result.ts';
 
 export type RunMeta = {
 	taskKey: string;
-	jiraSummary: string;
+	trackerSummary: string;
 	status: PhaseStatus;
 	startedAt: number;
 	updatedAt: number;
@@ -50,7 +50,7 @@ export async function createRun(
 ): Promise<Result<RunMeta>> {
 	const meta: RunMeta = {
 		taskKey,
-		jiraSummary: summary,
+		trackerSummary: summary,
 		status: 'pending',
 		startedAt: Date.now(),
 		updatedAt: Date.now(),

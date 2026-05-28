@@ -118,7 +118,31 @@ When the integration suite lands (Wave 6), it will run on a separate workflow tr
 
 - Every new feature: unit test for the logic; integration test once that layer lands.
 - Every bug fix: regression test that fails before fix, passes after.
-- No tests for thin CLI command handlers (covered by smoke when it lands).
-- No snapshot tests. Explicit assertions only.
+- Integration test for every new adapter (Jira REST, CLI spawn, VCS shellout).
+- Snapshot-style regression tests for prompt generation.
 - Tests must run in <30 seconds total (unit layer). Integration can be slower.
 - Parallelize where possible. No shared mutable state across tests.
+
+## Coverage
+
+Run with c8:
+
+```bash
+npm run test:coverage
+```
+
+Per-module floors (enforced by CI):
+
+| Layer | Minimum |
+|-------|---------|
+| Pure logic (`src/utils/`, `src/types/`) | 90% lines |
+| Orchestrator (`src/orchestrator/`) | 80% lines |
+| Adapters (`src/adapters/`) | 70% lines |
+| CLI actions (`src/cli/`) | 60% lines |
+
+## Running All Tests
+
+```bash
+npm run test:all       # unit + integration + smoke
+npm run test:coverage  # unit with c8 coverage report
+```

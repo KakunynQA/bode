@@ -39529,7 +39529,7 @@ async function saveRunMeta(meta3) {
 async function createRun(taskKey, summary, options) {
   const meta3 = {
     taskKey,
-    jiraSummary: summary,
+    trackerSummary: summary,
     status: "pending",
     startedAt: Date.now(),
     updatedAt: Date.now(),
@@ -41604,7 +41604,7 @@ var init_preflight = __esm({
 });
 
 // src/orchestrator/phase-runner.ts
-async function runPhase(taskKey, status, config2, jira, options) {
+async function runPhase(taskKey, status, config2, tracker, options) {
   const phaseName = getPhaseNameForStatus(status);
   if (!phaseName) {
     return { ok: false, error: new Error(`No phase name for status: ${status}`) };
@@ -41626,7 +41626,7 @@ async function runPhase(taskKey, status, config2, jira, options) {
     globalDir: void 0
   });
   if (!skillResult.ok) return skillResult;
-  const issueResult = await jira.fetchTask(taskKey, options.signal);
+  const issueResult = await tracker.fetchTask(taskKey, options.signal);
   if (!issueResult.ok) return issueResult;
   const issue2 = issueResult.value;
   const priorPhaseFile = getPriorPhaseFile(phaseName);
@@ -41673,7 +41673,7 @@ async function runPhase(taskKey, status, config2, jira, options) {
   const labels = config2.jira_labels;
   const currentLabelKey = getCurrentLabelKey(phaseName);
   if (labels && currentLabelKey) {
-    await jira.addTag(taskKey, labels[currentLabelKey]);
+    await tracker.addTag(taskKey, labels[currentLabelKey]);
   }
   const invocationOpts = {
     signal: options.signal,
@@ -41737,11 +41737,11 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
   const labelsConfig = config2.jira_labels;
   if (labelsConfig) {
     if (currentLabelKey) {
-      await jira.removeTag(taskKey, labelsConfig[currentLabelKey]);
+      await tracker.removeTag(taskKey, labelsConfig[currentLabelKey]);
     }
     const nextLabelKey = getNextLabelKey(phaseName);
     if (nextLabelKey) {
-      await jira.addTag(taskKey, labelsConfig[nextLabelKey]);
+      await tracker.addTag(taskKey, labelsConfig[nextLabelKey]);
     }
   }
   let aiBranch = null;
@@ -41899,7 +41899,7 @@ function printTaskSummary(meta3) {
   console.log(import_picocolors.default.bold(import_picocolors.default.green(`\u2713 Task ${meta3.taskKey} complete`)) + import_picocolors.default.dim(`  (${durationStr})`));
   console.log(import_picocolors.default.dim("\u2500".repeat(60)));
   const rows = [
-    ["Summary", meta3.jiraSummary],
+    ["Summary", meta3.trackerSummary],
     ["Status", meta3.status]
   ];
   if (meta3.projectName) rows.push(["Project", meta3.projectName]);
@@ -45484,7 +45484,7 @@ var init_pr_creator = __esm({
 });
 
 // src/orchestrator/engine.ts
-async function advancePhase(taskKey, config2, jira, options) {
+async function advancePhase(taskKey, config2, tracker, options) {
   const metaResult = await loadRunMeta(taskKey);
   if (!metaResult.ok) return metaResult;
   const meta3 = metaResult.value;
@@ -45502,7 +45502,7 @@ async function advancePhase(taskKey, config2, jira, options) {
     };
   }
   if (nextStatus === "awaiting-merge") {
-    return await advanceToAwaitingMerge(taskKey, meta3, config2, jira, options);
+    return await advanceToAwaitingMerge(taskKey, meta3, config2, tracker, options);
   }
   const executingStatus = getExecutingStatus(nextStatus);
   if (!executingStatus) {
@@ -45537,19 +45537,19 @@ async function advancePhase(taskKey, config2, jira, options) {
   const transitionResult = await transitionForPhase(
     taskKey,
     executingStatus,
-    jira,
+    tracker,
     config2,
     options.projectConfig
   );
   if (!transitionResult.ok) {
-    console.warn(import_picocolors3.default.yellow(`[bode] Jira transition skipped: ${transitionResult.error.message}`));
+    console.warn(import_picocolors3.default.yellow(`[bode] Tracker transition skipped: ${transitionResult.error.message}`));
     console.warn(
       import_picocolors3.default.dim(
-        "  Configure jira.transitions in your project YAML (or global config) to match your workflow."
+        "  Configure tracker transitions in your project YAML (or global config) to match your workflow."
       )
     );
   }
-  const phaseResult = await runPhase(taskKey, executingStatus, config2, jira, {
+  const phaseResult = await runPhase(taskKey, executingStatus, config2, tracker, {
     projectRoot: options.projectRoot,
     signal: options.signal,
     projectConfig: options.projectConfig,
@@ -45558,9 +45558,9 @@ async function advancePhase(taskKey, config2, jira, options) {
   });
   if (!phaseResult.ok) {
     spinner?.fail(`Phase failed: ${phaseResult.error.message}`);
-    await postJiraComment(
+    await postTrackerComment(
       taskKey,
-      jira,
+      tracker,
       `**[Bode] Phase ${getPhaseStatusLabel(executingStatus)} failed**
 
 ${phaseResult.error.message}`
@@ -45593,7 +45593,7 @@ ${phaseResult.error.message}`
       result.artifact,
       result.durationMs,
       config2,
-      jira
+      tracker
     );
   } else if (result.kind === "missing-artifact") {
     spinner?.warn(
@@ -45601,18 +45601,18 @@ ${phaseResult.error.message}`
     );
   } else if (result.kind === "failed") {
     spinner?.fail(`Phase failed: ${result.reason}`);
-    await postJiraComment(
+    await postTrackerComment(
       taskKey,
-      jira,
+      tracker,
       `**[Bode] Phase ${getPhaseStatusLabel(executingStatus)} failed**
 
 ${result.reason}`
     );
   } else {
     spinner?.warn("Phase timed out");
-    await postJiraComment(
+    await postTrackerComment(
       taskKey,
-      jira,
+      tracker,
       `**[Bode] Phase ${getPhaseStatusLabel(executingStatus)} timed out**`
     );
   }
@@ -45622,7 +45622,7 @@ ${result.reason}`
   }
   return { ok: true, value: { kind: "phase", meta: updatedMeta.value, phaseResult: result } };
 }
-async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
+async function advanceToAwaitingMerge(taskKey, meta3, config2, tracker, options) {
   const workdir = options.projectConfig?.workdir ?? options.projectRoot;
   const branch = meta3.branch;
   const baseBranch = meta3.baseBranch;
@@ -45636,8 +45636,8 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
     };
   }
   console.log(import_picocolors3.default.dim("Handing off to AI to open the pull request (with conflict check)..."));
-  const issueResult = await jira.fetchTask(taskKey, options.signal);
-  const summary = issueResult.ok ? issueResult.value.summary : meta3.jiraSummary;
+  const issueResult = await tracker.fetchTask(taskKey, options.signal);
+  const summary = issueResult.ok ? issueResult.value.summary : meta3.trackerSummary;
   const { createPullRequestViaAI: createPullRequestViaAI2 } = await Promise.resolve().then(() => (init_pr_creator(), pr_creator_exports));
   const prResult = await createPullRequestViaAI2({
     taskKey,
@@ -45647,7 +45647,7 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
     provider,
     jiraSummary: summary,
     config: config2,
-    jira,
+    tracker,
     ...options.projectConfig ? { projectConfig: options.projectConfig } : {},
     ...options.signal ? { signal: options.signal } : {},
     dangerousBypass: options.dangerousBypass ?? false
@@ -45666,42 +45666,44 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, jira, options) {
   await saveRunMeta(updatedMeta);
   const mergeTransition = resolveJiraTransition("awaiting_merge", config2, options.projectConfig);
   if (mergeTransition.trim() !== "") {
-    const mergeTransResult = await jira.setStatus(taskKey, mergeTransition);
+    const mergeTransResult = await tracker.setStatus(taskKey, mergeTransition);
     if (!mergeTransResult.ok) {
-      console.warn(import_picocolors3.default.yellow(`[bode] Jira transition skipped: ${mergeTransResult.error.message}`));
+      console.warn(
+        import_picocolors3.default.yellow(`[bode] Tracker transition skipped: ${mergeTransResult.error.message}`)
+      );
       console.warn(
         import_picocolors3.default.dim(
-          "  Configure jira.transitions.awaiting_merge in your project YAML to match your workflow."
+          "  Configure tracker transitions (awaiting_merge) in your project YAML to match your workflow."
         )
       );
     }
   }
-  await postJiraComment(
+  await postTrackerComment(
     taskKey,
-    jira,
+    tracker,
     `**[Bode PR]** Created: ${prResult.value.url}
 Branch: \`${branch}\` \u2192 \`${baseBranch}\``
   );
   console.log(import_picocolors3.default.green(`PR created: ${prResult.value.url}`));
   return { ok: true, value: { kind: "pr-created", meta: updatedMeta, prUrl: prResult.value.url } };
 }
-async function transitionForPhase(taskKey, status, jira, config2, projectConfig) {
+async function transitionForPhase(taskKey, status, tracker, config2, projectConfig) {
   const phaseName = getPhaseNameForStatus(status);
   if (!phaseName) return { ok: true, value: void 0 };
   const target = resolveJiraTransition(phaseName, config2, projectConfig);
   if (target.trim() === "") return { ok: true, value: void 0 };
-  return await jira.setStatus(taskKey, target);
+  return await tracker.setStatus(taskKey, target);
 }
-async function postPhaseSummary(taskKey, phaseStatus, artifact, durationMs, config2, jira) {
+async function postPhaseSummary(taskKey, phaseStatus, artifact, durationMs, config2, tracker) {
   const phaseLabel = getPhaseStatusLabel(phaseStatus);
   const maxChars = config2.comment_format?.plan_inline_max_chars ?? 3e3;
   const useEmoji = config2.comment_format?.use_emoji ?? true;
   const prefix = useEmoji ? "\u{1F916} " : "";
   const summary = extractSummary(artifact, maxChars);
   const duration3 = formatDuration2(durationMs);
-  await postJiraComment(
+  await postTrackerComment(
     taskKey,
-    jira,
+    tracker,
     `**${prefix}[Bode ${phaseLabel}]** Completed in ${duration3}.
 
 ${summary}`
@@ -45719,8 +45721,8 @@ function extractSummary(artifact, maxChars) {
   }
   return summaryLines.join("\n") + "\n\n...(_truncated. Run `bode show <phase> <TASK-KEY>` for full output_)";
 }
-async function postJiraComment(taskKey, jira, body) {
-  await jira.postComment(taskKey, body);
+async function postTrackerComment(taskKey, tracker, body) {
+  await tracker.postComment(taskKey, body);
 }
 function getExecutingStatus(nextStatus) {
   switch (nextStatus) {
@@ -46298,7 +46300,7 @@ async function startAction(taskKey, options) {
     ...config2.trello ? { trello: config2.trello } : {},
     ...projectConfig.tracker ? { tracker: projectConfig.tracker } : config2.tracker ? { tracker: config2.tracker } : {}
   });
-  const jira = tracker.adapter;
+  const trackerAdapter = tracker.adapter;
   if (tracker.kind === "local") {
     console.log(import_picocolors8.default.dim(`Tracker: local (.bode/tasks/) \u2014 no external tracker configured`));
   } else if (tracker.kind !== "jira") {
@@ -46320,21 +46322,25 @@ async function startAction(taskKey, options) {
     dangerousBypass = true;
   }
   const spinner = ora(`Fetching ${taskKey}...`).start();
-  const issueResult = await jira.fetchTask(taskKey);
+  const issueResult = await trackerAdapter.fetchTask(taskKey);
   if (!issueResult.ok) {
-    spinner.fail(`Jira error: ${issueResult.error.message}`);
+    spinner.fail(`Tracker error: ${issueResult.error.message}`);
     process.exit(1);
   }
   const issue2 = issueResult.value;
   spinner.succeed(`Found: ${issue2.summary} [${issue2.issueType}]`);
-  const transitionsResult = await jira.listStatuses(taskKey);
+  const transitionsResult = await trackerAdapter.listStatuses(taskKey);
   if (!transitionsResult.ok) {
-    console.log(import_picocolors8.default.yellow(`\u26A0 Cannot check Jira transitions: ${transitionsResult.error.message}`));
     console.log(
-      import_picocolors8.default.dim('  Jira card moves and comments will not work. Run "bode setup" to configure Jira.')
+      import_picocolors8.default.yellow(`\u26A0 Cannot check tracker transitions: ${transitionsResult.error.message}`)
+    );
+    console.log(
+      import_picocolors8.default.dim(
+        '  Tracker card moves and comments will not work. Run "bode setup" to configure your tracker.'
+      )
     );
   } else if (transitionsResult.value.length === 0) {
-    console.log(import_picocolors8.default.yellow("\u26A0 No available Jira transitions for this issue."));
+    console.log(import_picocolors8.default.yellow("\u26A0 No available tracker transitions for this issue."));
     console.log(
       import_picocolors8.default.dim(
         "  Card may not move automatically. Check that transitions are configured in your workflow."
@@ -46345,7 +46351,7 @@ async function startAction(taskKey, options) {
       const label = t.toStatusName ?? t.name;
       return t.name !== label ? `${t.name} \u2192 ${label}` : t.name;
     });
-    console.log(import_picocolors8.default.dim(`  Jira: available \u2014 ${names.join(", ")}`));
+    console.log(import_picocolors8.default.dim(`  Tracker: available \u2014 ${names.join(", ")}`));
   }
   let isContinuing = false;
   const existing = await loadRunMeta(taskKey);
@@ -46451,7 +46457,7 @@ async function startAction(taskKey, options) {
     dangerousBypass
   };
   if (interactive) {
-    const result = await advancePhase(taskKey, config2, jira, engineOpts);
+    const result = await advancePhase(taskKey, config2, trackerAdapter, engineOpts);
     if (!result.ok) {
       console.error(import_picocolors8.default.red(`Planning failed: ${result.error.message}`));
       process.exit(1);
@@ -46485,7 +46491,7 @@ Planning failed: ${advanceVal.phaseResult.kind === "failed" ? advanceVal.phaseRe
   const maxLoops = 10;
   while (loopCount < maxLoops) {
     loopCount++;
-    const result = await advancePhase(taskKey, config2, jira, engineOpts);
+    const result = await advancePhase(taskKey, config2, trackerAdapter, engineOpts);
     if (!result.ok) {
       console.error(import_picocolors8.default.red(`Error in phase ${loopCount}: ${result.error.message}`));
       process.exit(1);
@@ -46518,7 +46524,7 @@ PR created: ${import_picocolors8.default.bold(advanceVal.prUrl)}`));
         }
         const { resolveJiraTransition: resolveJiraTransition2 } = await Promise.resolve().then(() => (init_transitions(), transitions_exports));
         const doneTarget = resolveJiraTransition2("done", config2, projectConfig);
-        await jira.setStatus(taskKey, doneTarget).catch(() => {
+        await trackerAdapter.setStatus(taskKey, doneTarget).catch(() => {
         });
         const finalMeta = { ...advanceVal.meta, status: "done", updatedAt: Date.now() };
         await saveRunMeta(finalMeta);
@@ -46749,8 +46755,8 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.29.0") {
-    return "0.29.0";
+  if ("0.30.0") {
+    return "0.30.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -47499,7 +47505,7 @@ async function continueAction(taskKey, options) {
     ...config2.trello ? { trello: config2.trello } : {},
     ...projectConfig.tracker ? { tracker: projectConfig.tracker } : config2.tracker ? { tracker: config2.tracker } : {}
   });
-  const jira = tracker.adapter;
+  const trackerAdapter = tracker.adapter;
   const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);
   if (!lockResult.ok) {
     console.error(import_picocolors12.default.red(lockResult.error.message));
@@ -47515,7 +47521,7 @@ async function continueAction(taskKey, options) {
     }
     dangerousBypass = true;
   }
-  const result = await advancePhase(taskKey, config2, jira, {
+  const result = await advancePhase(taskKey, config2, trackerAdapter, {
     projectRoot: projectConfig.workdir,
     signal: void 0,
     autopilot: void 0,
@@ -47531,7 +47537,7 @@ async function continueAction(taskKey, options) {
   if (advanceVal.kind === "conflict") {
     console.error(import_picocolors12.default.yellow("\nConflicts detected with base branch!"));
     console.error(import_picocolors12.default.dim('Resolve conflicts manually, then run "bode continue" again.'));
-    console.error(import_picocolors12.default.dim(`Jira label "bode:conflict" added to ${taskKey}.`));
+    console.error(import_picocolors12.default.dim(`Tracker label "bode:conflict" added to ${taskKey}.`));
     process.exit(1);
   }
   if (advanceVal.kind === "pr-created") {
@@ -47596,7 +47602,7 @@ async function statusAction(taskKey) {
     process.exit(1);
   }
   const meta3 = result.value;
-  console.log(`Task: ${import_picocolors13.default.bold(meta3.taskKey)} - ${meta3.jiraSummary}`);
+  console.log(`Task: ${import_picocolors13.default.bold(meta3.taskKey)} - ${meta3.trackerSummary}`);
   console.log(`Status: ${import_picocolors13.default.cyan(getPhaseStatusLabel(meta3.status))}`);
   if (meta3.branch) {
     console.log(`Branch: ${import_picocolors13.default.dim(meta3.branch)} (from ${meta3.baseBranch ?? "unknown"})`);
@@ -47772,23 +47778,25 @@ PR pending: ${meta3.prUrl} \u2014 merge manually when ready.`));
 async function finalize2(taskKey, meta3, config2, projectCfg) {
   if (config2) {
     await removeBodeLabels(taskKey, config2, meta3);
-    const jira = selectTracker({
+    const trackerAdapter = selectTracker({
       jira: config2.jira,
       workdir: meta3.workdir ?? process.cwd()
     }).adapter;
     const doneTarget = resolveJiraTransition("done", config2, projectCfg);
     if (doneTarget.trim() !== "") {
-      const transResult = await jira.setStatus(taskKey, doneTarget);
+      const transResult = await trackerAdapter.setStatus(taskKey, doneTarget);
       if (!transResult.ok) {
-        console.warn(import_picocolors16.default.yellow(`[bode] Jira transition skipped: ${transResult.error.message}`));
+        console.warn(import_picocolors16.default.yellow(`[bode] Tracker transition skipped: ${transResult.error.message}`));
         console.warn(
-          import_picocolors16.default.dim("  Configure jira.transitions.done in your project YAML to match your workflow.")
+          import_picocolors16.default.dim(
+            "  Configure tracker transitions (done) in your project YAML to match your workflow."
+          )
         );
       }
     }
     const useEmoji = config2.comment_format?.use_emoji ?? true;
     const prefix = useEmoji ? "\u{1F916} " : "";
-    await jira.addComment(taskKey, `**${prefix}[Bode]** Task complete. Artifacts archived locally.`).catch(() => {
+    await trackerAdapter.addComment(taskKey, `**${prefix}[Bode]** Task complete. Artifacts archived locally.`).catch(() => {
     });
   }
   const finalMeta = { ...meta3, status: "done", updatedAt: Date.now() };
@@ -47798,13 +47806,13 @@ async function finalize2(taskKey, meta3, config2, projectCfg) {
 async function removeBodeLabels(taskKey, config2, meta3) {
   const labels = config2.jira_labels;
   if (!labels) return;
-  const jira = selectTracker({
+  const trackerAdapter = selectTracker({
     jira: config2.jira,
     workdir: meta3.workdir ?? process.cwd()
   }).adapter;
   const allLabels = /* @__PURE__ */ new Set([...Object.values(labels), "bode:conflict"]);
   for (const label of allLabels) {
-    await jira.removeTag(taskKey, label).catch(() => {
+    await trackerAdapter.removeTag(taskKey, label).catch(() => {
     });
   }
 }
@@ -47843,7 +47851,7 @@ async function listAction() {
         const branchInfo = meta3.branch ? import_picocolors17.default.dim(` (${meta3.branch})`) : "";
         const conflictInfo = meta3.conflict ? import_picocolors17.default.red(" [CONFLICT]") : "";
         console.log(
-          `${import_picocolors17.default.bold(meta3.taskKey)} ${import_picocolors17.default.dim("-")} ${meta3.jiraSummary} ${import_picocolors17.default.dim("|")} ${getPhaseStatusLabel(meta3.status)}${branchInfo}${conflictInfo}`
+          `${import_picocolors17.default.bold(meta3.taskKey)} ${import_picocolors17.default.dim("-")} ${meta3.trackerSummary} ${import_picocolors17.default.dim("|")} ${getPhaseStatusLabel(meta3.status)}${branchInfo}${conflictInfo}`
         );
       }
     }

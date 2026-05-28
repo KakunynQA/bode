@@ -15,7 +15,7 @@ export async function statusAction(taskKey: string): Promise<void> {
 	}
 
 	const meta = result.value;
-	console.log(`Task: ${pc.bold(meta.taskKey)} - ${meta.jiraSummary}`);
+	console.log(`Task: ${pc.bold(meta.taskKey)} - ${meta.trackerSummary}`);
 	console.log(`Status: ${pc.cyan(getPhaseStatusLabel(meta.status))}`);
 	if (meta.branch) {
 		console.log(`Branch: ${pc.dim(meta.branch)} (from ${meta.baseBranch ?? 'unknown'})`);

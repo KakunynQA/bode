@@ -156,3 +156,65 @@ function mergePhaseConfig(
 		...(base.skill !== undefined && override['skill'] === undefined ? { skill: base.skill } : {}),
 	};
 }
+
+export async function resolveConfig(
+	cwd: string,
+	options?: {
+		projectName?: string;
+		signal?: AbortSignal;
+	}
+): Promise<
+	Result<{
+		config: BodeConfig;
+		projectConfig: ProjectConfig | undefined;
+		projectName: string | undefined;
+	}>
+> {
+	const configResult = await loadConfig(cwd);
+	if (!configResult.ok) return configResult;
+
+	let config = configResult.value;
+	let projectConfig: ProjectConfig | undefined;
+	let resolvedName: string | undefined;
+
+	const requestedName = options?.projectName ?? config.defaults?.project;
+
+	if (requestedName) {
+		const { loadProjectConfig } = await import('~/config/projects.ts');
+		const projectResult = await loadProjectConfig(requestedName);
+		if (!projectResult.ok) return projectResult;
+
+		if (projectResult.value) {
+			projectConfig = projectResult.value;
+			config = mergeProjectConfig(config, projectConfig);
+			resolvedName = requestedName;
+		}
+	} else {
+		const { existsSync: exists } = await import('node:fs');
+		const { join } = await import('node:path');
+		const { readFile: read } = await import('node:fs/promises');
+		const { parse: parseYaml } = await import('yaml');
+		const { projectConfigSchema } = await import('~/config/schema.ts');
+
+		const bodeYmlPath = join(cwd, '.bode.yml');
+		if (exists(bodeYmlPath)) {
+			try {
+				const raw = await read(bodeYmlPath, 'utf-8');
+				const parsed = parseYaml(raw);
+				if (parsed && typeof parsed === 'object') {
+					const withDefaults = { workdir: cwd, name: 'repo-local', ...parsed };
+					const validated = projectConfigSchema.safeParse(withDefaults);
+					if (validated.success) {
+						projectConfig = validated.data;
+						config = mergeProjectConfig(config, projectConfig);
+						resolvedName = projectConfig.name;
+					}
+				}
+			} catch {
+				// .bode.yml not parseable — proceed without project config
+			}
+		}
+	}
+
+	return { ok: true, value: { config, projectConfig, projectName: resolvedName } };
+}

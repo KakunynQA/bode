@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.0] — 2026-05-27
+
+Comprehensive testing + architecture maturity pass (GitHub issue #36). Brings bode from "internal-quality" to contributor-safe: 343 tests across unit, integration, and E2E layers; typed error taxonomy; clean tracker abstraction; coverage infrastructure.
+
+### Added
+
+- **c8 coverage** — `npm run test:coverage` reports per-file coverage. `npm run test:all` runs unit + integration + smoke.
+- **Error taxonomy** — `src/types/errors.ts` with `BodeError` discriminated union (kinds: config, tracker, phase, adapter, timeout, network, storage, validation). Helpers: `isBodeError`, `bodeErrorToError`, `errorToBodeError`.
+- **Unit tests** — 9 new test files covering engine.ts pure helpers, CLI model registry, version utility, branch-manager, config context, config projects, error types. Test count: 217 → 279.
+- **Integration tests** — `tests/integration/` with 3 test files: Jira REST adapter against fake HTTP server, CliAdapter spawn against fixture binary, lockfile concurrency under real process forks. Test count: +32.
+- **E2E smoke test** — `tests/smoke/full-flow.test.ts` verifying full phase chain (pending→done) through run-meta state machine with lockfile integration.
+- **Skill prompt snapshot tests** — 10 regression tests for `buildPrompt` across all phase/context combinations.
+- **`resolveConfig()`** — single-entry config resolution in `src/config/loader.ts` consolidating the loadConfig → resolveProject → mergeProjectConfig chain.
+- **Test fixtures** — `tests/fixtures/bin/` with `fake-ai-cli.mjs`, `fake-gh.mjs`, `fake-glab.mjs` fixture binaries. `tests/fixtures/jira-responses/` directory for response snapshots.
+- **`engine.ts __testing` export** — exposes pure functions (`getExecutingStatus`, `extractSummary`, `formatDuration`) for direct unit testing.
+
+### Changed
+
+- **Tracker naming cleanup** — renamed all internal `jira` variables/parameters to `tracker` or `trackerAdapter` across engine.ts, phase-runner.ts, pr-creator.ts, start.ts, continue.ts, done.ts, summary.ts. `JiraAdapter` type kept as deprecated alias. Error messages now say "Tracker transition" instead of "Jira transition". `RunMeta.jiraSummary` → `RunMeta.trackerSummary`.
+- **`CONVENTIONS.md`** — corrected tracker adapter list and error type section to reference `BodeError` discriminated unions.
+- **`TESTING.md`** — added coverage workflow, integration test layer, E2E smoke test, `npm run test:all` documentation.
+- **`AGENTS.md`** — added `test:coverage` and `test:all` commands, noted c8 dependency, updated key files list.
+
 ## [0.29.0] — 2026-05-27
 
 **Drops Node.js 18 support.** Node 18 reached end-of-life in April 2025 and a transitive dependency (`@inquirer/core` via `@inquirer/prompts`) now requires `node:util#styleText`, which only exists in Node 20.12+. CI was red on Node 18 (`TypeError: styleText is not a function` at import time in any test that touches the prompts module); fixing this transparently is not possible without pinning the dependency to an older, unmaintained release.

@@ -1,7 +1,7 @@
 import type { BodeConfig, ProjectConfig } from '~/config/schema.ts';
 import type { PhaseName, PhaseStatus } from '~/types/phase.ts';
 import { getPhaseNameForStatus, getNextPhase } from '~/types/phase.ts';
-import type { JiraAdapter } from '~/types/jira.ts';
+import type { IssueTrackerStrategy } from '~/types/issue-tracker.ts';
 import type { CliAdapterConfig, CliInvocationOptions } from '~/types/cli-adapter.ts';
 import type { Result } from '~/types/result.ts';
 import { getAdapter } from '~/adapters/cli/registry.ts';
@@ -34,7 +34,7 @@ export async function runPhase(
 	taskKey: string,
 	status: PhaseStatus,
 	config: BodeConfig,
-	jira: JiraAdapter,
+	tracker: IssueTrackerStrategy,
 	options: RunPhaseOptions
 ): Promise<Result<PhaseRunResult>> {
 	const phaseName = getPhaseNameForStatus(status);
@@ -63,7 +63,7 @@ export async function runPhase(
 	});
 	if (!skillResult.ok) return skillResult;
 
-	const issueResult = await jira.fetchTask(taskKey, options.signal);
+	const issueResult = await tracker.fetchTask(taskKey, options.signal);
 	if (!issueResult.ok) return issueResult;
 	const issue = issueResult.value;
 
@@ -124,7 +124,7 @@ export async function runPhase(
 	const labels = config.jira_labels;
 	const currentLabelKey = getCurrentLabelKey(phaseName);
 	if (labels && currentLabelKey) {
-		await jira.addTag(taskKey, labels[currentLabelKey]);
+		await tracker.addTag(taskKey, labels[currentLabelKey]);
 	}
 
 	const invocationOpts: CliInvocationOptions = {
@@ -201,11 +201,11 @@ export async function runPhase(
 	const labelsConfig = config.jira_labels;
 	if (labelsConfig) {
 		if (currentLabelKey) {
-			await jira.removeTag(taskKey, labelsConfig[currentLabelKey]);
+			await tracker.removeTag(taskKey, labelsConfig[currentLabelKey]);
 		}
 		const nextLabelKey = getNextLabelKey(phaseName);
 		if (nextLabelKey) {
-			await jira.addTag(taskKey, labelsConfig[nextLabelKey]);
+			await tracker.addTag(taskKey, labelsConfig[nextLabelKey]);
 		}
 	}
 

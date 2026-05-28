@@ -44,7 +44,10 @@ CI runs all of the above on Node 18, 20, 22, 24.
 
 - Unit test for every new pure-logic module.
 - Regression test for every bug fix (the test should fail before the fix and pass after).
+- Integration test for every new adapter (Jira REST, CLI spawn, VCS shellout).
 - See `TESTING.md` for fixtures and integration test conventions.
+- Run `npm run test:coverage` to check coverage. Per-module floors: pure logic 90%+, orchestrator 80%+, adapters 70%+.
+- Run `npm run test:all` to include integration and smoke tests.
 
 ## Adding a new AI CLI adapter
 

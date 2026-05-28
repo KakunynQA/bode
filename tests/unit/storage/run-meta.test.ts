@@ -29,7 +29,7 @@ describe('run-meta storage', () => {
 		const loaded = await loadRunMeta(TASK);
 		assert.ok(loaded.ok);
 		assert.ok(loaded.value);
-		assert.equal(loaded.value!.jiraSummary, 'summary text');
+		assert.equal(loaded.value!.trackerSummary, 'summary text');
 		assert.equal(loaded.value!.workdir, '/tmp/x');
 	});
 

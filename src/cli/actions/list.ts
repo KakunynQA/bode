@@ -21,7 +21,7 @@ export async function listAction(): Promise<void> {
 				const branchInfo = meta.branch ? pc.dim(` (${meta.branch})`) : '';
 				const conflictInfo = meta.conflict ? pc.red(' [CONFLICT]') : '';
 				console.log(
-					`${pc.bold(meta.taskKey)} ${pc.dim('-')} ${meta.jiraSummary} ${pc.dim('|')} ${getPhaseStatusLabel(meta.status)}${branchInfo}${conflictInfo}`
+					`${pc.bold(meta.taskKey)} ${pc.dim('-')} ${meta.trackerSummary} ${pc.dim('|')} ${getPhaseStatusLabel(meta.status)}${branchInfo}${conflictInfo}`
 				);
 			}
 		}

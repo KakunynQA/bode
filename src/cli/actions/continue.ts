@@ -39,7 +39,7 @@ export async function continueAction(
 				? { tracker: config.tracker }
 				: {}),
 	});
-	const jira = tracker.adapter;
+	const trackerAdapter = tracker.adapter;
 
 	const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);
 	if (!lockResult.ok) {
@@ -58,7 +58,7 @@ export async function continueAction(
 		dangerousBypass = true;
 	}
 
-	const result = await advancePhase(taskKey, config, jira, {
+	const result = await advancePhase(taskKey, config, trackerAdapter, {
 		projectRoot: projectConfig.workdir,
 		signal: undefined,
 		autopilot: undefined,
@@ -76,7 +76,7 @@ export async function continueAction(
 	if (advanceVal.kind === 'conflict') {
 		console.error(pc.yellow('\nConflicts detected with base branch!'));
 		console.error(pc.dim('Resolve conflicts manually, then run "bode continue" again.'));
-		console.error(pc.dim(`Jira label "bode:conflict" added to ${taskKey}.`));
+		console.error(pc.dim(`Tracker label "bode:conflict" added to ${taskKey}.`));
 		process.exit(1);
 	}
 

@@ -6,3 +6,5 @@ Thumbs.db
 !.env.example
 *.log
 ~/.bode/
+coverage/
+.local/
