@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v0.28.0) that orchestrates AI coding work through configurable phases (planning, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v0.18.0 removed all git shellouts (AI handles git). v0.19.0 added atomic meta + lockfiles. v0.20.0 zero-config foundation. v0.21.0 made Jira optional via LocalTrackerAdapter. v0.22.0 `bode <query>` fast path. v0.23.0 closed zero-config first run. v0.24-26 multi-provider trackers (GitHub Issues, Linear, Notion, Trello) + plain-markdown alias + `bode new` + method rename. v0.27.0 DX polish (errors helpers, SEA toolchain, Homebrew/scoop templates, opt-in telemetry). v0.28.0 plugin hooks + agent comparison + docs scaffold + release-SEA CI workflow. **Waves 0-4 functionally closed.** Only items requiring human/external action remain open (npm publish, demo video, launch post, GitHub App, skill marketplace). See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local CLI (v0.29.0) that orchestrates AI coding work through configurable phases (planning, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v0.18.0 removed all git shellouts (AI handles git). v0.19.0 added atomic meta + lockfiles. v0.20.0 zero-config foundation. v0.21.0 made Jira optional via LocalTrackerAdapter. v0.22.0 `bode <query>` fast path. v0.23.0 closed zero-config first run. v0.24-26 multi-provider trackers (GitHub Issues, Linear, Notion, Trello) + plain-markdown alias + `bode new` + method rename. v0.27.0 DX polish (errors helpers, SEA toolchain, Homebrew/scoop templates, opt-in telemetry). v0.28.0 plugin hooks + agent comparison + docs scaffold + release-SEA CI workflow. v0.28.1 `bode setup-transitions` interactive picker. v0.28.2 cross-platform test runner + docs refresh. v0.29.0 dropped Node 18 (CI matrix is 20/22/24). **Waves 0-5 functionally closed.** Only items requiring human/external action remain open (npm publish, demo video, launch post, GitHub App, skill marketplace). See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 
@@ -35,7 +35,7 @@ npm i -g KakunynQA/bode
 - Built with esbuild to single CJS bundle in `dist/index.js`
 - Jira via REST API v3 (Basic Auth with API Token) — mock adapter as fallback
 - AI CLIs invoked via `child_process` in headless mode through `CliAdapter` interface
-- Branch management via GitAdapter (`src/adapters/vcs/git.ts`) with GitHub Flow
+- Branch lifecycle handled by the AI CLI itself (v0.18.0 removed direct git shellouts); bode follows GitHub Flow conventions for branch naming and merge strategy
 - VCS adapters for both GitHub (`gh`) and GitLab (`glab`) in `src/adapters/vcs/`
 - Multi-project config system with per-project overrides in `~/.bode/projects/`
 - Context gathering (AGENTS.md + file tree) injected into prompts
@@ -86,7 +86,6 @@ Available models per CLI are defined in `src/adapters/cli/models.ts`.
 | `src/skills/resolver.ts` | Skill file resolution (project > global > bundled) |
 | `src/adapters/cli/models.ts` | Per-CLI model registry |
 | `src/adapters/cli/registry.ts` | CLI adapter registry |
-| `src/adapters/vcs/git.ts` | Git operations (branch, checkout, fetch, status) |
 | `src/adapters/vcs/gitlab.ts` | GitLab MR adapter (glab CLI) |
 | `src/adapters/vcs/github.ts` | GitHub PR adapter (gh CLI) |
 | `src/adapters/vcs/factory.ts` | VCS adapter factory (github/gitlab) |

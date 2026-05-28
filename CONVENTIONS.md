@@ -142,11 +142,11 @@ Custom error types per boundary:
 - YAML for human-edited configs. JSON for machine-generated state.
 - Config validation via `zod` schemas. Fail fast on invalid config.
 - Defaults in code, not in default config file. Config file shows only overrides.
-- Sensitive values (tokens) stored via system keychain, never in plain config.
+- Sensitive values (Jira / Linear / Notion / Trello tokens) live in YAML config under `~/.bode/`. The directory should be `chmod 700`; tokens must never appear in commits, logs, telemetry payloads, or skill prompts. System-keychain storage is a future Wave 6 item.
 
 ## Testing
 
-- Unit tests with `npx tsx --test` for pure logic, config loading, skill resolution.
+- Unit tests run via `npm test` (cross-platform runner at `scripts/test.mjs` that walks `tests/unit/` and spawns `node --import tsx --test`) for pure logic, config loading, skill resolution.
 - Integration tests for CliAdapter implementations (run actual CLIs, may need credentials).
 - Smoke test script: runs a fake Jira task end-to-end against a sandbox project.
 - No tests for CLI handlers (they're thin glue, integration-tested via smoke).
@@ -166,10 +166,10 @@ Custom error types per boundary:
 
 ## Commits and PRs
 
-- Conventional commits: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`.
+- Conventional commits: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`, `perf:`.
 - One logical change per PR. If you can describe it with "and", split it.
 - PR description: what changed, why, how to test, output/screenshots if UX.
-- All PRs must pass: `npm run check`, `npm run lint`, `npm run build`.
+- All PRs must pass: `npm run check`, `npm run lint`, `npm run format:check`, `npm test`, `npm run build`.
 - Squash merge to `main`. Branch names: `feat/jira-mcp`, `fix/timeout-handling`.
 
 ## When Working with AI Agents

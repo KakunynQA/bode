@@ -1,4 +1,4 @@
-# Bode — Technical Specification (v0.28.2)
+# Bode — Technical Specification (v0.29.0)
 
 ## What Bode Is
 

@@ -1,37 +1,43 @@
 # Testing
 
-Bode has no UI, so testing focuses on unit logic, integration with external systems, and end-to-end smoke against a real Jira sandbox.
+Bode has no UI, so testing today focuses on unit logic around config loading, skill resolution, adapter behaviour, and the orchestrator state machine. Integration and smoke layers are **planned** (see `ROADMAP.md` §Wave 6) but not yet on disk.
 
 ## Layers
 
-| Layer | Tool | Runs |
-|---|---|---|
-| Unit | `npx tsx --test` | Every PR, fast, deterministic |
-| Integration | `node --test --tag=integration` | Local with credentials, optional in CI with secrets |
-| Smoke | Custom script `npm run smoke` | Manual before releases |
+| Layer | Tool | Runs | Status |
+|---|---|---|---|
+| Unit | `npm test` (cross-platform runner at `scripts/test.mjs` → `node --import tsx --test tests/unit/**/*.test.ts`) | Every PR, fast, deterministic | **Implemented** |
+| Integration | `node --test --tag=integration` (no runner script yet) | Local with credentials, optional in CI | **Planned — Wave 6** |
+| Smoke | End-to-end against a real tracker sandbox | Manual before releases | **Planned — Wave 6** |
 
 ## Unit Tests
 
-Cover:
-- Config loading and validation (`src/config/`)
-- Skill resolution and prompt building (`src/skills/`)
-- Result type helpers, formatters (`src/utils/`)
-- Phase state machine transitions, branch naming logic, VCS provider resolution (`src/types/phase.ts`, `src/adapters/vcs/`)
-- Adapter error handling (mock the external calls)
+Today's unit coverage:
+
+- Config loading, validation, and auto-detection (`tests/unit/config/`)
+- Skill resolution and prompt building (`tests/unit/skills/`)
+- Result/error helpers, formatters, atomic FS, telemetry (`tests/unit/utils/`)
+- Phase state machine, branch naming logic, VCS factory (`tests/unit/types/`, `tests/unit/adapters/vcs/`)
+- Adapter error handling for every tracker (`tests/unit/adapters/tracker/`, `tests/unit/adapters/jira/`)
+- CLI adapter registry + dangerous-flags mapping (`tests/unit/adapters/cli/`)
+- Orchestrator: phase runner, preflight, hooks, PR creator (`tests/unit/orchestrator/`)
+- Storage: run meta atomicity, lockfile (`tests/unit/storage/`)
+- Fast path: ticket-key detection, slug generation (`tests/unit/cli/fast.test.ts`)
 
 Rules:
-- In `tests/unit/` directory mirroring src/ structure. Run: `npm test`
-- Mock external systems (Jira, CLI invocations, filesystem when realistic)
+
+- Files live under `tests/unit/` mirroring `src/` structure. Run with `npm test`.
+- Mock external systems (Jira, CLI invocations, filesystem when realistic).
 - No real timers (`setTimeout` etc). Use injected clock or fake timers.
-- Deterministic: same input, same output, always
+- Deterministic: same input, same output, always.
 
 Example:
 
 ```ts
-// src/skills/resolver.test.ts
+// tests/unit/skills/resolver.test.ts
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveSkillPath } from './resolver';
+import { resolveSkillPath } from '~/skills/resolver.ts';
 
 describe('resolveSkillPath', () => {
   it('prefers project override', async () => {
@@ -48,86 +54,71 @@ describe('resolveSkillPath', () => {
 });
 ```
 
-## Integration Tests
+## Integration Tests (planned)
 
-Cover the adapters where mocks lie too much:
+Tracked in `ROADMAP.md` §Wave 6. When implemented, will cover the adapters where mocks lie too much:
+
 - `src/adapters/cli/*` — actually invoke each CLI with a trivial prompt, assert output structure
-- `src/adapters/jira/*` — call real Jira sandbox, create/update/delete a test issue
-- `src/adapters/vcs/*` — create real test PR/MR in sandbox repo
+- `src/adapters/jira/rest.ts` — call a real Jira sandbox, create/update/delete a test issue
+- `src/adapters/vcs/*` — create a real test PR/MR in a sandbox repo
+- `src/adapters/tracker/*` — equivalent sandbox coverage per tracker
 
-Tagged so they skip when credentials absent:
+Required env vars when the suite lands:
 
-```ts
-import { it } from 'node:test';
+- `BODE_JIRA_TEST_SITE` / `BODE_JIRA_TEST_PROJECT` / `BODE_JIRA_TEST_TOKEN`
+- `BODE_GITHUB_TEST_REPO`
+- *(per-tracker equivalents as they are added)*
 
-const hasJiraCreds = !!process.env.BODE_JIRA_TEST_SITE;
+CI will run integration tests only if these secrets are present.
 
-it.skipIf(!hasJiraCreds)('integration: jira add comment', async () => {
-  // real call
-});
-```
+## Smoke Test (planned)
 
-Required env vars for integration tests (documented in README):
-- `BODE_JIRA_TEST_SITE` — sandbox site URL
-- `BODE_JIRA_TEST_PROJECT` — sandbox project key
-- `BODE_JIRA_TEST_TOKEN` — service account token for tests only
-- `BODE_GITHUB_TEST_REPO` — sandbox repo for PR tests
-
-CI runs integration tests only if these secrets are present.
-
-## Smoke Test
-
-A single script that exercises the full happy path against the sandbox:
-
-```bash
-npm run smoke
-```
-
-What it does:
-1. Creates a sandbox Jira ticket: "Smoke test: add hello world endpoint"
-2. Runs `bode start <KEY>` → expects status `In Progress`, label `bode:planned`, plan comment posted
-3. Runs `bode continue <KEY>` → expects label `bode:reviewing`, PR opened
-4. Runs `bode continue <KEY>` → expects label `bode:reviewed`, review comment on PR
-5. Runs `bode done <KEY>` → expects status `Done`, all bode labels removed
-6. Cleans up: deletes Jira ticket, closes PR, removes test branch
-
-Run manually before tagging a release. Smoke output is human-readable: pass/fail per step with timing.
+Tracked in `ROADMAP.md` §Wave 6. When implemented, a single script will exercise the full happy path against a sandbox tracker (`bode start` → `bode continue` → `bode continue` → `bode done`), assert per-phase state transitions, and clean up. Today no smoke script exists; cut a release only after `npm test` + manual `bode --version` + `bode doctor` are green.
 
 ## Test Fixtures
 
+Today's `tests/` layout:
+
 ```
 tests/
-├── fixtures/
-│   ├── configs/         # sample bode configs
-│   ├── skills/          # sample skill prompts
-│   ├── jira-responses/  # JSON snapshots of real Jira responses (for mocks)
-│   ├── projects/        # sample per-project config overrides
-│   └── cli-outputs/     # sample outputs from each AI CLI
-├── unit/                # mirrors src/
-├── integration/         # adapter tests
-└── smoke/               # smoke script
+└── unit/
+    ├── adapters/
+    │   ├── cli/        # dangerous-flags, registry
+    │   ├── jira/       # adf, factory
+    │   ├── tracker/    # local, github-issues, linear, notion, trello, factory, method-aliases
+    │   └── vcs/        # factory, url-parse
+    ├── cli/            # fast
+    ├── config/         # loader, transitions, auto-detect, project-resolver, synthetic
+    ├── orchestrator/   # phase-runner, preflight, pr-creator, hooks
+    ├── skills/         # resolver, prompt-builder
+    ├── storage/        # run-meta, lockfile
+    ├── types/          # phase
+    └── utils/          # format, merge, fs-atomic, errors, telemetry
 ```
+
+`tests/fixtures/`, `tests/integration/`, and `tests/smoke/` directories are planned (see §Wave 6) but do not exist today. Inline mocks live alongside the tests that use them.
 
 ## CI
 
-GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every PR:
+GitHub Actions workflow at `.github/workflows/ci.yml` has three jobs:
 
-1. `npm ci`
-2. `npm run check`
-3. `npm run lint`
-4. `npm run format:check`
-5. `npm run test` (unit only)
-6. `npm run build`
+1. **`validate`** — runs on every push to `main` and every PR against `main`, across Node `20`, `22`, and `24`:
+   1. `npm ci`
+   2. `npm run check`
+   3. `npm run lint`
+   4. `npm run format:check`
+   5. `npm test`
+   6. `npm run build`
+2. **`build-artifacts`** — needs `validate`. Builds `dist/index.js` on Linux, Windows, and macOS (Node 22) and uploads each platform's artifact with 30-day retention.
+3. **`release`** — needs `build-artifacts`. Triggers only on `v*` tag pushes. Runs build + `npm pack`, then creates a GitHub Release via `softprops/action-gh-release@v2` attaching `bode-*.tgz` and `dist/index.js`, with `generate_release_notes: true`.
 
-On `v*` tags: creates GitHub Release with tarball and dist artifact.
-
-Integration tests run on a separate workflow triggered manually or on `main` push, if secrets are configured.
+When the integration suite lands (Wave 6), it will run on a separate workflow triggered manually or on `main` push, gated on the relevant secrets.
 
 ## Rules
 
-- Every new feature: unit test for the logic, integration test if it touches external systems.
+- Every new feature: unit test for the logic; integration test once that layer lands.
 - Every bug fix: regression test that fails before fix, passes after.
-- No tests for thin CLI command handlers (covered by smoke).
+- No tests for thin CLI command handlers (covered by smoke when it lands).
 - No snapshot tests. Explicit assertions only.
 - Tests must run in <30 seconds total (unit layer). Integration can be slower.
 - Parallelize where possible. No shared mutable state across tests.

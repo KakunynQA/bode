@@ -7,7 +7,7 @@
     <img alt="Version" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FKakunynQA%2Fbode%2Fmain%2Fpackage.json&query=%24.version&label=Version&style=for-the-badge">
   </a>
   <a href="https://nodejs.org">
-    <img alt="Node 18+" src="https://img.shields.io/badge/Node.js-18%2B-339933?style=for-the-badge&logo=node.js">
+    <img alt="Node 20+" src="https://img.shields.io/badge/Node.js-20%2B-339933?style=for-the-badge&logo=node.js">
   </a>
   <a href="https://github.com/KakunynQA/bode/blob/main/package.json">
     <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-Strict-3178C6?style=for-the-badge&logo=typescript">
@@ -107,7 +107,7 @@ bode doctor
 
 ### Requirements
 
-- **Node.js** >= 18 (only for the npm install method — SEA binaries embed their runtime)
+- **Node.js** >= 20 (only for the npm install method — SEA binaries embed their runtime)
 - **Git** installed and configured
 - At least one **AI CLI**: [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`npm i -g @anthropic-ai/claude-code`), [OpenCode](https://opencode.ai), or [Codex](https://github.com/openai/codex). To route any of these through Z.AI's GLM models, run [`npx @z_ai/coding-helper init`](https://docs.z.ai/devpack/extension/coding-tool-helper).
 - *(Optional)* `gh` CLI for GitHub PRs or `glab` for GitLab MRs
@@ -136,7 +136,7 @@ bode continue <key>      # PR
 bode done <key>          # mark done, switch to base branch
 ```
 
-`bode` with no arguments resumes the latest run.
+`bode` with no arguments prints help. (Auto-resume of the latest run is planned — see [ROADMAP.md](ROADMAP.md) §6.2.)
 
 ### From a tracker ticket
 
@@ -186,7 +186,7 @@ All trackers implement the same `IssueTrackerStrategy` interface — same comman
 | Command | Description |
 |---|---|
 | `bode <prompt-or-key>` | Fast path. Ticket key (e.g. `KD-312`) or freeform prompt. |
-| `bode` *(no args)* | Resume the latest run. |
+| `bode` *(no args)* | Print help. |
 | `bode new <summary>` | Create a local task without invoking the AI. |
 | `bode setup` | Interactive wizard. Tracker, AI CLIs, VCS provider. |
 | `bode setup-project` | Per-project config (workdir, context paths, overrides). |
