@@ -4,6 +4,9 @@ import { getNextPhase, getPhaseStatusLabel } from '~/types/phase.ts';
 import type { IssueTrackerStrategy } from '~/types/issue-tracker.ts';
 import { loadRunMeta, saveRunMeta, type RunMeta } from '~/storage/run-meta.ts';
 import { runPhase, type PhaseRunResult } from './phase-runner.ts';
+import { validateContract } from './contract.ts';
+import { runValidationGate } from './validation-gate.ts';
+import { runReleaseGate } from './release-gate.ts';
 import { resolveVcsProvider } from '~/config/loader.ts';
 import { resolveJiraTransition } from '~/config/transitions.ts';
 import { printPhaseArtifacts } from '~/cli/summary.ts';
@@ -26,6 +29,7 @@ export type AdvanceOptions = {
 	projectConfig?: ProjectConfig | undefined;
 	interactive?: boolean;
 	dangerousBypass?: boolean;
+	strict?: boolean;
 };
 
 export async function advancePhase(
@@ -54,6 +58,8 @@ export async function advancePhase(
 	}
 
 	if (nextStatus === 'awaiting-merge') {
+		const gate = await runPrePrGates(taskKey, config, options);
+		if (!gate.ok) return gate;
 		return await advanceToAwaitingMerge(taskKey, meta, config, tracker, options);
 	}
 
@@ -129,6 +135,24 @@ export async function advancePhase(
 	const result = phaseResult.value;
 
 	if (result.kind === 'success') {
+		if (options.strict) {
+			const contract = validateContract(result.artifact);
+			if (!contract.ok) {
+				return {
+					ok: false,
+					error: new Error(`Artifact contract invalid: ${contract.errors.join('; ')}`),
+				};
+			}
+		}
+
+		if (executingStatus === 'reviewing-plan' && /CHANGES REQUESTED/i.test(result.artifact)) {
+			await saveRunMeta({ ...meta, status: 'planning', updatedAt: Date.now() });
+			return {
+				ok: false,
+				error: new Error('Plan review requested changes; returning to planning.'),
+			};
+		}
+
 		spinner?.succeed(
 			`${getPhaseStatusLabel(nextStatus)} complete (${formatDuration(result.durationMs)})`
 		);
@@ -273,7 +297,7 @@ async function transitionForPhase(
 	projectConfig?: ProjectConfig
 ): Promise<Result<void>> {
 	const phaseName = getPhaseNameForStatus(status);
-	if (!phaseName) return { ok: true, value: undefined };
+	if (!phaseName || phaseName === 'plan-review') return { ok: true, value: undefined };
 	const target = resolveJiraTransition(phaseName, config, projectConfig);
 	if (target.trim() === '') return { ok: true, value: undefined };
 	return await tracker.setStatus(taskKey, target);
@@ -335,6 +359,10 @@ function getExecutingStatus(nextStatus: PhaseStatus): PhaseStatus | null {
 			return 'planning';
 		case 'planned':
 			return 'planning';
+		case 'reviewing-plan':
+			return 'reviewing-plan';
+		case 'plan-reviewed':
+			return 'reviewing-plan';
 		case 'implementing':
 			return 'implementing' as PhaseStatus;
 		case 'reviewing':
@@ -344,6 +372,26 @@ function getExecutingStatus(nextStatus: PhaseStatus): PhaseStatus | null {
 		default:
 			return null;
 	}
+}
+
+async function runPrePrGates(
+	taskKey: string,
+	config: BodeConfig,
+	options: AdvanceOptions
+): Promise<Result<void>> {
+	const workdir = options.projectConfig?.workdir ?? options.projectRoot ?? process.cwd();
+	const commands = options.projectConfig?.validation ?? config.validation ?? [];
+	if (commands.length > 0) {
+		const validation = await runValidationGate({ taskKey, workdir, commands });
+		if (!validation.ok) return validation;
+	}
+	const release = runReleaseGate({
+		workdir,
+		config,
+		...(options.projectConfig ? { projectConfig: options.projectConfig } : {}),
+	});
+	if (!release.ok) return release;
+	return { ok: true, value: undefined };
 }
 
 function formatDuration(ms: number): string {

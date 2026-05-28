@@ -7,15 +7,29 @@ import type { Result } from '~/types/result.ts';
 declare const __SKILL_PLANNING__: string;
 declare const __SKILL_IMPLEMENTATION__: string;
 declare const __SKILL_REVIEW__: string;
+declare const __SKILL_PLAN_REVIEW__: string;
+declare const __SKILL_LEARN__: string;
+declare const __SKILL_INIT_AGENTS__: string;
 
 const EMBEDDED_SKILL_TAG = 'embedded:';
 
 const EMBEDDED_SKILLS: Record<string, () => string> = {
 	planning: () => (typeof __SKILL_PLANNING__ !== 'undefined' ? __SKILL_PLANNING__ : ''),
+	'plan-review': () => (typeof __SKILL_PLAN_REVIEW__ !== 'undefined' ? __SKILL_PLAN_REVIEW__ : ''),
 	implementation: () =>
 		typeof __SKILL_IMPLEMENTATION__ !== 'undefined' ? __SKILL_IMPLEMENTATION__ : '',
 	review: () => (typeof __SKILL_REVIEW__ !== 'undefined' ? __SKILL_REVIEW__ : ''),
+	learn: () => (typeof __SKILL_LEARN__ !== 'undefined' ? __SKILL_LEARN__ : ''),
+	'init-agents': () => (typeof __SKILL_INIT_AGENTS__ !== 'undefined' ? __SKILL_INIT_AGENTS__ : ''),
 };
+
+export type SkillFlavor = 'neutral' | 'claude' | 'openai';
+
+export function flavorForCli(cli: string | undefined): SkillFlavor {
+	if (cli === 'claude-code') return 'claude';
+	if (cli === 'codex' || cli === 'opencode') return 'openai';
+	return 'neutral';
+}
 
 function getEmbeddedSkill(phase: string): string | null {
 	const fn = EMBEDDED_SKILLS[phase];
@@ -24,15 +38,24 @@ function getEmbeddedSkill(phase: string): string | null {
 	return content && content.length > 0 ? content : null;
 }
 
-function getDevBundledPath(phase: string): string | null {
+function getDevBundledPath(phase: string, flavor: SkillFlavor): string | null {
 	if (typeof __dirname === 'undefined') return null;
+	const preferred = flavor === 'neutral' ? `${phase}.neutral.md` : `${phase}.${flavor}.md`;
 	// Candidates cover: tsx dev (__dirname = src/skills), built CJS (__dirname = dist/),
 	// and globally-installed package (src/skills/defaults shipped via "files" in package.json).
 	const candidates = [
+		join(__dirname, 'defaults', preferred),
 		join(__dirname, 'defaults', `${phase}.md`),
+		join(__dirname, '..', 'src', 'skills', 'defaults', preferred),
 		join(__dirname, '..', 'src', 'skills', 'defaults', `${phase}.md`),
+		join(__dirname, '..', 'skills', 'defaults', preferred),
 		join(__dirname, '..', 'skills', 'defaults', `${phase}.md`),
+		join(__dirname, 'skills', 'defaults', preferred),
 		join(__dirname, 'skills', 'defaults', `${phase}.md`),
+		join(__dirname, 'defaults', `${phase}.neutral.md`),
+		join(__dirname, '..', 'src', 'skills', 'defaults', `${phase}.neutral.md`),
+		join(__dirname, '..', 'skills', 'defaults', `${phase}.neutral.md`),
+		join(__dirname, 'skills', 'defaults', `${phase}.neutral.md`),
 	];
 	for (const c of candidates) {
 		if (existsSync(c)) return c;
@@ -42,8 +65,9 @@ function getDevBundledPath(phase: string): string | null {
 
 export async function resolveSkillPath(
 	phase: string,
-	options: { projectRoot: string | undefined; globalDir: string | undefined }
+	options: { projectRoot: string | undefined; globalDir: string | undefined; cli?: string }
 ): Promise<Result<string>> {
+	const flavor = flavorForCli(options.cli);
 	const projectSkill = options.projectRoot
 		? join(options.projectRoot, '.bode', 'skills', `${phase}.md`)
 		: null;
@@ -56,7 +80,7 @@ export async function resolveSkillPath(
 		return { ok: true, value: globalSkill };
 	}
 
-	const dev = getDevBundledPath(phase);
+	const dev = getDevBundledPath(phase, flavor);
 	if (dev) return { ok: true, value: dev };
 
 	if (getEmbeddedSkill(phase)) {
@@ -68,7 +92,7 @@ export async function resolveSkillPath(
 
 export async function loadSkillPrompt(
 	phase: string,
-	options: { projectRoot: string | undefined; globalDir: string | undefined }
+	options: { projectRoot: string | undefined; globalDir: string | undefined; cli?: string }
 ): Promise<Result<string>> {
 	const pathResult = await resolveSkillPath(phase, options);
 	if (!pathResult.ok) return pathResult;

@@ -1,9 +1,11 @@
-export type PhaseName = 'planning' | 'implementation' | 'review';
+export type PhaseName = 'planning' | 'plan-review' | 'implementation' | 'review';
 
 export type PhaseStatus =
 	| 'pending'
 	| 'planning'
 	| 'planned'
+	| 'reviewing-plan'
+	| 'plan-reviewed'
 	| 'implementing'
 	| 'reviewing'
 	| 'reviewed'
@@ -15,6 +17,9 @@ export type PhaseStatus =
 export type PhaseTransition =
 	| { from: 'pending'; to: 'planning' }
 	| { from: 'planning'; to: 'planned' }
+	| { from: 'planned'; to: 'reviewing-plan' }
+	| { from: 'reviewing-plan'; to: 'plan-reviewed' }
+	| { from: 'plan-reviewed'; to: 'implementing' }
 	| { from: 'planned'; to: 'implementing' }
 	| { from: 'implementing'; to: 'reviewing' }
 	| { from: 'reviewing'; to: 'reviewed' }
@@ -27,6 +32,8 @@ export const PHASE_ORDER: PhaseStatus[] = [
 	'pending',
 	'planning',
 	'planned',
+	'reviewing-plan',
+	'plan-reviewed',
 	'implementing',
 	'reviewing',
 	'reviewed',
@@ -44,6 +51,8 @@ export function getPhaseNameForStatus(status: PhaseStatus): PhaseName | null {
 	switch (status) {
 		case 'planning':
 			return 'planning';
+		case 'reviewing-plan':
+			return 'plan-review';
 		case 'implementing':
 			return 'implementation';
 		case 'reviewing':
@@ -58,6 +67,8 @@ export function getPhaseStatusLabel(status: PhaseStatus): string {
 		pending: 'Pending',
 		planning: 'Planning',
 		planned: 'Planned',
+		'reviewing-plan': 'Reviewing Plan',
+		'plan-reviewed': 'Plan Reviewed',
 		implementing: 'Implementing',
 		reviewing: 'Reviewing',
 		reviewed: 'Reviewed',

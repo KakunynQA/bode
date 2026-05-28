@@ -25,6 +25,16 @@ const phaseConfigSchema = z.object({
 	timeout_minutes: z.number().min(1).max(480),
 });
 
+const validationSchema = z.array(z.string().min(1)).optional();
+
+const releaseSchema = z
+	.object({
+		require_version_bump: z.boolean().optional(),
+		require_changelog_entry: z.boolean().optional(),
+		rebuild_command: z.string().optional(),
+	})
+	.optional();
+
 const jiraTransitionsSchema = z
 	.object({
 		planning: z.string().optional(),
@@ -111,9 +121,12 @@ export const bodeConfigSchema = z.object({
 		.optional(),
 	phases: z.object({
 		planning: phaseConfigSchema,
+		plan_review: phaseConfigSchema.optional(),
 		implementation: phaseConfigSchema,
 		review: phaseConfigSchema,
 	}),
+	validation: validationSchema,
+	release: releaseSchema,
 	gates: z
 		.object({
 			after_planning: z.boolean(),
@@ -168,10 +181,13 @@ export const projectConfigSchema = z.object({
 	phases: z
 		.object({
 			planning: phaseConfigSchema.partial().optional(),
+			plan_review: phaseConfigSchema.partial().optional(),
 			implementation: phaseConfigSchema.partial().optional(),
 			review: phaseConfigSchema.partial().optional(),
 		})
 		.optional(),
+	validation: validationSchema,
+	release: releaseSchema,
 	branch_tool: z.string().optional(),
 	repos: z.array(reposItemSchema).optional(),
 	tracker: z

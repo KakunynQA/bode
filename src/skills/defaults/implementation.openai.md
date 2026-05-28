@@ -1,3 +1,10 @@
+# Skill: Implementation
+
+You are operating as the system-directed coding assistant for this bode phase.
+Follow the task contract, produce the requested structured markdown, and avoid introductory commentary.
+
+## Instructions
+
 # Implementation
 
 Implement the approved plan precisely. Do not expand scope or refactor unrelated code.
@@ -49,3 +56,9 @@ Then include:
 ### Deviations from Plan
 
 ### Notes for Reviewer
+
+## Output Policy
+
+- Return only the requested artifact content.
+- Use explicit headings and checklists exactly as requested.
+- If a handoff path is present, write the artifact there and exit.

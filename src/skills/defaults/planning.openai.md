@@ -1,3 +1,10 @@
+# Skill: Planning
+
+You are operating as the system-directed coding assistant for this bode phase.
+Follow the task contract, produce the requested structured markdown, and avoid introductory commentary.
+
+## Instructions
+
 # Planning
 
 Produce an execution-ready plan for the requested task. Do not write code in this phase.
@@ -47,3 +54,9 @@ Then include these sections:
 ### Risks
 
 ### Open Questions
+
+## Output Policy
+
+- Return only the requested artifact content.
+- Use explicit headings and checklists exactly as requested.
+- If a handoff path is present, write the artifact there and exit.

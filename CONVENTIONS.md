@@ -50,6 +50,7 @@ src/
 └── index.ts          # entry point
 
 scripts/
+├── build-skills.mjs  # generate flavored skill prompts from neutral sources
 └── build.mjs         # esbuild build script
 
 tests/
@@ -133,7 +134,8 @@ Custom error types per boundary:
 
 - esbuild bundles everything to single CJS file `dist/index.js`.
 - Build script: `scripts/build.mjs` (ESM, runs with Node).
-- Static assets embedded via esbuild `define` (e.g., `__GOAT_ART__` from `src/assets/bode.art`).
+- Static assets and bundled skills embedded via esbuild `define` (e.g., `__GOAT_ART__` and `__SKILL_*`).
+- Bundled skills are authored as `*.neutral.md`; generated `*.claude.md` / `*.openai.md` files are rebuilt by `npm run build`.
 - `__dirname` available in CJS output. `import.meta.url` not available.
 - Path alias `~/` maps to `./src` via esbuild alias + tsconfig paths.
 

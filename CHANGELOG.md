@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] — 2026-05-28
+
+Wave 6 launch-readiness release: model-aware skills, strict delivery gates, generated project context, and first-run repo initialization.
+
+### Added
+
+- Neutral skill sources plus `scripts/build-skills.mjs`, generating Claude and OpenAI-flavored bundled prompts during `npm run build`.
+- `plan-review` phase support with `plan_review` phase config, lifecycle statuses, and strict contract validation via `--strict`.
+- Validation and release gates through `validation:` and `release:` config.
+- `bode show <artifact> <KEY> --html` for local HTML artifact rendering.
+- `bode init [--overwrite] [--from <file>]` to scaffold `AGENTS.md` with the configured AI CLI.
+- `bode learn [--refresh] [--detailed]` to generate `<repo>/.bode/context.md` and inject it into future phase prompts.
+- Context warning when `bode start` runs in a repo with no `AGENTS.md` or `README.md`.
+
+### Changed
+
+- `bode skills` now reports the selected skill flavor (`claude`, `openai`, or `neutral`).
+- Context precedence now includes `<repo>/.bode/context.md` before hand-authored context files.
+- Version bumped to `1.0.0` for the new CLI surface and config schema.
+
 ## [0.30.0] — 2026-05-27
 
 Comprehensive testing + architecture maturity pass (GitHub issue #36). Brings bode from "internal-quality" to contributor-safe: 343 tests across unit, integration, and E2E layers; typed error taxonomy; clean tracker abstraction; coverage infrastructure.

@@ -1,5 +1,6 @@
 import { access } from 'node:fs/promises';
 import { constants } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import type { ProjectConfig } from '~/config/schema.ts';
 import type { Result } from '~/types/result.ts';
@@ -60,4 +61,8 @@ export async function preflightProjectPaths(
 	const message = `Preflight failed: ${issues.length} path(s) unreachable\n${lines.join('\n')}\n\nFix permissions or remove the path from your project config, then retry.`;
 
 	return { ok: false, error: { message, issues } };
+}
+
+export function hasProjectContext(workdir: string): boolean {
+	return existsSync(join(workdir, 'AGENTS.md')) || existsSync(join(workdir, 'README.md'));
 }

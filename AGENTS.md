@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v0.29.0) that orchestrates AI coding work through configurable phases (planning, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v0.18.0 removed all git shellouts (AI handles git). v0.19.0 added atomic meta + lockfiles. v0.20.0 zero-config foundation. v0.21.0 made Jira optional via LocalTrackerAdapter. v0.22.0 `bode <query>` fast path. v0.23.0 closed zero-config first run. v0.24-26 multi-provider trackers (GitHub Issues, Linear, Notion, Trello) + plain-markdown alias + `bode new` + method rename. v0.27.0 DX polish (errors helpers, SEA toolchain, Homebrew/scoop templates, opt-in telemetry). v0.28.0 plugin hooks + agent comparison + docs scaffold + release-SEA CI workflow. v0.28.1 `bode setup-transitions` interactive picker. v0.28.2 cross-platform test runner + docs refresh. v0.29.0 dropped Node 18 (CI matrix is 20/22/24). **Waves 0-5 functionally closed.** Only items requiring human/external action remain open (npm publish, demo video, launch post, GitHub App, skill marketplace). See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local CLI (v1.0.0) that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v1.0.0 adds Wave 6 strict mode, neutral/flavored skills, `bode init`, `bode learn`, validation/release gates, and HTML artifacts. **Waves 0-6 are functionally closed except external launch actions.** See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 
@@ -65,12 +65,16 @@ Available models per CLI are defined in `src/adapters/cli/models.ts`.
 | `src/cli/commands.ts` | All command definitions |
 | `src/cli/actions/setup.ts` | Interactive setup wizard with @inquirer/prompts |
 | `src/cli/actions/start.ts` | Start task (planning phase) with interactive prompts for dirty workdir + existing run |
+| `src/cli/actions/init.ts` | Scaffold AGENTS.md for a repo |
+| `src/cli/actions/learn.ts` | Generate .bode/context.md project context |
 | `src/cli/actions/abort.ts` | Task abort logic + `abortRun()` reusable helper |
 | `src/cli/actions/continue.ts` | Advance to next phase |
 | `src/orchestrator/phase-runner.ts` | Core phase execution logic |
 | `src/orchestrator/engine.ts` | Phase advancement with spinners |
 | `src/orchestrator/branch-manager.ts` | Branch lifecycle management (create, conflict check, PR) |
 | `src/orchestrator/preflight.ts` | Validates workdir + context_paths + repos[] are readable before invoking the CLI (v0.12.0) |
+| `src/orchestrator/validation-gate.ts` | Runs configured validation commands before PR creation |
+| `src/orchestrator/release-gate.ts` | Enforces version/changelog release discipline when configured |
 | `src/cli/dangerous-check.ts` | Warns about `--approve-all-dangerous` and detects CLIs without bypass support (v0.13.0) |
 | `src/cli/missing-artifact.ts` | Interactive `[retry/continue/abort]` prompt when an AI session exits without writing the artifact (v0.13.0) |
 | `src/orchestrator/pr-creator.ts` | Hands off PR creation to the AI; reads URL from `~/.bode/runs/<KEY>/pr.txt` after exit (v0.16.0) |

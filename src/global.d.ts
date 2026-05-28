@@ -4,3 +4,6 @@ declare const __VERSION__: string;
 declare const __SKILL_PLANNING__: string;
 declare const __SKILL_IMPLEMENTATION__: string;
 declare const __SKILL_REVIEW__: string;
+declare const __SKILL_PLAN_REVIEW__: string;
+declare const __SKILL_LEARN__: string;
+declare const __SKILL_INIT_AGENTS__: string;

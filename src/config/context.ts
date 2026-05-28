@@ -47,9 +47,24 @@ export async function gatherContext(
 	const workdir = projectConfig.workdir;
 
 	const agentsMd = await readAgentsMd(workdir, projectConfig.context_files);
+	const learnedContext = await readLearnedContext(workdir);
 	const fileTree = await generateFileTree(workdir, projectConfig.context_paths);
 
-	return { agentsMd, fileTree };
+	return {
+		agentsMd: [learnedContext, agentsMd].filter(Boolean).join('\n\n') || undefined,
+		fileTree,
+	};
+}
+
+async function readLearnedContext(workdir: string): Promise<string | undefined> {
+	const fullPath = join(workdir, '.bode', 'context.md');
+	if (!existsSync(fullPath)) return undefined;
+	try {
+		const content = await readFile(fullPath, 'utf-8');
+		return content.trim() ? `### .bode/context.md\n\n${content.trim()}` : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 async function readAgentsMd(

@@ -38,7 +38,7 @@
 
 ## Why Bode
 
-**Bode** is a local CLI that orchestrates AI coding work through configurable phases (planning, implementation, review, PR creation), driving native AI CLIs and syncing progress to whichever issue tracker your team already uses — so AI work has shared visibility without leaving your existing workflow.
+**Bode** is a local CLI that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs and syncing progress to whichever issue tracker your team already uses — so AI work has shared visibility without leaving your existing workflow.
 
 It is a strong fit for:
 
@@ -116,6 +116,20 @@ bode doctor
 ---
 
 ## Quick start
+
+### First time in a repo
+
+```bash
+bode init
+bode learn
+bode "fix the dashboard bug" --strict
+```
+
+`bode init` creates a human-curated `AGENTS.md`. `bode learn` creates an AI-consumable `.bode/context.md` snapshot that is layered into future prompts before the file tree.
+
+### Strict mode
+
+Use `--strict` on `bode start` or the fast path to enable Wave 6 gates: plan-review, YAML artifact contract validation, configured `validation:` commands, configured `release:` checks, and HTML rendering via `bode show plan <KEY> --html`.
 
 ### Zero config — just type what you want
 

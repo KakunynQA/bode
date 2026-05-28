@@ -1,10 +1,16 @@
 import { getRunDir } from '~/config/defaults.ts';
 import { readText } from '~/utils/fs.ts';
+import { renderArtifactHtml } from '~/orchestrator/html-renderer.ts';
+import { writeText } from '~/utils/fs.ts';
 import pc from 'picocolors';
 
 const VALID_ARTIFACTS = ['plan', 'planning', 'implementation', 'review'] as const;
 
-export async function showAction(artifact: string, taskKey: string): Promise<void> {
+export async function showAction(
+	artifact: string,
+	taskKey: string,
+	options: { html?: boolean } = {}
+): Promise<void> {
 	const normalized = artifact.toLowerCase();
 	if (!VALID_ARTIFACTS.includes(normalized as (typeof VALID_ARTIFACTS)[number])) {
 		console.error(pc.red(`Invalid artifact: "${artifact}". Valid: ${VALID_ARTIFACTS.join(', ')}`));
@@ -33,6 +39,13 @@ export async function showAction(artifact: string, taskKey: string): Promise<voi
 	if (!content) {
 		console.error(pc.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
 		process.exit(1);
+	}
+
+	if (options.html) {
+		const htmlPath = `${getRunDir(taskKey)}/${filename.replace(/\.md$/, '.html')}`;
+		await writeText(htmlPath, renderArtifactHtml(`${taskKey} ${artifact}`, content));
+		console.log(htmlPath);
+		return;
 	}
 
 	console.log(content);

@@ -1,4 +1,4 @@
-# Bode — Technical Specification (v0.29.0)
+# Bode — Technical Specification (v1.0.0)
 
 ## What Bode Is
 
@@ -331,7 +331,9 @@ hooks:
 | `bode setup` | Interactive global wizard (tracker, AI CLIs, VCS). |
 | `bode setup-project` | Per-project wizard (workdir, default branch, context, overrides). |
 | `bode setup-transitions` | Map bode phases to your tracker's workflow states. |
-| `bode start <KEY>` | Start a task. Creates branch, runs planning phase. |
+| `bode start <KEY>` | Start a task. Creates branch, runs planning phase. Add `--strict` for Wave 6 gates. |
+| `bode init` | Scaffold `AGENTS.md` for the current repo via the configured AI CLI. |
+| `bode learn` | Generate `<repo>/.bode/context.md` for future phase prompts. |
 | `bode continue <KEY>` | Advance to next phase. Creates PR at awaiting-merge. |
 | `bode status <KEY>` | Show current phase, branch, PR link, conflict status. |
 | `bode show <artifact> <KEY>` | Print artifact (`plan` / `implementation` / `review`) to stdout. |
@@ -351,6 +353,7 @@ hooks:
 | `--project <name>` | start, continue, fast path, compare, setup-transitions | Project name from `~/.bode/projects/` |
 | `--from-branch <branch>` | start | Base branch (default: project's `default_branch` or `main`) |
 | `--auto` | start, fast path | Run all phases sequentially until PR created |
+| `--strict` | start, fast path | Enable plan-review contract checks, validation gate, and release gate |
 | `--dangerously-auto-merge` | start, fast path | Run all phases + merge PR + mark done |
 | `--dangerously-approve-all` | start, continue, fast path | Pass each CLI its bypass-approvals/sandbox flag |
 | `--auto-approve-pr-merge` | done | Automatically merge PR before cleanup |
@@ -378,10 +381,11 @@ Each phase follows the same pattern (in `src/orchestrator/phase-runner.ts`):
 
 `src/config/context.ts` builds the context block injected into the prompt:
 
-1. Reads every `context_files` entry relative to `workdir`.
-2. Generates a file tree for each `context_paths[]` (excludes `node_modules/`, `.git/`, `dist/`).
-3. Includes prior phase artifacts (planning.md → implementation; planning.md + implementation.md → review).
-4. Wraps untrusted tracker content in `<untrusted>` markers.
+1. Reads `<repo>/.bode/context.md` when present (`bode learn` output).
+2. Reads every `context_files` entry relative to `workdir`.
+3. Generates a file tree for each `context_paths[]` (excludes `node_modules/`, `.git/`, `dist/`).
+4. Includes prior phase artifacts (planning.md → plan-review → implementation → review).
+5. Wraps untrusted tracker content in `<untrusted>` markers.
 
 ### CLI invocation matrix
 
@@ -422,7 +426,11 @@ You are a senior engineer planning the implementation of a task.
 Pure markdown.
 ```
 
-Resolution: `<repo>/.bode/skills/<name>.md` → `~/.bode/skills/<name>.md` → bundled default (`src/skills/defaults/`).
+Neutral source format: bundled skills are authored as `src/skills/defaults/<name>.neutral.md`. `scripts/build-skills.mjs` emits `<name>.claude.md`, `<name>.openai.md`, and the neutral fallback before esbuild runs.
+
+Resolution: `<repo>/.bode/skills/<name>.md` → `~/.bode/skills/<name>.md` → flavored bundled default (`claude-code` → `.claude.md`, `codex` / `opencode` → `.openai.md`) → neutral bundled default.
+
+Every strict artifact starts with a YAML contract containing `objective`, `depends_on`, `files`, `validation`, `expected_output`, and `risk`.
 
 Skills are user-editable; never refactor them automatically.
 

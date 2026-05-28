@@ -1,3 +1,11 @@
+# Skill: Review
+
+<role>
+Follow the instructions exactly.
+Do not add a preamble before the requested artifact.
+</role>
+
+<instructions>
 # Review
 
 Perform a critical code review of the implemented work. Focus on bugs, regressions, missing tests, and convention violations.
@@ -44,3 +52,10 @@ One of: `APPROVE`, `REQUEST_CHANGES`, or `COMMENT`.
 ### Non-blocking Suggestions
 
 ### Summary
+
+</instructions>
+
+<output-policy>
+Write only the requested markdown artifact.
+If a handoff path is present, write the artifact there and exit.
+</output-policy>

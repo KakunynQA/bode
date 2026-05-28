@@ -150,10 +150,10 @@ function buildBranchBlock(context: PromptContext): string | null {
 	const workdir = context.mainWorkdir ?? '';
 	const suggested = suggestedBranchName(context.jiraIssue.key, context.jiraIssue.issueType);
 
-	if (phase === 'planning') {
+	if (phase === 'planning' || phase === 'plan-review') {
 		return [
 			'\n<branch-context>',
-			'Planning phase — READ-ONLY.',
+			`${phase === 'plan-review' ? 'Plan-review' : 'Planning'} phase — READ-ONLY.`,
 			`You are on the base branch (${base}). Do not create branches or modify files in this phase.`,
 			'Your job is to produce a written plan in the artifact file.',
 			'</branch-context>',

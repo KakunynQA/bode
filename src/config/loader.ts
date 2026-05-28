@@ -83,6 +83,7 @@ export async function buildSyntheticConfig(workdir: string): Promise<BodeConfig>
 
 	const phases: BodeConfig['phases'] = {
 		planning: { cli, model, timeout_minutes: 15 },
+		plan_review: { cli, model, timeout_minutes: 10 },
 		implementation: { cli, model, timeout_minutes: 60 },
 		review: { cli, model, timeout_minutes: 10 },
 	};
@@ -128,6 +129,12 @@ export function mergeProjectConfig(config: BodeConfig, project: ProjectConfig): 
 			planning: project.phases.planning
 				? mergePhaseConfig(merged.phases.planning, project.phases.planning)
 				: merged.phases.planning,
+			plan_review: project.phases.plan_review
+				? mergePhaseConfig(
+						merged.phases.plan_review ?? merged.phases.planning,
+						project.phases.plan_review
+					)
+				: merged.phases.plan_review,
 			implementation: project.phases.implementation
 				? mergePhaseConfig(merged.phases.implementation, project.phases.implementation)
 				: merged.phases.implementation,

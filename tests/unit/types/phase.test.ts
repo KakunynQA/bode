@@ -27,7 +27,9 @@ describe('phase status with awaiting-merge', () => {
 		const expected: Array<[string, string | null]> = [
 			['pending', 'planning'],
 			['planning', 'planned'],
-			['planned', 'implementing'],
+			['planned', 'reviewing-plan'],
+			['reviewing-plan', 'plan-reviewed'],
+			['plan-reviewed', 'implementing'],
 			['implementing', 'reviewing'],
 			['reviewing', 'reviewed'],
 			['reviewed', 'awaiting-merge'],

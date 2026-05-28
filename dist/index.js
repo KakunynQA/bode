@@ -38789,7 +38789,7 @@ var init_zod = __esm({
 });
 
 // src/config/schema.ts
-var hookEntrySchema, hooksSchema, phaseConfigSchema, jiraTransitionsSchema, bodeConfigSchema, reposItemSchema, projectConfigSchema;
+var hookEntrySchema, hooksSchema, phaseConfigSchema, validationSchema, releaseSchema, jiraTransitionsSchema, bodeConfigSchema, reposItemSchema, projectConfigSchema;
 var init_schema = __esm({
   "src/config/schema.ts"() {
     "use strict";
@@ -38814,6 +38814,12 @@ var init_schema = __esm({
       skill: external_exports.string().optional(),
       timeout_minutes: external_exports.number().min(1).max(480)
     });
+    validationSchema = external_exports.array(external_exports.string().min(1)).optional();
+    releaseSchema = external_exports.object({
+      require_version_bump: external_exports.boolean().optional(),
+      require_changelog_entry: external_exports.boolean().optional(),
+      rebuild_command: external_exports.string().optional()
+    }).optional();
     jiraTransitionsSchema = external_exports.object({
       planning: external_exports.string().optional(),
       implementation: external_exports.string().optional(),
@@ -38880,9 +38886,12 @@ var init_schema = __esm({
       }).optional(),
       phases: external_exports.object({
         planning: phaseConfigSchema,
+        plan_review: phaseConfigSchema.optional(),
         implementation: phaseConfigSchema,
         review: phaseConfigSchema
       }),
+      validation: validationSchema,
+      release: releaseSchema,
       gates: external_exports.object({
         after_planning: external_exports.boolean(),
         after_implementation: external_exports.boolean()
@@ -38922,9 +38931,12 @@ var init_schema = __esm({
       context_files: external_exports.array(external_exports.string()).optional(),
       phases: external_exports.object({
         planning: phaseConfigSchema.partial().optional(),
+        plan_review: phaseConfigSchema.partial().optional(),
         implementation: phaseConfigSchema.partial().optional(),
         review: phaseConfigSchema.partial().optional()
       }).optional(),
+      validation: validationSchema,
+      release: releaseSchema,
       branch_tool: external_exports.string().optional(),
       repos: external_exports.array(reposItemSchema).optional(),
       tracker: external_exports.enum([
@@ -38976,6 +38988,11 @@ var init_defaults = __esm({
           cli: "claude-code",
           model: "claude-opus-4-7",
           timeout_minutes: 15
+        },
+        plan_review: {
+          cli: "claude-code",
+          model: "claude-opus-4-7",
+          timeout_minutes: 10
         },
         implementation: {
           cli: "opencode",
@@ -39212,6 +39229,7 @@ async function buildSyntheticConfig(workdir) {
   const model = defaultModelFor(cli);
   const phases = {
     planning: { cli, model, timeout_minutes: 15 },
+    plan_review: { cli, model, timeout_minutes: 10 },
     implementation: { cli, model, timeout_minutes: 60 },
     review: { cli, model, timeout_minutes: 10 }
   };
@@ -39245,6 +39263,10 @@ function mergeProjectConfig(config2, project) {
   if (project.phases) {
     merged.phases = {
       planning: project.phases.planning ? mergePhaseConfig(merged.phases.planning, project.phases.planning) : merged.phases.planning,
+      plan_review: project.phases.plan_review ? mergePhaseConfig(
+        merged.phases.plan_review ?? merged.phases.planning,
+        project.phases.plan_review
+      ) : merged.phases.plan_review,
       implementation: project.phases.implementation ? mergePhaseConfig(merged.phases.implementation, project.phases.implementation) : merged.phases.implementation,
       review: project.phases.review ? mergePhaseConfig(merged.phases.review, project.phases.review) : merged.phases.review
     };
@@ -40830,6 +40852,8 @@ function getPhaseNameForStatus(status) {
   switch (status) {
     case "planning":
       return "planning";
+    case "reviewing-plan":
+      return "plan-review";
     case "implementing":
       return "implementation";
     case "reviewing":
@@ -40843,6 +40867,8 @@ function getPhaseStatusLabel(status) {
     pending: "Pending",
     planning: "Planning",
     planned: "Planned",
+    "reviewing-plan": "Reviewing Plan",
+    "plan-reviewed": "Plan Reviewed",
     implementing: "Implementing",
     reviewing: "Reviewing",
     reviewed: "Reviewed",
@@ -40861,6 +40887,8 @@ var init_phase = __esm({
       "pending",
       "planning",
       "planned",
+      "reviewing-plan",
+      "plan-reviewed",
       "implementing",
       "reviewing",
       "reviewed",
@@ -41184,19 +41212,33 @@ var init_registry = __esm({
 });
 
 // src/skills/resolver.ts
+function flavorForCli(cli) {
+  if (cli === "claude-code") return "claude";
+  if (cli === "codex" || cli === "opencode") return "openai";
+  return "neutral";
+}
 function getEmbeddedSkill(phase) {
   const fn = EMBEDDED_SKILLS[phase];
   if (!fn) return null;
   const content = fn();
   return content && content.length > 0 ? content : null;
 }
-function getDevBundledPath(phase) {
+function getDevBundledPath(phase, flavor) {
   if (typeof __dirname === "undefined") return null;
+  const preferred = flavor === "neutral" ? `${phase}.neutral.md` : `${phase}.${flavor}.md`;
   const candidates = [
+    (0, import_node_path11.join)(__dirname, "defaults", preferred),
     (0, import_node_path11.join)(__dirname, "defaults", `${phase}.md`),
+    (0, import_node_path11.join)(__dirname, "..", "src", "skills", "defaults", preferred),
     (0, import_node_path11.join)(__dirname, "..", "src", "skills", "defaults", `${phase}.md`),
+    (0, import_node_path11.join)(__dirname, "..", "skills", "defaults", preferred),
     (0, import_node_path11.join)(__dirname, "..", "skills", "defaults", `${phase}.md`),
-    (0, import_node_path11.join)(__dirname, "skills", "defaults", `${phase}.md`)
+    (0, import_node_path11.join)(__dirname, "skills", "defaults", preferred),
+    (0, import_node_path11.join)(__dirname, "skills", "defaults", `${phase}.md`),
+    (0, import_node_path11.join)(__dirname, "defaults", `${phase}.neutral.md`),
+    (0, import_node_path11.join)(__dirname, "..", "src", "skills", "defaults", `${phase}.neutral.md`),
+    (0, import_node_path11.join)(__dirname, "..", "skills", "defaults", `${phase}.neutral.md`),
+    (0, import_node_path11.join)(__dirname, "skills", "defaults", `${phase}.neutral.md`)
   ];
   for (const c of candidates) {
     if ((0, import_node_fs8.existsSync)(c)) return c;
@@ -41204,6 +41246,7 @@ function getDevBundledPath(phase) {
   return null;
 }
 async function resolveSkillPath(phase, options) {
+  const flavor = flavorForCli(options.cli);
   const projectSkill = options.projectRoot ? (0, import_node_path11.join)(options.projectRoot, ".bode", "skills", `${phase}.md`) : null;
   const globalSkill = (0, import_node_path11.join)(options.globalDir ?? getSkillsDir(), `${phase}.md`);
   if (projectSkill && (0, import_node_fs8.existsSync)(projectSkill)) {
@@ -41212,7 +41255,7 @@ async function resolveSkillPath(phase, options) {
   if ((0, import_node_fs8.existsSync)(globalSkill)) {
     return { ok: true, value: globalSkill };
   }
-  const dev = getDevBundledPath(phase);
+  const dev = getDevBundledPath(phase, flavor);
   if (dev) return { ok: true, value: dev };
   if (getEmbeddedSkill(phase)) {
     return { ok: true, value: `${EMBEDDED_SKILL_TAG}${phase}` };
@@ -41246,9 +41289,12 @@ var init_resolver = __esm({
     init_defaults();
     EMBEDDED_SKILL_TAG = "embedded:";
     EMBEDDED_SKILLS = {
-      planning: () => true ? "# Skill: Planning\n\n## Role\n\nYou are a senior software engineer planning the implementation of a Jira task.\nYour job is to produce a clear, actionable plan that another engineer (or AI agent) can execute without ambiguity.\n\n## Instructions\n\n1. Read the Jira ticket carefully. If the description is ambiguous or missing context, list clarifying questions instead of guessing.\n2. Read the project AGENTS.md and respect its conventions and constraints.\n3. Identify the files most likely to be affected. Use file tree as a guide.\n4. Propose the smallest change that satisfies the ticket. Do not expand scope.\n5. Identify risks: backward compatibility, performance, security, test coverage.\n6. List tests that need to be added or modified.\n7. If the task requires architecture decisions, surface them explicitly and recommend one option.\n8. If multiple repositories are configured (see &lt;branch-instructions&gt;), identify which repos need changes.\n   Include branch creation commands (using the tool specified) for each affected repo.\n\nDo not write code in this phase. The implementation phase will handle that.\n\n## Output Format\n\nMarkdown with these sections:\n\n### Goal\n\nOne sentence restating what we are building.\n\n### Approach\n\n2-4 paragraphs describing the strategy.\n\n### Files to Modify\n\n- `path/to/file.ts` \u2014 what changes\n\n### Tests Needed\n\n- Unit: ...\n- Integration: ...\n\n### Risks\n\n- ...\n\n### Open Questions\n\nOnly if applicable. If everything is clear, omit this section.\n" : "",
-      implementation: () => true ? "# Skill: Implementation\n\n## Role\n\nYou are a senior software engineer implementing a plan that has been reviewed and approved.\nYou execute the plan precisely. You do not deviate without strong reason.\n\n## Instructions\n\n1. **Create the working branch FIRST** \u2014 before any code changes. See the `<branch-context>` block in the prompt for the convention and the exact `git checkout -b ...` command to run. Then `git push -u origin <branch>`. If the workdir has uncommitted changes, ask the user before stashing or discarding.\n2. Read the plan from the planning phase (provided in context). Treat it as the source of truth.\n3. Read project AGENTS.md and CONVENTIONS.md. All code must comply.\n4. Make the minimal changes the plan calls for. Do not refactor unrelated code.\n5. Write or update tests as the plan specifies.\n6. Run the project's validation: typecheck, lint, tests, build. If anything fails, fix it before considering the work complete.\n7. If you discover the plan is wrong or incomplete, stop and report rather than improvise.\n8. Commit in small logical chunks with conventional commit messages. Push to origin when done.\n9. **Write the branch name** (just the name, no newline) to the file path given in the `<bode-handoff>` block \u2014 that's how bode knows what branch you used.\n\n## Output Format\n\nMarkdown summary:\n\n### Summary\n\n2-3 sentences on what was implemented.\n\n### Files Changed\n\n- `path/to/file.ts` \u2014 brief description\n\n### Validation\n\n- typecheck: pass/fail\n- lint: pass/fail\n- tests: N passed, M added\n- build: pass/fail\n\n### Deviations from Plan\n\nList anything you did differently from the plan, and why.\n\n### Notes for Reviewer\n\nAnything the human reviewer should pay attention to.\n" : "",
-      review: () => true ? "# Skill: Review\n\n## Role\n\nYou are a senior reviewer doing a critical code review on a pull request.\nYour goal is to catch bugs, design problems, and convention violations before a human reviews.\nYou are NOT here to praise. You are here to find problems.\n\n## Instructions\n\n1. Read the plan, implementation summary, and the actual diff.\n2. Read AGENTS.md and CONVENTIONS.md. Flag any violations.\n3. Check for:\n   - Logic bugs (off-by-one, null handling, race conditions)\n   - Missing error handling\n   - Tests that don't actually test what they claim\n   - Code that doesn't match the plan\n   - Performance issues (N+1, unnecessary loops)\n   - Security issues (injection, secrets in code, unsafe defaults)\n   - Convention violations (naming, file structure, import order)\n4. Be specific. Cite file and line. Explain what is wrong and how to fix.\n5. If everything looks good, say so clearly. Do not invent problems.\n\n## Output Format\n\nMarkdown:\n\n### Verdict\n\nOne of: `APPROVE`, `REQUEST_CHANGES`, or `COMMENT`.\n\n### Blocking Issues\n\nFor each: file:line, what's wrong, suggested fix. Empty if none.\n\n### Non-blocking Suggestions\n\nStyle, naming, opportunities for cleanup. Empty if none.\n\n### Summary\n\n2-3 sentences.\n" : ""
+      planning: () => true ? "# Planning\n\nProduce an execution-ready plan for the requested task. Do not write code in this phase.\n\n## Requirements\n\n1. Read the task, project rules, generated context, file tree, and prior artifacts.\n2. Identify ambiguity and list clarifying questions instead of guessing.\n3. Propose the smallest change that satisfies the task.\n4. Identify files likely to change, tests to add or update, validation commands, documentation updates, and release impact.\n5. Surface risks involving compatibility, security, performance, and test coverage.\n6. For multi-repo projects, identify affected repositories and branch expectations.\n\n## Output Format\n\nStart with this YAML contract block:\n\n```yaml\nobjective: 'One sentence objective'\ndepends_on: []\nfiles:\n  - path: 'path/to/file.ts'\n    reason: 'Why it may change'\nparallelization: 'sequential'\nvalidation:\n  - 'npm run check'\n  - 'npm run lint'\n  - 'npm test'\nexpected_output:\n  - 'Observable result expected after implementation'\nrelease:\n  bump: 'minor'\n  docs_to_update: ['README.md', 'SPEC.md']\nrisk: 'low'\n```\n\nThen include these sections:\n\n### Goal\n\n### Approach\n\n### Files to Modify\n\n### Tests Needed\n\n### Risks\n\n### Open Questions\n" : "",
+      "plan-review": () => true ? "# Plan Review\n\nReview the planning artifact before implementation starts. Do not modify code.\n\n## Requirements\n\n1. Check whether the plan has a complete YAML contract.\n2. Verify the plan lists files, validation commands, expected output, risks, and release/documentation impact.\n3. Identify missing tests, unsafe scope expansion, vague requirements, and dependency ordering problems.\n4. Return one verdict: `APPROVED`, `APPROVED WITH MINOR CHANGES`, or `CHANGES REQUESTED`.\n5. If changes are requested, explain exactly what must change before implementation.\n\n## Output Format\n\n### Verdict\n\nOne of: `APPROVED`, `APPROVED WITH MINOR CHANGES`, `CHANGES REQUESTED`.\n\n### Findings\n\n| Severity | Area | Finding | Required Fix |\n| -------- | ---- | ------- | ------------ |\n\n### Contract Check\n\n- objective:\n- depends_on:\n- files:\n- validation:\n- expected_output:\n- release:\n- risk:\n\n### Summary\n" : "",
+      implementation: () => true ? "# Implementation\n\nImplement the approved plan precisely. Do not expand scope or refactor unrelated code.\n\n## Requirements\n\n1. Create or switch to the working branch before code changes, following the branch context.\n2. Treat the planning and plan-review artifacts as the source of truth.\n3. Touch only files justified by the plan unless a blocker requires a documented deviation.\n4. Add or update tests described by the plan.\n5. Run the validation commands from the contract and fix failures.\n6. Apply release requirements: version bump, changelog entry, docs update, and build when required.\n7. Write the branch handoff file when requested.\n\n## Output Format\n\nStart with this YAML contract block:\n\n```yaml\nobjective: 'Implemented objective'\ndepends_on:\n  - 'planning.md'\n  - 'plan-review.md'\nfiles:\n  - path: 'path/to/file.ts'\n    reason: 'Changed behavior'\nparallelization: 'sequential'\nvalidation:\n  - 'npm run check'\n  - 'npm run lint'\n  - 'npm test'\n  - 'npm run build'\nexpected_output:\n  - 'Feature or fix is implemented'\nrelease:\n  bump: 'minor'\n  docs_to_update: ['README.md', 'SPEC.md']\nrisk: 'low'\n```\n\nThen include:\n\n### Summary\n\n### Files Changed\n\n### Validation\n\n### Deviations from Plan\n\n### Notes for Reviewer\n" : "",
+      review: () => true ? "# Review\n\nPerform a critical code review of the implemented work. Focus on bugs, regressions, missing tests, and convention violations.\n\n## Requirements\n\n1. Read the plan, plan-review artifact, implementation summary, project rules, and diff.\n2. Check correctness, error handling, test quality, security, performance, and release discipline.\n3. Cite file and line for each finding when possible.\n4. Do not invent issues. If the work is clean, state that clearly.\n\n## Output Format\n\nStart with this YAML contract block:\n\n```yaml\nobjective: 'Review implemented work'\ndepends_on:\n  - 'planning.md'\n  - 'implementation.md'\nfiles: []\nparallelization: 'sequential'\nvalidation:\n  - 'npm run check'\n  - 'npm run lint'\n  - 'npm test'\n  - 'npm run build'\nexpected_output:\n  - 'Review verdict is explicit'\nrelease:\n  bump: 'none'\n  docs_to_update: []\nrisk: 'low'\n```\n\nThen include:\n\n### Verdict\n\nOne of: `APPROVE`, `REQUEST_CHANGES`, or `COMMENT`.\n\n### Blocking Issues\n\n### Non-blocking Suggestions\n\n### Summary\n" : "",
+      learn: () => true ? '# Learn\n\nGenerate a concise project context snapshot for future bode phases.\n\n## Requirements\n\n1. Read available project rules, README, manifests, top-level file tree, and recent project signals.\n2. Summarize stable context, not transient implementation details.\n3. Do not include secrets, credentials, full source dumps, line counts, or commit SHAs.\n4. Prefer durable conventions and warnings that help future AI phases avoid rediscovery.\n\n## Output Format\n\nWrite markdown with:\n\n### Generated Context\n\nInclude the generation date and a note: "Regenerate with `bode learn --refresh`; do not hand-edit unless you intend to preserve a team convention."\n\n### Stack and Runtime\n\n### Project Conventions\n\n### Validation Commands\n\n### Sensitive Areas\n\n### Domain Glossary\n\n### Anti-patterns to Avoid\n' : "",
+      "init-agents": () => true ? '# Init Agents\n\nDraft a human-curated `AGENTS.md` for this repository.\n\n## Requirements\n\n1. Use the supplied file tree, manifests, README, and imported rules files as source material.\n2. Preserve existing project conventions from Cursor/Copilot/rules files when provided.\n3. Do not invent commands; if uncertain, mark them as "verify before relying on this".\n4. Keep the output committable and useful to humans and AI agents.\n\n## Output Format\n\nWrite a complete `AGENTS.md` with these sections:\n\n### Project Context\n\n### Commands\n\n### Architecture Summary\n\n### Key Files\n\n### Workflow Rules\n\n### Forbidden Actions\n\n### Definition of Done\n\n### Commit Messages\n\n### When Unsure\n' : ""
     };
   }
 });
@@ -41368,10 +41414,10 @@ function buildBranchBlock(context) {
   const current = context.currentBranch;
   const workdir = context.mainWorkdir ?? "";
   const suggested = suggestedBranchName(context.jiraIssue.key, context.jiraIssue.issueType);
-  if (phase === "planning") {
+  if (phase === "planning" || phase === "plan-review") {
     return [
       "\n<branch-context>",
-      "Planning phase \u2014 READ-ONLY.",
+      `${phase === "plan-review" ? "Plan-review" : "Planning"} phase \u2014 READ-ONLY.`,
       `You are on the base branch (${base}). Do not create branches or modify files in this phase.`,
       "Your job is to produce a written plan in the artifact file.",
       "</branch-context>"
@@ -41442,8 +41488,24 @@ var init_prompt_builder = __esm({
 async function gatherContext(projectConfig) {
   const workdir = projectConfig.workdir;
   const agentsMd = await readAgentsMd(workdir, projectConfig.context_files);
+  const learnedContext = await readLearnedContext(workdir);
   const fileTree = await generateFileTree(workdir, projectConfig.context_paths);
-  return { agentsMd, fileTree };
+  return {
+    agentsMd: [learnedContext, agentsMd].filter(Boolean).join("\n\n") || void 0,
+    fileTree
+  };
+}
+async function readLearnedContext(workdir) {
+  const fullPath = (0, import_node_path12.join)(workdir, ".bode", "context.md");
+  if (!(0, import_node_fs9.existsSync)(fullPath)) return void 0;
+  try {
+    const content = await (0, import_promises8.readFile)(fullPath, "utf-8");
+    return content.trim() ? `### .bode/context.md
+
+${content.trim()}` : void 0;
+  } catch {
+    return void 0;
+  }
 }
 async function readAgentsMd(workdir, contextFiles) {
   const candidates = contextFiles ?? ["AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md"];
@@ -41593,12 +41655,16 @@ ${lines.join("\n")}
 Fix permissions or remove the path from your project config, then retry.`;
   return { ok: false, error: { message, issues } };
 }
-var import_promises9, import_node_fs10, import_node_path13;
+function hasProjectContext(workdir) {
+  return (0, import_node_fs11.existsSync)((0, import_node_path13.join)(workdir, "AGENTS.md")) || (0, import_node_fs11.existsSync)((0, import_node_path13.join)(workdir, "README.md"));
+}
+var import_promises9, import_node_fs10, import_node_fs11, import_node_path13;
 var init_preflight = __esm({
   "src/orchestrator/preflight.ts"() {
     "use strict";
     import_promises9 = require("node:fs/promises");
     import_node_fs10 = require("node:fs");
+    import_node_fs11 = require("node:fs");
     import_node_path13 = require("node:path");
   }
 });
@@ -41609,7 +41675,7 @@ async function runPhase(taskKey, status, config2, tracker, options) {
   if (!phaseName) {
     return { ok: false, error: new Error(`No phase name for status: ${status}`) };
   }
-  const phaseConfig = config2.phases[phaseName];
+  const phaseConfig = phaseName === "plan-review" ? config2.phases.plan_review : config2.phases[phaseName];
   if (!phaseConfig) {
     return { ok: false, error: new Error(`No config for phase: ${phaseName}`) };
   }
@@ -41623,7 +41689,8 @@ async function runPhase(taskKey, status, config2, tracker, options) {
   }
   const skillResult = await loadSkillPrompt(phaseName, {
     projectRoot: options.projectRoot,
-    globalDir: void 0
+    globalDir: void 0,
+    cli: phaseConfig.cli
   });
   if (!skillResult.ok) return skillResult;
   const issueResult = await tracker.fetchTask(taskKey, options.signal);
@@ -41731,7 +41798,7 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
       value: { kind: "missing-artifact", logPath, durationMs: invocation.durationMs }
     };
   }
-  if (!(0, import_node_fs11.existsSync)(artifactPath)) {
+  if (!(0, import_node_fs12.existsSync)(artifactPath)) {
     await writeText(artifactPath, artifact);
   }
   const labelsConfig = config2.jira_labels;
@@ -41745,7 +41812,7 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
     }
   }
   let aiBranch = null;
-  if ((0, import_node_fs11.existsSync)(branchFile)) {
+  if ((0, import_node_fs12.existsSync)(branchFile)) {
     const raw = await readText(branchFile);
     const trimmed = raw?.trim();
     if (trimmed && trimmed.length > 0 && trimmed.length < 200) {
@@ -41774,7 +41841,7 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
   };
 }
 async function readArtifact(artifactPath, headlessStdout) {
-  if ((0, import_node_fs11.existsSync)(artifactPath)) {
+  if ((0, import_node_fs12.existsSync)(artifactPath)) {
     try {
       const s = await (0, import_promises10.stat)(artifactPath);
       if (s.size > 0) {
@@ -41791,8 +41858,10 @@ function getPriorPhaseFile(phase) {
   switch (phase) {
     case "planning":
       return "";
-    case "implementation":
+    case "plan-review":
       return "planning.md";
+    case "implementation":
+      return "plan-review.md";
     case "review":
       return "implementation.md";
     default:
@@ -41803,6 +41872,8 @@ function getCurrentLabelKey(phase) {
   switch (phase) {
     case "planning":
       return "planning";
+    case "plan-review":
+      return null;
     case "implementation":
       return "implementing";
     case "review":
@@ -41815,6 +41886,8 @@ function getNextLabelKey(phase) {
   switch (phase) {
     case "planning":
       return "planned";
+    case "plan-review":
+      return null;
     case "implementation":
       return "reviewing";
     case "review":
@@ -41823,7 +41896,7 @@ function getNextLabelKey(phase) {
       return null;
   }
 }
-var import_node_path14, import_node_fs11, import_promises10;
+var import_node_path14, import_node_fs12, import_promises10;
 var init_phase_runner = __esm({
   "src/orchestrator/phase-runner.ts"() {
     "use strict";
@@ -41837,8 +41910,140 @@ var init_phase_runner = __esm({
     init_context();
     init_preflight();
     import_node_path14 = require("node:path");
-    import_node_fs11 = require("node:fs");
+    import_node_fs12 = require("node:fs");
     import_promises10 = require("node:fs/promises");
+  }
+});
+
+// src/orchestrator/contract.ts
+function extractYamlContract(markdown) {
+  const fence = markdown.match(/```yaml\s*([\s\S]*?)```/i);
+  if (fence?.[1]) return fence[1].trim();
+  const frontmatter = markdown.match(/^---\s*\n([\s\S]*?)\n---/);
+  return frontmatter?.[1]?.trim() ?? null;
+}
+function validateContract(markdown) {
+  const yaml = extractYamlContract(markdown);
+  if (!yaml) return { ok: false, errors: ["Missing YAML contract block"] };
+  const errors = [];
+  for (const field of REQUIRED_FIELDS) {
+    if (!new RegExp(`^${field}:`, "m").test(yaml)) errors.push(`Missing field: ${field}`);
+  }
+  if (errors.length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    contract: {
+      objective: readScalar(yaml, "objective") ?? "",
+      depends_on: readList(yaml, "depends_on"),
+      files: readFileList(yaml),
+      validation: readList(yaml, "validation"),
+      expected_output: readList(yaml, "expected_output"),
+      risk: readScalar(yaml, "risk") ?? ""
+    }
+  };
+}
+function readScalar(yaml, key) {
+  const match = yaml.match(new RegExp(`^${key}:\\s*["']?([^"'\\n]*)["']?`, "m"));
+  return match?.[1]?.trim() ?? null;
+}
+function readList(yaml, key) {
+  const block = yaml.match(new RegExp(`^${key}:\\s*\\n([\\s\\S]*?)(?=^[a-zA-Z_]+:|\\z)`, "m"));
+  if (!block?.[1]) return [];
+  return block[1].split("\n").map((line) => line.trim()).filter((line) => line.startsWith("- ")).map(
+    (line) => line.slice(2).trim().replace(/^['"]|['"]$/g, "")
+  );
+}
+function readFileList(yaml) {
+  return readList(yaml, "files").map((path3) => ({ path: path3 }));
+}
+var REQUIRED_FIELDS;
+var init_contract = __esm({
+  "src/orchestrator/contract.ts"() {
+    "use strict";
+    REQUIRED_FIELDS = [
+      "objective",
+      "depends_on",
+      "files",
+      "validation",
+      "expected_output",
+      "risk"
+    ];
+  }
+});
+
+// src/orchestrator/validation-gate.ts
+async function runValidationGate(options) {
+  const logPath = (0, import_node_path15.join)(getRunDir(options.taskKey), "validation.log");
+  const results = [];
+  const log = [];
+  for (const command of options.commands) {
+    log.push(`$ ${command}`);
+    const result = await runShell(command, options.workdir);
+    results.push({ command, exitCode: result.exitCode });
+    log.push(result.output.trim(), "");
+    await writeText(logPath, log.join("\n"));
+    if (result.exitCode !== 0) {
+      return {
+        ok: false,
+        error: new Error(`Validation failed: ${command} (exit ${result.exitCode})`)
+      };
+    }
+  }
+  return { ok: true, value: { logPath, commands: results } };
+}
+function runShell(command, cwd) {
+  return new Promise((resolve) => {
+    const child = (0, import_node_child_process5.spawn)(command, { cwd, shell: true, stdio: ["ignore", "pipe", "pipe"] });
+    let output = "";
+    child.stdout.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+    child.on("close", (code) => resolve({ exitCode: code ?? 1, output }));
+    child.on("error", (error52) => resolve({ exitCode: 1, output: error52.message }));
+  });
+}
+var import_node_child_process5, import_node_path15;
+var init_validation_gate = __esm({
+  "src/orchestrator/validation-gate.ts"() {
+    "use strict";
+    import_node_child_process5 = require("node:child_process");
+    import_node_path15 = require("node:path");
+    init_fs();
+    init_defaults();
+  }
+});
+
+// src/orchestrator/release-gate.ts
+function runReleaseGate(options) {
+  const release = options.projectConfig?.release ?? options.config.release;
+  if (!release) return { ok: true, value: void 0 };
+  const errors = [];
+  if (release.require_version_bump) {
+    const pkgPath = (0, import_node_path16.join)(options.workdir, "package.json");
+    if (!(0, import_node_fs13.existsSync)(pkgPath)) errors.push("package.json is missing");
+    else {
+      const pkg = JSON.parse((0, import_node_fs13.readFileSync)(pkgPath, "utf-8"));
+      if (!pkg.version) errors.push("package.json has no version");
+    }
+  }
+  if (release.require_changelog_entry) {
+    const changelogPath = (0, import_node_path16.join)(options.workdir, "CHANGELOG.md");
+    if (!(0, import_node_fs13.existsSync)(changelogPath)) errors.push("CHANGELOG.md is missing");
+    else if (!/^## \[[0-9]+\.[0-9]+\.[0-9]+\]/m.test((0, import_node_fs13.readFileSync)(changelogPath, "utf-8"))) {
+      errors.push("CHANGELOG.md has no versioned entry");
+    }
+  }
+  return errors.length > 0 ? { ok: false, error: new Error(errors.join("; ")) } : { ok: true, value: void 0 };
+}
+var import_node_fs13, import_node_path16;
+var init_release_gate = __esm({
+  "src/orchestrator/release-gate.ts"() {
+    "use strict";
+    import_node_fs13 = require("node:fs");
+    import_node_path16 = require("node:path");
   }
 });
 
@@ -41877,13 +42082,13 @@ var init_transitions = __esm({
 // src/cli/summary.ts
 async function printPhaseArtifacts(taskKey, phaseName) {
   const runDir = getRunDir(taskKey);
-  const logPath = (0, import_node_path15.join)(runDir, `${phaseName}.log`);
-  const artifactPath = (0, import_node_path15.join)(runDir, `${phaseName}.md`);
+  const logPath = (0, import_node_path17.join)(runDir, `${phaseName}.log`);
+  const artifactPath = (0, import_node_path17.join)(runDir, `${phaseName}.md`);
   const lines = [];
-  if ((0, import_node_fs12.existsSync)(artifactPath)) {
+  if ((0, import_node_fs14.existsSync)(artifactPath)) {
     lines.push(`  Artifact: ${import_picocolors.default.cyan(artifactPath)}`);
   }
-  if ((0, import_node_fs12.existsSync)(logPath)) {
+  if ((0, import_node_fs14.existsSync)(logPath)) {
     lines.push(`  Log:      ${import_picocolors.default.dim(logPath)}`);
   }
   if (lines.length > 0) {
@@ -41918,10 +42123,10 @@ function printTaskSummary(meta3) {
   console.log(import_picocolors.default.bold("  Artifacts"));
   let any2 = false;
   for (const phase of PHASE_FILES) {
-    const md = (0, import_node_path15.join)(runDir, `${phase}.md`);
-    const log = (0, import_node_path15.join)(runDir, `${phase}.log`);
-    const hasMd = (0, import_node_fs12.existsSync)(md);
-    const hasLog = (0, import_node_fs12.existsSync)(log);
+    const md = (0, import_node_path17.join)(runDir, `${phase}.md`);
+    const log = (0, import_node_path17.join)(runDir, `${phase}.log`);
+    const hasMd = (0, import_node_fs14.existsSync)(md);
+    const hasLog = (0, import_node_fs14.existsSync)(log);
     if (!hasMd && !hasLog) continue;
     any2 = true;
     console.log(`    ${import_picocolors.default.cyan(phase)}`);
@@ -41945,13 +42150,13 @@ function formatDuration(ms) {
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m`;
 }
-var import_picocolors, import_node_fs12, import_node_path15, PHASE_FILES;
+var import_picocolors, import_node_fs14, import_node_path17, PHASE_FILES;
 var init_summary = __esm({
   "src/cli/summary.ts"() {
     "use strict";
     import_picocolors = __toESM(require_picocolors());
-    import_node_fs12 = require("node:fs");
-    import_node_path15 = require("node:path");
+    import_node_fs14 = require("node:fs");
+    import_node_path17 = require("node:path");
     init_defaults();
     PHASE_FILES = ["planning", "implementation", "review"];
   }
@@ -41994,14 +42199,14 @@ async function runHook(point, context, config2, projectConfig) {
   }
   return { ok: true };
 }
-var import_node_child_process5, import_node_util11, import_picocolors2, execFileAsync3;
+var import_node_child_process6, import_node_util11, import_picocolors2, execFileAsync3;
 var init_hooks = __esm({
   "src/orchestrator/hooks.ts"() {
     "use strict";
-    import_node_child_process5 = require("node:child_process");
+    import_node_child_process6 = require("node:child_process");
     import_node_util11 = require("node:util");
     import_picocolors2 = __toESM(require_picocolors());
-    execFileAsync3 = (0, import_node_util11.promisify)(import_node_child_process5.execFile);
+    execFileAsync3 = (0, import_node_util11.promisify)(import_node_child_process6.execFile);
   }
 });
 
@@ -45340,14 +45545,14 @@ __export(pr_creator_exports, {
 });
 async function createPullRequestViaAI(args) {
   const runDir = getRunDir(args.taskKey);
-  const prFile = (0, import_node_path16.join)(runDir, "pr.txt");
-  const logPath = (0, import_node_path16.join)(runDir, "pr.log");
-  if ((0, import_node_fs13.existsSync)(prFile)) {
+  const prFile = (0, import_node_path18.join)(runDir, "pr.txt");
+  const logPath = (0, import_node_path18.join)(runDir, "pr.log");
+  if ((0, import_node_fs15.existsSync)(prFile)) {
     await writeText(prFile, "");
   }
-  const planning = await readText((0, import_node_path16.join)(runDir, "planning.md")) ?? "(no plan artifact)";
-  const implementation = await readText((0, import_node_path16.join)(runDir, "implementation.md")) ?? "(no implementation artifact)";
-  const review = await readText((0, import_node_path16.join)(runDir, "review.md")) ?? "(no review artifact)";
+  const planning = await readText((0, import_node_path18.join)(runDir, "planning.md")) ?? "(no plan artifact)";
+  const implementation = await readText((0, import_node_path18.join)(runDir, "implementation.md")) ?? "(no implementation artifact)";
+  const review = await readText((0, import_node_path18.join)(runDir, "review.md")) ?? "(no review artifact)";
   const tool = args.provider === "gitlab" ? "glab" : "gh";
   const createCmd = args.provider === "gitlab" ? `glab mr create --source-branch ${args.branch} --target-branch ${args.baseBranch} --title <title> --description <body> --no-editor` : `gh pr create --head ${args.branch} --base ${args.baseBranch} --title <title> --body <body>`;
   const prompt = buildPrPrompt({
@@ -45470,12 +45675,12 @@ function extractPrNumber(url2, provider) {
   const match = url2.match(re);
   return match?.[1] ? parseInt(match[1], 10) : 0;
 }
-var import_node_path16, import_node_fs13, __testing;
+var import_node_path18, import_node_fs15, __testing;
 var init_pr_creator = __esm({
   "src/orchestrator/pr-creator.ts"() {
     "use strict";
-    import_node_path16 = require("node:path");
-    import_node_fs13 = require("node:fs");
+    import_node_path18 = require("node:path");
+    import_node_fs15 = require("node:fs");
     init_fs();
     init_defaults();
     init_registry();
@@ -45502,6 +45707,8 @@ async function advancePhase(taskKey, config2, tracker, options) {
     };
   }
   if (nextStatus === "awaiting-merge") {
+    const gate = await runPrePrGates(taskKey, config2, options);
+    if (!gate.ok) return gate;
     return await advanceToAwaitingMerge(taskKey, meta3, config2, tracker, options);
   }
   const executingStatus = getExecutingStatus(nextStatus);
@@ -45569,6 +45776,22 @@ ${phaseResult.error.message}`
   }
   const result = phaseResult.value;
   if (result.kind === "success") {
+    if (options.strict) {
+      const contract = validateContract(result.artifact);
+      if (!contract.ok) {
+        return {
+          ok: false,
+          error: new Error(`Artifact contract invalid: ${contract.errors.join("; ")}`)
+        };
+      }
+    }
+    if (executingStatus === "reviewing-plan" && /CHANGES REQUESTED/i.test(result.artifact)) {
+      await saveRunMeta({ ...meta3, status: "planning", updatedAt: Date.now() });
+      return {
+        ok: false,
+        error: new Error("Plan review requested changes; returning to planning.")
+      };
+    }
     spinner?.succeed(
       `${getPhaseStatusLabel(nextStatus)} complete (${formatDuration2(result.durationMs)})`
     );
@@ -45689,7 +45912,7 @@ Branch: \`${branch}\` \u2192 \`${baseBranch}\``
 }
 async function transitionForPhase(taskKey, status, tracker, config2, projectConfig) {
   const phaseName = getPhaseNameForStatus(status);
-  if (!phaseName) return { ok: true, value: void 0 };
+  if (!phaseName || phaseName === "plan-review") return { ok: true, value: void 0 };
   const target = resolveJiraTransition(phaseName, config2, projectConfig);
   if (target.trim() === "") return { ok: true, value: void 0 };
   return await tracker.setStatus(taskKey, target);
@@ -45730,6 +45953,10 @@ function getExecutingStatus(nextStatus) {
       return "planning";
     case "planned":
       return "planning";
+    case "reviewing-plan":
+      return "reviewing-plan";
+    case "plan-reviewed":
+      return "reviewing-plan";
     case "implementing":
       return "implementing";
     case "reviewing":
@@ -45739,6 +45966,21 @@ function getExecutingStatus(nextStatus) {
     default:
       return null;
   }
+}
+async function runPrePrGates(taskKey, config2, options) {
+  const workdir = options.projectConfig?.workdir ?? options.projectRoot ?? process.cwd();
+  const commands = options.projectConfig?.validation ?? config2.validation ?? [];
+  if (commands.length > 0) {
+    const validation = await runValidationGate({ taskKey, workdir, commands });
+    if (!validation.ok) return validation;
+  }
+  const release = runReleaseGate({
+    workdir,
+    config: config2,
+    ...options.projectConfig ? { projectConfig: options.projectConfig } : {}
+  });
+  if (!release.ok) return release;
+  return { ok: true, value: void 0 };
 }
 function formatDuration2(ms) {
   if (ms < 1e3) return `${ms}ms`;
@@ -45755,6 +45997,9 @@ var init_engine = __esm({
     init_phase();
     init_run_meta();
     init_phase_runner();
+    init_contract();
+    init_validation_gate();
+    init_release_gate();
     init_loader();
     init_transitions();
     init_summary();
@@ -45766,13 +46011,13 @@ var init_engine = __esm({
 });
 
 // src/adapters/vcs/github.ts
-var import_node_child_process6, import_node_util13, execFileAsync4, GitHubAdapter;
+var import_node_child_process7, import_node_util13, execFileAsync4, GitHubAdapter;
 var init_github = __esm({
   "src/adapters/vcs/github.ts"() {
     "use strict";
-    import_node_child_process6 = require("node:child_process");
+    import_node_child_process7 = require("node:child_process");
     import_node_util13 = require("node:util");
-    execFileAsync4 = (0, import_node_util13.promisify)(import_node_child_process6.execFile);
+    execFileAsync4 = (0, import_node_util13.promisify)(import_node_child_process7.execFile);
     GitHubAdapter = class {
       async createPullRequest(options) {
         try {
@@ -45859,13 +46104,13 @@ ${err.stderr ?? ""}`;
 });
 
 // src/adapters/vcs/gitlab.ts
-var import_node_child_process7, import_node_util14, execFileAsync5, GitLabAdapter;
+var import_node_child_process8, import_node_util14, execFileAsync5, GitLabAdapter;
 var init_gitlab = __esm({
   "src/adapters/vcs/gitlab.ts"() {
     "use strict";
-    import_node_child_process7 = require("node:child_process");
+    import_node_child_process8 = require("node:child_process");
     import_node_util14 = require("node:util");
-    execFileAsync5 = (0, import_node_util14.promisify)(import_node_child_process7.execFile);
+    execFileAsync5 = (0, import_node_util14.promisify)(import_node_child_process8.execFile);
     GitLabAdapter = class {
       async createPullRequest(options) {
         try {
@@ -46179,11 +46424,11 @@ function isPidAlive(pid) {
   }
 }
 function lockPath(taskKey) {
-  return (0, import_node_path17.join)(getRunDir(taskKey), LOCK_FILE);
+  return (0, import_node_path19.join)(getRunDir(taskKey), LOCK_FILE);
 }
 async function readLock(taskKey) {
   const path3 = lockPath(taskKey);
-  if (!(0, import_node_fs14.existsSync)(path3)) return null;
+  if (!(0, import_node_fs16.existsSync)(path3)) return null;
   try {
     const raw = await (0, import_promises11.readFile)(path3, "utf-8");
     return JSON.parse(raw);
@@ -46193,7 +46438,7 @@ async function readLock(taskKey) {
 }
 async function acquireLock(taskKey, command) {
   const path3 = lockPath(taskKey);
-  await (0, import_promises11.mkdir)((0, import_node_path17.join)(getRunDir(taskKey)), { recursive: true });
+  await (0, import_promises11.mkdir)((0, import_node_path19.join)(getRunDir(taskKey)), { recursive: true });
   const existing = await readLock(taskKey);
   if (existing) {
     const stale = existing.host !== (0, import_node_os4.hostname)() || !isPidAlive(existing.pid) || existing.pid === process.pid;
@@ -46226,13 +46471,13 @@ async function acquireLock(taskKey, command) {
   };
   return { ok: true, value: { release } };
 }
-var import_node_fs14, import_promises11, import_node_path17, import_node_os4, LOCK_FILE;
+var import_node_fs16, import_promises11, import_node_path19, import_node_os4, LOCK_FILE;
 var init_lockfile = __esm({
   "src/storage/lockfile.ts"() {
     "use strict";
-    import_node_fs14 = require("node:fs");
+    import_node_fs16 = require("node:fs");
     import_promises11 = require("node:fs/promises");
-    import_node_path17 = require("node:path");
+    import_node_path19 = require("node:path");
     import_node_os4 = require("node:os");
     init_defaults();
     LOCK_FILE = ".lock";
@@ -46292,6 +46537,14 @@ async function startAction(taskKey, options) {
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
+  if (!hasProjectContext(projectConfig.workdir)) {
+    console.log(import_picocolors8.default.yellow(`No AGENTS.md or README.md found in ${projectConfig.workdir}.`));
+    console.log(
+      import_picocolors8.default.dim(
+        "The AI will work with limited project context. Run `bode init` to scaffold AGENTS.md."
+      )
+    );
+  }
   const tracker = selectTracker({
     jira: config2.jira,
     workdir: projectConfig.workdir,
@@ -46454,7 +46707,8 @@ async function startAction(taskKey, options) {
     autopilot: void 0,
     projectConfig,
     interactive,
-    dangerousBypass
+    dangerousBypass,
+    strict: options.strict ?? false
   };
   if (interactive) {
     const result = await advancePhase(taskKey, config2, trackerAdapter, engineOpts);
@@ -46576,6 +46830,7 @@ var init_start = __esm({
     init_summary();
     init_lockfile();
     init_lock_release();
+    init_preflight();
     init_dist17();
     import_picocolors8 = __toESM(require_picocolors());
     init_ora();
@@ -46755,18 +47010,18 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.30.0") {
-    return "0.30.0";
+  if ("1.0.0") {
+    return "1.0.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
-      (0, import_node_path18.join)(__dirname, "..", "..", "package.json"),
-      (0, import_node_path18.join)(__dirname, "..", "package.json")
+      (0, import_node_path20.join)(__dirname, "..", "..", "package.json"),
+      (0, import_node_path20.join)(__dirname, "..", "package.json")
     ];
     for (const path3 of candidates) {
-      if ((0, import_node_fs15.existsSync)(path3)) {
+      if ((0, import_node_fs17.existsSync)(path3)) {
         try {
-          const pkg = JSON.parse((0, import_node_fs15.readFileSync)(path3, "utf-8"));
+          const pkg = JSON.parse((0, import_node_fs17.readFileSync)(path3, "utf-8"));
           if (pkg.version) return pkg.version;
         } catch {
         }
@@ -46775,12 +47030,12 @@ function getVersion() {
   }
   return FALLBACK_VERSION;
 }
-var import_node_fs15, import_node_path18, FALLBACK_VERSION;
+var import_node_fs17, import_node_path20, FALLBACK_VERSION;
 var init_version = __esm({
   "src/utils/version.ts"() {
     "use strict";
-    import_node_fs15 = require("node:fs");
-    import_node_path18 = require("node:path");
+    import_node_fs17 = require("node:fs");
+    import_node_path20 = require("node:path");
     FALLBACK_VERSION = "0.0.0-dev";
   }
 });
@@ -46904,7 +47159,7 @@ async function setupAction(subcommand) {
   await ensureDir(`${globalDir}/projects`);
   console.log(import_picocolors11.default.green(`\u2713 Created ${globalDir}
 `));
-  const existingConfig = (0, import_node_fs16.existsSync)(getGlobalConfigPath());
+  const existingConfig = (0, import_node_fs18.existsSync)(getGlobalConfigPath());
   let currentJiraSite = "";
   let currentProject = "";
   let currentJiraEmail = "";
@@ -47236,7 +47491,7 @@ async function setupProjectAction() {
           console.error(import_picocolors11.default.red("Working directory is required."));
           process.exit(1);
         }
-        if (!(0, import_node_fs16.existsSync)(workdirPath)) {
+        if (!(0, import_node_fs18.existsSync)(workdirPath)) {
           console.error(import_picocolors11.default.red(`Directory does not exist: ${workdirPath}`));
           process.exit(1);
         }
@@ -47458,7 +47713,7 @@ async function setupProjectAction() {
     );
   });
 }
-var import_picocolors11, import_node_fs16;
+var import_picocolors11, import_node_fs18;
 var init_setup = __esm({
   "src/cli/actions/setup.ts"() {
     "use strict";
@@ -47466,7 +47721,7 @@ var init_setup = __esm({
     init_ora();
     init_dist17();
     init_defaults();
-    import_node_fs16 = require("node:fs");
+    import_node_fs18 = require("node:fs");
     init_fs();
     init_loader();
     init_registry();
@@ -47632,12 +47887,37 @@ var init_status = __esm({
   }
 });
 
+// src/orchestrator/html-renderer.ts
+function renderArtifactHtml(title, markdown) {
+  const escaped = escapeHtml(markdown);
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)}</title>
+<style>
+body{font-family:Inter,Segoe UI,Arial,sans-serif;margin:0;background:#0f172a;color:#e5e7eb}main{max-width:980px;margin:0 auto;padding:40px 20px}pre{white-space:pre-wrap;background:#111827;border:1px solid #334155;border-radius:12px;padding:20px}h1{color:#93c5fd}.card{background:#172033;border:1px solid #334155;border-radius:16px;padding:24px;box-shadow:0 20px 50px #0004}
+</style>
+</head>
+<body><main><h1>${escapeHtml(title)}</h1><section class="card"><pre>${escaped}</pre></section></main></body>
+</html>`;
+}
+function escapeHtml(value) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+var init_html_renderer = __esm({
+  "src/orchestrator/html-renderer.ts"() {
+    "use strict";
+  }
+});
+
 // src/cli/actions/show.ts
 var show_exports = {};
 __export(show_exports, {
   showAction: () => showAction
 });
-async function showAction(artifact, taskKey) {
+async function showAction(artifact, taskKey, options = {}) {
   const normalized = artifact.toLowerCase();
   if (!VALID_ARTIFACTS.includes(normalized)) {
     console.error(import_picocolors14.default.red(`Invalid artifact: "${artifact}". Valid: ${VALID_ARTIFACTS.join(", ")}`));
@@ -47664,6 +47944,12 @@ async function showAction(artifact, taskKey) {
     console.error(import_picocolors14.default.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
     process.exit(1);
   }
+  if (options.html) {
+    const htmlPath = `${getRunDir(taskKey)}/${filename.replace(/\.md$/, ".html")}`;
+    await writeText(htmlPath, renderArtifactHtml(`${taskKey} ${artifact}`, content));
+    console.log(htmlPath);
+    return;
+  }
   console.log(content);
 }
 var import_picocolors14, VALID_ARTIFACTS;
@@ -47672,8 +47958,144 @@ var init_show = __esm({
     "use strict";
     init_defaults();
     init_fs();
+    init_html_renderer();
+    init_fs();
     import_picocolors14 = __toESM(require_picocolors());
     VALID_ARTIFACTS = ["plan", "planning", "implementation", "review"];
+  }
+});
+
+// src/cli/actions/init.ts
+var init_exports = {};
+__export(init_exports, {
+  initAction: () => initAction
+});
+async function initAction(options) {
+  const workdir = process.cwd();
+  const outPath = (0, import_node_path21.join)(workdir, "AGENTS.md");
+  if ((0, import_node_fs19.existsSync)(outPath) && !options.overwrite) {
+    console.error(import_picocolors15.default.yellow("AGENTS.md already exists. Use --overwrite to regenerate."));
+    process.exit(1);
+  }
+  const configResult = await loadConfig(workdir);
+  if (!configResult.ok) throw configResult.error;
+  const phaseConfig = configResult.value.phases.planning;
+  const adapterResult = getAdapter(phaseConfig.cli);
+  if (!adapterResult.ok) throw adapterResult.error;
+  const skill = await loadSkillPrompt("init-agents", {
+    projectRoot: workdir,
+    globalDir: void 0,
+    cli: phaseConfig.cli
+  });
+  if (!skill.ok) throw skill.error;
+  const importedRules = options.from && (0, import_node_fs19.existsSync)((0, import_node_path21.join)(workdir, options.from)) ? (0, import_node_fs19.readFileSync)((0, import_node_path21.join)(workdir, options.from), "utf-8") : void 0;
+  const prompt = buildPrompt(skill.value, {
+    jiraIssue: {
+      key: "INIT",
+      summary: "Scaffold AGENTS.md",
+      description: `Workdir: ${workdir}`,
+      status: "local",
+      issueType: "Task",
+      assignee: null,
+      labels: [],
+      url: ""
+    },
+    projectAgentsMd: importedRules,
+    repoFileTree: void 0,
+    priorArtifact: void 0,
+    artifactPath: outPath,
+    phaseName: "planning",
+    mainWorkdir: workdir
+  });
+  (0, import_node_fs19.mkdirSync)(workdir, { recursive: true });
+  const result = await adapterResult.value.invoke(prompt, phaseConfig, {
+    interactive: true,
+    workdir
+  });
+  if (!result.ok) throw result.error;
+  if (!(0, import_node_fs19.existsSync)(outPath) && result.value.stdout.trim())
+    await writeText(outPath, result.value.stdout);
+  console.log(import_picocolors15.default.green(`AGENTS.md written to ${outPath}`));
+}
+var import_node_fs19, import_node_path21, import_picocolors15;
+var init_init = __esm({
+  "src/cli/actions/init.ts"() {
+    "use strict";
+    import_node_fs19 = require("node:fs");
+    import_node_path21 = require("node:path");
+    import_picocolors15 = __toESM(require_picocolors());
+    init_loader();
+    init_resolver();
+    init_prompt_builder();
+    init_registry();
+    init_fs();
+  }
+});
+
+// src/cli/actions/learn.ts
+var learn_exports = {};
+__export(learn_exports, {
+  learnAction: () => learnAction
+});
+async function learnAction(options) {
+  const workdir = process.cwd();
+  const outDir = (0, import_node_path22.join)(workdir, ".bode");
+  const outPath = (0, import_node_path22.join)(outDir, "context.md");
+  if ((0, import_node_fs20.existsSync)(outPath) && !options.refresh) {
+    console.log(import_picocolors16.default.yellow(`${outPath} already exists. Use --refresh to regenerate.`));
+    return;
+  }
+  const configResult = await loadConfig(workdir);
+  if (!configResult.ok) throw configResult.error;
+  const phaseConfig = configResult.value.phases.planning;
+  const adapterResult = getAdapter(phaseConfig.cli);
+  if (!adapterResult.ok) throw adapterResult.error;
+  const skill = await loadSkillPrompt("learn", {
+    projectRoot: workdir,
+    globalDir: void 0,
+    cli: phaseConfig.cli
+  });
+  if (!skill.ok) throw skill.error;
+  const prompt = buildPrompt(skill.value, {
+    jiraIssue: {
+      key: "LEARN",
+      summary: options.detailed ? "Generate detailed project context" : "Generate project context",
+      description: `Workdir: ${workdir}`,
+      status: "local",
+      issueType: "Task",
+      assignee: null,
+      labels: [],
+      url: ""
+    },
+    projectAgentsMd: void 0,
+    repoFileTree: void 0,
+    priorArtifact: void 0,
+    artifactPath: outPath,
+    phaseName: "planning",
+    mainWorkdir: workdir
+  });
+  (0, import_node_fs20.mkdirSync)(outDir, { recursive: true });
+  const result = await adapterResult.value.invoke(prompt, phaseConfig, {
+    interactive: true,
+    workdir
+  });
+  if (!result.ok) throw result.error;
+  if (!(0, import_node_fs20.existsSync)(outPath) && result.value.stdout.trim())
+    await writeText(outPath, result.value.stdout);
+  console.log(import_picocolors16.default.green(`Project context written to ${outPath}`));
+}
+var import_node_fs20, import_node_path22, import_picocolors16;
+var init_learn = __esm({
+  "src/cli/actions/learn.ts"() {
+    "use strict";
+    import_node_fs20 = require("node:fs");
+    import_node_path22 = require("node:path");
+    import_picocolors16 = __toESM(require_picocolors());
+    init_loader();
+    init_resolver();
+    init_prompt_builder();
+    init_registry();
+    init_fs();
   }
 });
 
@@ -47684,35 +48106,35 @@ __export(log_exports, {
 });
 async function logAction(taskKey) {
   const { readdir: readdir4 } = await import("node:fs/promises");
-  const { join: join19 } = await import("node:path");
+  const { join: join23 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
     const files = await readdir4(runDir);
     const logFiles = files.filter((f) => f.endsWith(".log")).sort();
     if (logFiles.length === 0) {
-      console.error(import_picocolors15.default.yellow(`No logs found for ${taskKey}`));
+      console.error(import_picocolors17.default.yellow(`No logs found for ${taskKey}`));
       return;
     }
     const latest = logFiles[logFiles.length - 1];
     if (!latest) {
-      console.error(import_picocolors15.default.yellow("No log file available"));
+      console.error(import_picocolors17.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join19(runDir, latest));
+    const content = await readText(join23(runDir, latest));
     if (content) {
       console.log(content);
     }
   } catch {
-    console.error(import_picocolors15.default.yellow(`No run directory found for ${taskKey}`));
+    console.error(import_picocolors17.default.yellow(`No run directory found for ${taskKey}`));
   }
 }
-var import_picocolors15;
+var import_picocolors17;
 var init_log = __esm({
   "src/cli/actions/log.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_picocolors15 = __toESM(require_picocolors());
+    import_picocolors17 = __toESM(require_picocolors());
   }
 });
 
@@ -47723,12 +48145,12 @@ __export(done_exports, {
 });
 async function doneAction(taskKey, options) {
   if (!options.yes) {
-    console.log(import_picocolors16.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
+    console.log(import_picocolors18.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
     return;
   }
   const result = await loadRunMeta(taskKey);
   if (!result.ok || !result.value) {
-    console.error(import_picocolors16.default.red(`No run found for ${taskKey}`));
+    console.error(import_picocolors18.default.red(`No run found for ${taskKey}`));
     process.exit(1);
   }
   const meta3 = result.value;
@@ -47755,22 +48177,22 @@ async function doneAction(taskKey, options) {
   }
   if (options.autoApprovePrMerge && meta3.prNumber) {
     console.log(
-      import_picocolors16.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
+      import_picocolors18.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
     );
     const mergeResult = await mergePR(meta3.prNumber, provider);
     if (!mergeResult.ok) {
-      console.error(import_picocolors16.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
-      console.error(import_picocolors16.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
+      console.error(import_picocolors18.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
+      console.error(import_picocolors18.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
     } else {
-      console.log(import_picocolors16.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
+      console.log(import_picocolors18.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
     }
   } else if (meta3.prUrl) {
-    console.log(import_picocolors16.default.dim(`
+    console.log(import_picocolors18.default.dim(`
 PR pending: ${meta3.prUrl} \u2014 merge manually when ready.`));
   }
   if (meta3.baseBranch) {
     console.log(
-      import_picocolors16.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
+      import_picocolors18.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
     );
   }
   await finalize2(taskKey, meta3, config2, projectCfg);
@@ -47786,9 +48208,9 @@ async function finalize2(taskKey, meta3, config2, projectCfg) {
     if (doneTarget.trim() !== "") {
       const transResult = await trackerAdapter.setStatus(taskKey, doneTarget);
       if (!transResult.ok) {
-        console.warn(import_picocolors16.default.yellow(`[bode] Tracker transition skipped: ${transResult.error.message}`));
+        console.warn(import_picocolors18.default.yellow(`[bode] Tracker transition skipped: ${transResult.error.message}`));
         console.warn(
-          import_picocolors16.default.dim(
+          import_picocolors18.default.dim(
             "  Configure tracker transitions (done) in your project YAML to match your workflow."
           )
         );
@@ -47816,7 +48238,7 @@ async function removeBodeLabels(taskKey, config2, meta3) {
     });
   }
 }
-var import_picocolors16;
+var import_picocolors18;
 var init_done = __esm({
   "src/cli/actions/done.ts"() {
     "use strict";
@@ -47827,7 +48249,7 @@ var init_done = __esm({
     init_transitions();
     init_projects();
     init_summary();
-    import_picocolors16 = __toESM(require_picocolors());
+    import_picocolors18 = __toESM(require_picocolors());
   }
 });
 
@@ -47841,25 +48263,25 @@ async function listAction() {
   try {
     const entries = await (0, import_promises12.readdir)(runsDir);
     if (entries.length === 0) {
-      console.log(import_picocolors17.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+      console.log(import_picocolors19.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
       return;
     }
     for (const entry of entries) {
       const result = await loadRunMeta(entry);
       if (result.ok && result.value) {
         const meta3 = result.value;
-        const branchInfo = meta3.branch ? import_picocolors17.default.dim(` (${meta3.branch})`) : "";
-        const conflictInfo = meta3.conflict ? import_picocolors17.default.red(" [CONFLICT]") : "";
+        const branchInfo = meta3.branch ? import_picocolors19.default.dim(` (${meta3.branch})`) : "";
+        const conflictInfo = meta3.conflict ? import_picocolors19.default.red(" [CONFLICT]") : "";
         console.log(
-          `${import_picocolors17.default.bold(meta3.taskKey)} ${import_picocolors17.default.dim("-")} ${meta3.trackerSummary} ${import_picocolors17.default.dim("|")} ${getPhaseStatusLabel(meta3.status)}${branchInfo}${conflictInfo}`
+          `${import_picocolors19.default.bold(meta3.taskKey)} ${import_picocolors19.default.dim("-")} ${meta3.trackerSummary} ${import_picocolors19.default.dim("|")} ${getPhaseStatusLabel(meta3.status)}${branchInfo}${conflictInfo}`
         );
       }
     }
   } catch {
-    console.log(import_picocolors17.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+    console.log(import_picocolors19.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
   }
 }
-var import_promises12, import_picocolors17;
+var import_promises12, import_picocolors19;
 var init_list = __esm({
   "src/cli/actions/list.ts"() {
     "use strict";
@@ -47867,7 +48289,7 @@ var init_list = __esm({
     init_defaults();
     init_run_meta();
     init_phase();
-    import_picocolors17 = __toESM(require_picocolors());
+    import_picocolors19 = __toESM(require_picocolors());
   }
 });
 
@@ -47877,25 +48299,33 @@ __export(skills_exports, {
   skillsAction: () => skillsAction
 });
 async function skillsAction(options) {
+  const configResult = await loadConfig(options.project);
+  const config2 = configResult.ok ? configResult.value : null;
   for (const phase of PHASES) {
-    const result = await resolveSkillPath(phase, {
+    const phaseConfig = phase === "plan-review" ? config2?.phases.plan_review : phase === "planning" || phase === "implementation" || phase === "review" ? config2?.phases[phase] : config2?.phases.planning;
+    const opts = {
       projectRoot: options.project,
       globalDir: void 0
-    });
+    };
+    if (phaseConfig?.cli) opts.cli = phaseConfig.cli;
+    const result = await resolveSkillPath(phase, opts);
     if (result.ok) {
-      console.log(`${import_picocolors18.default.bold(phase)}: ${import_picocolors18.default.cyan(result.value)}`);
+      console.log(
+        `${import_picocolors20.default.bold(phase)}: ${import_picocolors20.default.cyan(result.value)} ${import_picocolors20.default.dim(`(${flavorForCli(phaseConfig?.cli)})`)}`
+      );
     } else {
-      console.log(`${import_picocolors18.default.bold(phase)}: ${import_picocolors18.default.yellow("not found")}`);
+      console.log(`${import_picocolors20.default.bold(phase)}: ${import_picocolors20.default.yellow("not found")}`);
     }
   }
 }
-var import_picocolors18, PHASES;
+var import_picocolors20, PHASES;
 var init_skills = __esm({
   "src/cli/actions/skills.ts"() {
     "use strict";
     init_resolver();
-    import_picocolors18 = __toESM(require_picocolors());
-    PHASES = ["planning", "implementation", "review"];
+    init_loader();
+    import_picocolors20 = __toESM(require_picocolors());
+    PHASES = ["planning", "plan-review", "implementation", "review", "learn", "init-agents"];
   }
 });
 
@@ -47905,8 +48335,8 @@ __export(doctor_exports, {
   doctorAction: () => doctorAction
 });
 function fmt(c) {
-  const symbol2 = c.status === "ok" ? import_picocolors19.default.green("\u2713") : c.status === "warn" ? import_picocolors19.default.yellow("\u26A0") : import_picocolors19.default.red("\u2717");
-  return `${symbol2} ${import_picocolors19.default.bold(c.name.padEnd(28))} ${c.detail}`;
+  const symbol2 = c.status === "ok" ? import_picocolors21.default.green("\u2713") : c.status === "warn" ? import_picocolors21.default.yellow("\u26A0") : import_picocolors21.default.red("\u2717");
+  return `${symbol2} ${import_picocolors21.default.bold(c.name.padEnd(28))} ${c.detail}`;
 }
 async function checkNodeVersion() {
   const v = process.versions.node;
@@ -47937,7 +48367,7 @@ async function checkBinaryAvailable(name, binary) {
 }
 async function checkGlobalConfig() {
   const path3 = getGlobalConfigPath();
-  if (!(0, import_node_fs17.existsSync)(path3)) {
+  if (!(0, import_node_fs21.existsSync)(path3)) {
     return {
       name: "Global config",
       status: "warn",
@@ -47956,7 +48386,7 @@ async function checkGlobalConfig() {
 }
 async function checkRunsDir() {
   const dir = getRunsDir();
-  if (!(0, import_node_fs17.existsSync)(dir)) {
+  if (!(0, import_node_fs21.existsSync)(dir)) {
     return {
       name: "Runs directory",
       status: "warn",
@@ -47968,8 +48398,8 @@ async function checkRunsDir() {
 async function doctorAction() {
   const workdir = process.cwd();
   console.log("");
-  console.log(import_picocolors19.default.bold(`bode doctor`) + import_picocolors19.default.dim(`  v${getVersion()}`));
-  console.log(import_picocolors19.default.dim("\u2500".repeat(64)));
+  console.log(import_picocolors21.default.bold(`bode doctor`) + import_picocolors21.default.dim(`  v${getVersion()}`));
+  console.log(import_picocolors21.default.dim("\u2500".repeat(64)));
   const checks = [];
   checks.push(await checkNodeVersion());
   checks.push(await checkGlobalConfig());
@@ -47985,7 +48415,7 @@ async function doctorAction() {
     checks.push({
       name: "Git remote",
       status: env2.vcsProvider ? "ok" : "warn",
-      detail: `${env2.gitRemoteUrl}  ${import_picocolors19.default.dim(`(${provider})`)}`
+      detail: `${env2.gitRemoteUrl}  ${import_picocolors21.default.dim(`(${provider})`)}`
     });
   } else {
     checks.push({
@@ -48031,38 +48461,38 @@ async function doctorAction() {
   for (const c of checks) console.log(fmt(c));
   const fails = checks.filter((c) => c.status === "fail").length;
   const warns = checks.filter((c) => c.status === "warn").length;
-  console.log(import_picocolors19.default.dim("\u2500".repeat(64)));
+  console.log(import_picocolors21.default.dim("\u2500".repeat(64)));
   if (fails === 0 && warns === 0) {
-    console.log(import_picocolors19.default.green(`All ${checks.length} checks passed.`));
+    console.log(import_picocolors21.default.green(`All ${checks.length} checks passed.`));
     process.exit(0);
   }
   if (fails === 0) {
-    console.log(import_picocolors19.default.yellow(`${warns} warning(s), no failures.`));
+    console.log(import_picocolors21.default.yellow(`${warns} warning(s), no failures.`));
     process.exit(0);
   }
-  console.log(import_picocolors19.default.red(`${fails} failure(s), ${warns} warning(s).`));
+  console.log(import_picocolors21.default.red(`${fails} failure(s), ${warns} warning(s).`));
   process.exit(1);
 }
-var import_picocolors19, import_node_fs17, import_node_child_process8, import_node_util15, execFileAsync6;
+var import_picocolors21, import_node_fs21, import_node_child_process9, import_node_util15, execFileAsync6;
 var init_doctor = __esm({
   "src/cli/actions/doctor.ts"() {
     "use strict";
-    import_picocolors19 = __toESM(require_picocolors());
-    import_node_fs17 = require("node:fs");
-    import_node_child_process8 = require("node:child_process");
+    import_picocolors21 = __toESM(require_picocolors());
+    import_node_fs21 = require("node:fs");
+    import_node_child_process9 = require("node:child_process");
     import_node_util15 = require("node:util");
     init_auto_detect();
     init_loader();
     init_defaults();
     init_registry();
     init_version();
-    execFileAsync6 = (0, import_node_util15.promisify)(import_node_child_process8.execFile);
+    execFileAsync6 = (0, import_node_util15.promisify)(import_node_child_process9.execFile);
   }
 });
 
 // src/utils/telemetry.ts
 async function readState() {
-  if (!(0, import_node_fs18.existsSync)(STATE_FILE)) return null;
+  if (!(0, import_node_fs22.existsSync)(STATE_FILE)) return null;
   try {
     const raw = await (0, import_promises13.readFile)(STATE_FILE, "utf-8");
     return JSON.parse(raw);
@@ -48092,7 +48522,7 @@ async function setTelemetryEnabled(enabled) {
   return next;
 }
 async function readRecentEvents(limit = 20) {
-  if (!(0, import_node_fs18.existsSync)(EVENTS_FILE)) return [];
+  if (!(0, import_node_fs22.existsSync)(EVENTS_FILE)) return [];
   const raw = await (0, import_promises13.readFile)(EVENTS_FILE, "utf-8");
   const lines = raw.trim().split("\n").slice(-limit);
   return lines.filter((l) => l.length > 0).map((l) => {
@@ -48103,18 +48533,18 @@ async function readRecentEvents(limit = 20) {
     }
   }).filter((e) => e !== null);
 }
-var import_node_fs18, import_promises13, import_node_path19, import_node_os5, import_node_crypto2, TELEMETRY_DIR, STATE_FILE, EVENTS_FILE, __testing3;
+var import_node_fs22, import_promises13, import_node_path23, import_node_os5, import_node_crypto2, TELEMETRY_DIR, STATE_FILE, EVENTS_FILE, __testing3;
 var init_telemetry = __esm({
   "src/utils/telemetry.ts"() {
     "use strict";
-    import_node_fs18 = require("node:fs");
+    import_node_fs22 = require("node:fs");
     import_promises13 = require("node:fs/promises");
-    import_node_path19 = require("node:path");
+    import_node_path23 = require("node:path");
     import_node_os5 = require("node:os");
     import_node_crypto2 = require("node:crypto");
-    TELEMETRY_DIR = (0, import_node_path19.join)((0, import_node_os5.homedir)(), ".bode", "telemetry");
-    STATE_FILE = (0, import_node_path19.join)(TELEMETRY_DIR, "state.json");
-    EVENTS_FILE = (0, import_node_path19.join)(TELEMETRY_DIR, "events.ndjson");
+    TELEMETRY_DIR = (0, import_node_path23.join)((0, import_node_os5.homedir)(), ".bode", "telemetry");
+    STATE_FILE = (0, import_node_path23.join)(TELEMETRY_DIR, "state.json");
+    EVENTS_FILE = (0, import_node_path23.join)(TELEMETRY_DIR, "events.ndjson");
     __testing3 = { TELEMETRY_DIR, STATE_FILE, EVENTS_FILE };
   }
 });
@@ -48130,61 +48560,61 @@ async function telemetryAction(subcommand) {
     case "on":
     case "enable": {
       const s = await setTelemetryEnabled(true);
-      console.log(import_picocolors20.default.green("\u2713 Telemetry enabled."));
-      console.log(import_picocolors20.default.dim(`  Machine ID: ${s.machineId}`));
-      console.log(import_picocolors20.default.dim(`  Events log: ${__testing3.EVENTS_FILE}`));
-      console.log(import_picocolors20.default.dim("  Default endpoint: none (local-only). Set telemetry.endpoint in"));
-      console.log(import_picocolors20.default.dim("  config to forward events to your own collector."));
+      console.log(import_picocolors22.default.green("\u2713 Telemetry enabled."));
+      console.log(import_picocolors22.default.dim(`  Machine ID: ${s.machineId}`));
+      console.log(import_picocolors22.default.dim(`  Events log: ${__testing3.EVENTS_FILE}`));
+      console.log(import_picocolors22.default.dim("  Default endpoint: none (local-only). Set telemetry.endpoint in"));
+      console.log(import_picocolors22.default.dim("  config to forward events to your own collector."));
       console.log("");
-      console.log(import_picocolors20.default.bold("What gets recorded:"));
-      console.log(import_picocolors20.default.dim("  command name, success/failure, duration, tracker kind, CLI adapter,"));
-      console.log(import_picocolors20.default.dim("  bode version, Node version, platform, machine UUID."));
-      console.log(import_picocolors20.default.bold("What never gets recorded:"));
-      console.log(import_picocolors20.default.dim("  task content, ticket IDs, code, paths, credentials, your identity."));
+      console.log(import_picocolors22.default.bold("What gets recorded:"));
+      console.log(import_picocolors22.default.dim("  command name, success/failure, duration, tracker kind, CLI adapter,"));
+      console.log(import_picocolors22.default.dim("  bode version, Node version, platform, machine UUID."));
+      console.log(import_picocolors22.default.bold("What never gets recorded:"));
+      console.log(import_picocolors22.default.dim("  task content, ticket IDs, code, paths, credentials, your identity."));
       break;
     }
     case "off":
     case "disable": {
       await setTelemetryEnabled(false);
-      console.log(import_picocolors20.default.yellow("Telemetry disabled. Recorded events remain on disk."));
-      console.log(import_picocolors20.default.dim(`  To delete them: rm -rf ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors22.default.yellow("Telemetry disabled. Recorded events remain on disk."));
+      console.log(import_picocolors22.default.dim(`  To delete them: rm -rf ${__testing3.TELEMETRY_DIR}`));
       break;
     }
     case "status": {
       const enabled = await isTelemetryEnabled();
-      console.log(enabled ? import_picocolors20.default.green("Telemetry: ENABLED") : import_picocolors20.default.dim("Telemetry: disabled"));
-      console.log(import_picocolors20.default.dim(`  Storage: ${__testing3.TELEMETRY_DIR}`));
-      console.log(import_picocolors20.default.dim(`  Toggle: bode telemetry on   |   bode telemetry off`));
-      console.log(import_picocolors20.default.dim(`  Preview: bode telemetry preview`));
+      console.log(enabled ? import_picocolors22.default.green("Telemetry: ENABLED") : import_picocolors22.default.dim("Telemetry: disabled"));
+      console.log(import_picocolors22.default.dim(`  Storage: ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors22.default.dim(`  Toggle: bode telemetry on   |   bode telemetry off`));
+      console.log(import_picocolors22.default.dim(`  Preview: bode telemetry preview`));
       break;
     }
     case "preview": {
       const events = await readRecentEvents(20);
       if (events.length === 0) {
-        console.log(import_picocolors20.default.dim("No telemetry events recorded yet."));
+        console.log(import_picocolors22.default.dim("No telemetry events recorded yet."));
         return;
       }
-      console.log(import_picocolors20.default.bold(`Last ${events.length} events:`));
+      console.log(import_picocolors22.default.bold(`Last ${events.length} events:`));
       for (const e of events) {
-        const status = e.success ? import_picocolors20.default.green("\u2713") : import_picocolors20.default.red("\u2717");
-        const dur = e.duration_ms ? import_picocolors20.default.dim(` (${e.duration_ms}ms)`) : "";
+        const status = e.success ? import_picocolors22.default.green("\u2713") : import_picocolors22.default.red("\u2717");
+        const dur = e.duration_ms ? import_picocolors22.default.dim(` (${e.duration_ms}ms)`) : "";
         console.log(
-          `  ${status} ${import_picocolors20.default.cyan(e.command.padEnd(12))} ${import_picocolors20.default.dim(e.ts)} ${import_picocolors20.default.dim(`v${e.bode_version}`)}${dur}`
+          `  ${status} ${import_picocolors22.default.cyan(e.command.padEnd(12))} ${import_picocolors22.default.dim(e.ts)} ${import_picocolors22.default.dim(`v${e.bode_version}`)}${dur}`
         );
       }
       break;
     }
     default:
-      console.error(import_picocolors20.default.red(`Unknown subcommand: ${cmd}`));
-      console.error(import_picocolors20.default.dim("Usage: bode telemetry [on|off|status|preview]"));
+      console.error(import_picocolors22.default.red(`Unknown subcommand: ${cmd}`));
+      console.error(import_picocolors22.default.dim("Usage: bode telemetry [on|off|status|preview]"));
       process.exit(1);
   }
 }
-var import_picocolors20;
+var import_picocolors22;
 var init_telemetry2 = __esm({
   "src/cli/actions/telemetry.ts"() {
     "use strict";
-    import_picocolors20 = __toESM(require_picocolors());
+    import_picocolors22 = __toESM(require_picocolors());
     init_telemetry();
   }
 });
@@ -48197,24 +48627,24 @@ __export(compare_exports, {
 async function compareAction(taskKey, options) {
   const agentSpec = options.agents?.trim();
   if (!agentSpec) {
-    console.error(import_picocolors21.default.red("--agents <list> is required"));
-    console.error(import_picocolors21.default.dim("Example: --agents claude-code,codex"));
-    console.error(import_picocolors21.default.dim("         --agents claude-code:claude-opus-4-7,codex:gpt-5.5"));
+    console.error(import_picocolors23.default.red("--agents <list> is required"));
+    console.error(import_picocolors23.default.dim("Example: --agents claude-code,codex"));
+    console.error(import_picocolors23.default.dim("         --agents claude-code:claude-opus-4-7,codex:gpt-5.5"));
     process.exit(1);
   }
   const specs = agentSpec.split(",").map((s) => s.trim()).filter(Boolean);
   if (specs.length < 2) {
-    console.error(import_picocolors21.default.red("Need at least two agents to compare. Got: " + specs.length));
+    console.error(import_picocolors23.default.red("Need at least two agents to compare. Got: " + specs.length));
     process.exit(1);
   }
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors21.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors23.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const projectResult = await resolveProject(configResult.value, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors21.default.red(projectResult.error.message));
+    console.error(import_picocolors23.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
@@ -48227,7 +48657,7 @@ async function compareAction(taskKey, options) {
   });
   const issueResult = await tracker.adapter.fetchTask(taskKey);
   if (!issueResult.ok) {
-    console.error(import_picocolors21.default.red(`Tracker error: ${issueResult.error.message}`));
+    console.error(import_picocolors23.default.red(`Tracker error: ${issueResult.error.message}`));
     process.exit(1);
   }
   const skill = await loadSkillPrompt("planning", {
@@ -48235,14 +48665,14 @@ async function compareAction(taskKey, options) {
     globalDir: void 0
   });
   if (!skill.ok) {
-    console.error(import_picocolors21.default.red(`Skill load failed: ${skill.error.message}`));
+    console.error(import_picocolors23.default.red(`Skill load failed: ${skill.error.message}`));
     process.exit(1);
   }
   const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").replace(/T/, "_").slice(0, 19);
-  const outDir = (0, import_node_path20.join)((0, import_node_os6.homedir)(), ".bode", "comparisons", `${taskKey}-${timestamp}`);
+  const outDir = (0, import_node_path24.join)((0, import_node_os6.homedir)(), ".bode", "comparisons", `${taskKey}-${timestamp}`);
   await (0, import_promises14.mkdir)(outDir, { recursive: true });
-  console.log(import_picocolors21.default.cyan(`Comparing ${specs.length} agents on planning phase for ${taskKey}`));
-  console.log(import_picocolors21.default.dim(`Output: ${outDir}`));
+  console.log(import_picocolors23.default.cyan(`Comparing ${specs.length} agents on planning phase for ${taskKey}`));
+  console.log(import_picocolors23.default.dim(`Output: ${outDir}`));
   console.log("");
   const results = [];
   for (const spec of specs) {
@@ -48250,7 +48680,7 @@ async function compareAction(taskKey, options) {
     const cliName = cli ?? "";
     const adapterR = getAdapter(cliName);
     if (!adapterR.ok) {
-      console.error(import_picocolors21.default.red(`\u2717 ${spec}: ${adapterR.error.message}`));
+      console.error(import_picocolors23.default.red(`\u2717 ${spec}: ${adapterR.error.message}`));
       continue;
     }
     const phaseConfig = config2.phases.planning;
@@ -48261,7 +48691,7 @@ async function compareAction(taskKey, options) {
       repoFileTree: void 0,
       priorArtifact: void 0
     });
-    console.log(import_picocolors21.default.dim(`Running ${spec}...`));
+    console.log(import_picocolors23.default.dim(`Running ${spec}...`));
     const start = Date.now();
     const invokeR = await adapterR.value.invoke(
       prompt,
@@ -48270,7 +48700,7 @@ async function compareAction(taskKey, options) {
     );
     const durationMs = Date.now() - start;
     if (!invokeR.ok) {
-      console.error(import_picocolors21.default.red(`  \u2717 ${spec} failed: ${invokeR.error.message}`));
+      console.error(import_picocolors23.default.red(`  \u2717 ${spec} failed: ${invokeR.error.message}`));
       results.push({
         spec,
         artifact: `(failed: ${invokeR.error.message})`,
@@ -48280,9 +48710,9 @@ async function compareAction(taskKey, options) {
       continue;
     }
     const safe = spec.replace(/[^a-z0-9]+/gi, "-");
-    const path3 = (0, import_node_path20.join)(outDir, `${safe}.md`);
+    const path3 = (0, import_node_path24.join)(outDir, `${safe}.md`);
     await (0, import_promises14.writeFile)(path3, invokeR.value.stdout, "utf-8");
-    console.log(import_picocolors21.default.green(`  \u2713 ${spec} \u2192 ${path3} (${invokeR.value.durationMs}ms)`));
+    console.log(import_picocolors23.default.green(`  \u2713 ${spec} \u2192 ${path3} (${invokeR.value.durationMs}ms)`));
     results.push({
       spec,
       artifact: invokeR.value.stdout,
@@ -48290,7 +48720,7 @@ async function compareAction(taskKey, options) {
       durationMs: invokeR.value.durationMs
     });
   }
-  const summaryPath = (0, import_node_path20.join)(outDir, "summary.md");
+  const summaryPath = (0, import_node_path24.join)(outDir, "summary.md");
   const summary = `# Agent comparison \u2014 ${taskKey}
 
 Date: ${(/* @__PURE__ */ new Date()).toISOString()}
@@ -48306,17 +48736,17 @@ Phase: planning
   ).join("\n");
   await (0, import_promises14.writeFile)(summaryPath, summary, "utf-8");
   console.log("");
-  console.log(import_picocolors21.default.bold("Done."));
-  console.log(import_picocolors21.default.dim(`Summary: ${summaryPath}`));
-  console.log(import_picocolors21.default.dim(`Individual artifacts in ${outDir}/`));
+  console.log(import_picocolors23.default.bold("Done."));
+  console.log(import_picocolors23.default.dim(`Summary: ${summaryPath}`));
+  console.log(import_picocolors23.default.dim(`Individual artifacts in ${outDir}/`));
 }
-var import_picocolors21, import_promises14, import_node_path20, import_node_os6;
+var import_picocolors23, import_promises14, import_node_path24, import_node_os6;
 var init_compare = __esm({
   "src/cli/actions/compare.ts"() {
     "use strict";
-    import_picocolors21 = __toESM(require_picocolors());
+    import_picocolors23 = __toESM(require_picocolors());
     import_promises14 = require("node:fs/promises");
-    import_node_path20 = require("node:path");
+    import_node_path24 = require("node:path");
     import_node_os6 = require("node:os");
     init_loader();
     init_project_resolver();
@@ -48335,12 +48765,12 @@ __export(setup_transitions_exports, {
 async function setupTransitionsAction(options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors22.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors24.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const projectResult = await resolveProject(configResult.value, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors22.default.red(projectResult.error.message));
+    console.error(import_picocolors24.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
@@ -48352,13 +48782,13 @@ async function setupTransitionsAction(options) {
     ...config2.trello ? { trello: config2.trello } : {},
     ...projectConfig.tracker ? { tracker: projectConfig.tracker } : config2.tracker ? { tracker: config2.tracker } : {}
   });
-  console.log(import_picocolors22.default.bold(`Configuring transitions for project "${projectConfig.name}"`));
-  console.log(import_picocolors22.default.dim(`  Tracker: ${tracker.kind}`));
+  console.log(import_picocolors24.default.bold(`Configuring transitions for project "${projectConfig.name}"`));
+  console.log(import_picocolors24.default.dim(`  Tracker: ${tracker.kind}`));
   const sampleKey = tracker.kind === "jira" ? config2.jira.default_project ? `${config2.jira.default_project}-1` : void 0 : void 0;
   const transitionsResult = await tracker.adapter.listStatuses(sampleKey ?? "sample");
   if (!transitionsResult.ok || transitionsResult.value.length === 0) {
     console.log(
-      import_picocolors22.default.yellow(
+      import_picocolors24.default.yellow(
         `Could not load transitions from ${tracker.kind}. Falling back to manual config \u2014 edit .bode.yml by hand.`
       )
     );
@@ -48366,11 +48796,11 @@ async function setupTransitionsAction(options) {
   }
   const available = transitionsResult.value;
   console.log("");
-  console.log(import_picocolors22.default.dim("Available transitions:"));
+  console.log(import_picocolors24.default.dim("Available transitions:"));
   for (const t of available) {
     const label = t.toStatusName ?? t.name;
     const arrow = t.name !== label ? ` \u2192 ${label}` : "";
-    console.log(import_picocolors22.default.dim(`  - ${t.name}${arrow}`));
+    console.log(import_picocolors24.default.dim(`  - ${t.name}${arrow}`));
   }
   console.log("");
   const phases = [
@@ -48390,7 +48820,7 @@ async function setupTransitionsAction(options) {
     for (const phase of phases) {
       const choices = [
         {
-          name: import_picocolors22.default.dim("(skip \u2014 no Jira move at this event)"),
+          name: import_picocolors24.default.dim("(skip \u2014 no Jira move at this event)"),
           value: skipValue
         },
         ...available.map((t) => ({
@@ -48410,8 +48840,8 @@ async function setupTransitionsAction(options) {
     handlePromptError(err);
     process.exit(1);
   }
-  const target = (0, import_node_path21.join)(projectConfig.workdir, ".bode.yml");
-  const existing = (0, import_node_fs19.existsSync)(target) ? (0, import_yaml5.parse)(await (0, import_promises15.readFile)(target, "utf-8")) ?? {} : {};
+  const target = (0, import_node_path25.join)(projectConfig.workdir, ".bode.yml");
+  const existing = (0, import_node_fs23.existsSync)(target) ? (0, import_yaml5.parse)(await (0, import_promises15.readFile)(target, "utf-8")) ?? {} : {};
   const existingJira = existing["jira"] ?? {};
   const updated = {
     ...existing,
@@ -48420,25 +48850,25 @@ async function setupTransitionsAction(options) {
       transitions: picks
     }
   };
-  await (0, import_promises15.mkdir)((0, import_node_path21.dirname)(target), { recursive: true });
+  await (0, import_promises15.mkdir)((0, import_node_path25.dirname)(target), { recursive: true });
   await (0, import_promises15.writeFile)(target, (0, import_yaml5.stringify)(updated), "utf-8");
   console.log("");
-  console.log(import_picocolors22.default.green(`\u2713 Saved transitions to ${target}`));
+  console.log(import_picocolors24.default.green(`\u2713 Saved transitions to ${target}`));
   console.log("");
-  console.log(import_picocolors22.default.dim("Picks:"));
+  console.log(import_picocolors24.default.dim("Picks:"));
   for (const [k, v] of Object.entries(picks)) {
-    console.log(import_picocolors22.default.dim(`  ${k.padEnd(18)} ${v || "(skip)"}`));
+    console.log(import_picocolors24.default.dim(`  ${k.padEnd(18)} ${v || "(skip)"}`));
   }
 }
-var import_picocolors22, import_promises15, import_node_fs19, import_node_path21, import_yaml5;
+var import_picocolors24, import_promises15, import_node_fs23, import_node_path25, import_yaml5;
 var init_setup_transitions = __esm({
   "src/cli/actions/setup-transitions.ts"() {
     "use strict";
-    import_picocolors22 = __toESM(require_picocolors());
+    import_picocolors24 = __toESM(require_picocolors());
     init_dist17();
     import_promises15 = require("node:fs/promises");
-    import_node_fs19 = require("node:fs");
-    import_node_path21 = require("node:path");
+    import_node_fs23 = require("node:fs");
+    import_node_path25 = require("node:path");
     import_yaml5 = __toESM(require_dist());
     init_loader();
     init_project_resolver();
@@ -48466,7 +48896,10 @@ var {
 
 // src/cli/commands.ts
 function createCommands(program3) {
-  program3.argument("[query...]", "Ticket key (e.g. KD-312) or freeform prompt").option("--project <name>", "Project name from ~/.bode/projects/").option("--auto", "Run all phases automatically until PR is created").option("--dangerously-auto-merge", "Run all phases AND auto-merge the PR (use with caution)").option(
+  program3.argument("[query...]", "Ticket key (e.g. KD-312) or freeform prompt").option("--project <name>", "Project name from ~/.bode/projects/").option("--auto", "Run all phases automatically until PR is created").option(
+    "--strict",
+    "Enable Wave 6 strict gates (plan review contracts, validation, release gate)"
+  ).option("--dangerously-auto-merge", "Run all phases AND auto-merge the PR (use with caution)").option(
     "--dangerously-approve-all",
     "Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code."
   ).action(
@@ -48494,7 +48927,10 @@ function createCommands(program3) {
     const { setupAction: setupAction2 } = await Promise.resolve().then(() => (init_setup(), setup_exports));
     await setupAction2("project");
   });
-  program3.command("start <taskKey>").description("Start a task. Creates branch, runs planning phase. Use --auto to run all phases.").option("--project <name>", "Project name from ~/.bode/projects/").option("--from-branch <branch>", "Base branch (default: project default_branch or main)").option("--auto", "Run all phases automatically until PR is created").option("--dangerously-auto-merge", "Run all phases AND auto-merge the PR (use with caution)").option(
+  program3.command("start <taskKey>").description("Start a task. Creates branch, runs planning phase. Use --auto to run all phases.").option("--project <name>", "Project name from ~/.bode/projects/").option("--from-branch <branch>", "Base branch (default: project default_branch or main)").option("--auto", "Run all phases automatically until PR is created").option(
+    "--strict",
+    "Enable Wave 6 strict gates (plan review contracts, validation, release gate)"
+  ).option("--dangerously-auto-merge", "Run all phases AND auto-merge the PR (use with caution)").option(
     "--dangerously-approve-all",
     "Pass each CLI its bypass-approvals/sandbox flag. Use only on trusted code."
   ).action(
@@ -48516,9 +48952,17 @@ function createCommands(program3) {
     const { statusAction: statusAction2 } = await Promise.resolve().then(() => (init_status(), status_exports));
     await statusAction2(taskKey);
   });
-  program3.command("show <artifact> <taskKey>").description("Print artifact to stdout (plan, implementation, review)").action(async (artifact, taskKey) => {
+  program3.command("show <artifact> <taskKey>").description("Print artifact to stdout (plan, implementation, review)").option("--html", "Render artifact to an HTML file and print the path").action(async (artifact, taskKey, options) => {
     const { showAction: showAction2 } = await Promise.resolve().then(() => (init_show(), show_exports));
-    await showAction2(artifact, taskKey);
+    await showAction2(artifact, taskKey, options);
+  });
+  program3.command("init").description("Scaffold AGENTS.md for the current repo using the configured AI CLI").option("--overwrite", "Overwrite existing AGENTS.md after showing a diff").option("--from <file>", "Include an existing rules file as input").action(async (options) => {
+    const { initAction: initAction2 } = await Promise.resolve().then(() => (init_init(), init_exports));
+    await initAction2(options);
+  });
+  program3.command("learn").description("Generate .bode/context.md for future AI phases").option("--refresh", "Regenerate even when context.md already exists").option("--detailed", "Ask for a larger project-context pass").action(async (options) => {
+    const { learnAction: learnAction2 } = await Promise.resolve().then(() => (init_learn(), learn_exports));
+    await learnAction2(options);
   });
   program3.command("log <taskKey>").description("Show the log of the current or last phase").action(async (taskKey) => {
     const { logAction: logAction2 } = await Promise.resolve().then(() => (init_log(), log_exports));

@@ -1,14 +1,14 @@
 # Testing
 
-Bode has no UI, so testing today focuses on unit logic around config loading, skill resolution, adapter behaviour, and the orchestrator state machine. Integration and smoke layers are **planned** (see `ROADMAP.md` §Wave 6) but not yet on disk.
+Bode has no UI, so testing focuses on unit logic around config loading, skill resolution, adapter behaviour, strict gates, and the orchestrator state machine. Integration and smoke layers are on disk and run through `npm run test:all`.
 
 ## Layers
 
 | Layer | Tool | Runs | Status |
 |---|---|---|---|
 | Unit | `npm test` (cross-platform runner at `scripts/test.mjs` → `node --import tsx --test tests/unit/**/*.test.ts`) | Every PR, fast, deterministic | **Implemented** |
-| Integration | `node --test --tag=integration` (no runner script yet) | Local with credentials, optional in CI | **Planned — Wave 6** |
-| Smoke | End-to-end against a real tracker sandbox | Manual before releases | **Planned — Wave 6** |
+| Integration | `npm run test:all` | Local with fixtures / credentials where needed | **Implemented** |
+| Smoke | `npm run test:all` | End-to-end fixture flow | **Implemented** |
 
 ## Unit Tests
 

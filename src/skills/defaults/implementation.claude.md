@@ -1,3 +1,11 @@
+# Skill: Implementation
+
+<role>
+Follow the instructions exactly.
+Do not add a preamble before the requested artifact.
+</role>
+
+<instructions>
 # Implementation
 
 Implement the approved plan precisely. Do not expand scope or refactor unrelated code.
@@ -49,3 +57,10 @@ Then include:
 ### Deviations from Plan
 
 ### Notes for Reviewer
+
+</instructions>
+
+<output-policy>
+Write only the requested markdown artifact.
+If a handoff path is present, write the artifact there and exit.
+</output-policy>

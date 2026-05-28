@@ -9,6 +9,10 @@ export function createCommands(program: Command): void {
 		.argument('[query...]', 'Ticket key (e.g. KD-312) or freeform prompt')
 		.option('--project <name>', 'Project name from ~/.bode/projects/')
 		.option('--auto', 'Run all phases automatically until PR is created')
+		.option(
+			'--strict',
+			'Enable Wave 6 strict gates (plan review contracts, validation, release gate)'
+		)
 		.option('--dangerously-auto-merge', 'Run all phases AND auto-merge the PR (use with caution)')
 		.option(
 			'--dangerously-approve-all',
@@ -22,6 +26,7 @@ export function createCommands(program: Command): void {
 					auto?: boolean;
 					dangerouslyAutoMerge?: boolean;
 					dangerouslyApproveAll?: boolean;
+					strict?: boolean;
 				}
 			) => {
 				const joined = (query ?? []).join(' ').trim();
@@ -67,6 +72,10 @@ export function createCommands(program: Command): void {
 		.option('--project <name>', 'Project name from ~/.bode/projects/')
 		.option('--from-branch <branch>', 'Base branch (default: project default_branch or main)')
 		.option('--auto', 'Run all phases automatically until PR is created')
+		.option(
+			'--strict',
+			'Enable Wave 6 strict gates (plan review contracts, validation, release gate)'
+		)
 		.option('--dangerously-auto-merge', 'Run all phases AND auto-merge the PR (use with caution)')
 		.option(
 			'--dangerously-approve-all',
@@ -81,6 +90,7 @@ export function createCommands(program: Command): void {
 					auto?: boolean;
 					dangerouslyAutoMerge?: boolean;
 					dangerouslyApproveAll?: boolean;
+					strict?: boolean;
 				}
 			) => {
 				const { startAction } = await import('./actions/start.ts');
@@ -114,9 +124,30 @@ export function createCommands(program: Command): void {
 	program
 		.command('show <artifact> <taskKey>')
 		.description('Print artifact to stdout (plan, implementation, review)')
-		.action(async (artifact: string, taskKey: string) => {
+		.option('--html', 'Render artifact to an HTML file and print the path')
+		.action(async (artifact: string, taskKey: string, options: { html?: boolean }) => {
 			const { showAction } = await import('./actions/show.ts');
-			await showAction(artifact, taskKey);
+			await showAction(artifact, taskKey, options);
+		});
+
+	program
+		.command('init')
+		.description('Scaffold AGENTS.md for the current repo using the configured AI CLI')
+		.option('--overwrite', 'Overwrite existing AGENTS.md after showing a diff')
+		.option('--from <file>', 'Include an existing rules file as input')
+		.action(async (options: { overwrite?: boolean; from?: string }) => {
+			const { initAction } = await import('./actions/init.ts');
+			await initAction(options);
+		});
+
+	program
+		.command('learn')
+		.description('Generate .bode/context.md for future AI phases')
+		.option('--refresh', 'Regenerate even when context.md already exists')
+		.option('--detailed', 'Ask for a larger project-context pass')
+		.action(async (options: { refresh?: boolean; detailed?: boolean }) => {
+			const { learnAction } = await import('./actions/learn.ts');
+			await learnAction(options);
 		});
 
 	program

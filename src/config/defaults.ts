@@ -12,6 +12,11 @@ export const DEFAULT_CONFIG: BodeConfig = {
 			model: 'claude-opus-4-7',
 			timeout_minutes: 15,
 		},
+		plan_review: {
+			cli: 'claude-code',
+			model: 'claude-opus-4-7',
+			timeout_minutes: 10,
+		},
 		implementation: {
 			cli: 'opencode',
 			model: 'claude-sonnet-4-6',

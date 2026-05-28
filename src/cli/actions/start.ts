@@ -11,6 +11,7 @@ import { handleMissingArtifact } from '~/cli/missing-artifact.ts';
 import { printTaskSummary } from '~/cli/summary.ts';
 import { acquireLock } from '~/storage/lockfile.ts';
 import { registerLockReleaseHandlers } from '~/cli/lock-release.ts';
+import { hasProjectContext } from '~/orchestrator/preflight.ts';
 import { select } from '@inquirer/prompts';
 import pc from 'picocolors';
 import ora from 'ora';
@@ -23,6 +24,7 @@ export async function startAction(
 		auto?: boolean;
 		dangerouslyAutoMerge?: boolean;
 		dangerouslyApproveAll?: boolean;
+		strict?: boolean;
 	}
 ): Promise<void> {
 	const configResult = await loadConfig();
@@ -41,6 +43,14 @@ export async function startAction(
 	}
 
 	const { config, projectConfig } = projectResult.value;
+	if (!hasProjectContext(projectConfig.workdir)) {
+		console.log(pc.yellow(`No AGENTS.md or README.md found in ${projectConfig.workdir}.`));
+		console.log(
+			pc.dim(
+				'The AI will work with limited project context. Run `bode init` to scaffold AGENTS.md.'
+			)
+		);
+	}
 	const tracker = selectTracker({
 		jira: config.jira,
 		workdir: projectConfig.workdir,
@@ -235,6 +245,7 @@ export async function startAction(
 		projectConfig,
 		interactive,
 		dangerousBypass,
+		strict: options.strict ?? false,
 	};
 
 	if (interactive) {

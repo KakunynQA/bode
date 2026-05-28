@@ -42,7 +42,8 @@ export async function runPhase(
 		return { ok: false, error: new Error(`No phase name for status: ${status}`) };
 	}
 
-	const phaseConfig = config.phases[phaseName];
+	const phaseConfig =
+		phaseName === 'plan-review' ? config.phases.plan_review : config.phases[phaseName];
 	if (!phaseConfig) {
 		return { ok: false, error: new Error(`No config for phase: ${phaseName}`) };
 	}
@@ -60,6 +61,7 @@ export async function runPhase(
 	const skillResult = await loadSkillPrompt(phaseName, {
 		projectRoot: options.projectRoot,
 		globalDir: undefined,
+		cli: phaseConfig.cli,
 	});
 	if (!skillResult.ok) return skillResult;
 
@@ -264,8 +266,10 @@ function getPriorPhaseFile(phase: PhaseName): string | null {
 	switch (phase) {
 		case 'planning':
 			return '';
-		case 'implementation':
+		case 'plan-review':
 			return 'planning.md';
+		case 'implementation':
+			return 'plan-review.md';
 		case 'review':
 			return 'implementation.md';
 		default:
@@ -279,6 +283,8 @@ function getCurrentLabelKey(phase: PhaseName): LabelKey | null {
 	switch (phase) {
 		case 'planning':
 			return 'planning';
+		case 'plan-review':
+			return null;
 		case 'implementation':
 			return 'implementing';
 		case 'review':
@@ -292,6 +298,8 @@ function getNextLabelKey(phase: PhaseName): LabelKey | null {
 	switch (phase) {
 		case 'planning':
 			return 'planned';
+		case 'plan-review':
+			return null;
 		case 'implementation':
 			return 'reviewing';
 		case 'review':
