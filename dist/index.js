@@ -46749,8 +46749,8 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("0.28.1") {
-    return "0.28.1";
+  if ("0.28.2") {
+    return "0.28.2";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [

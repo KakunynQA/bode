@@ -32,8 +32,9 @@ Standards for **Bode** and any future internal CLI/tool at Kakunyn. Follow stric
 ```
 src/
 ├── adapters/
-│   ├── cli/          # CliAdapter implementations (claude-code, opencode, codex, zai)
-│   ├── jira/         # MCP Atlassian wrapper (mock for now)
+│   ├── cli/          # CliAdapter implementations (claude-code, opencode, codex)
+│   ├── jira/         # Jira REST adapter + ADF helpers (real + mock)
+│   ├── tracker/      # IssueTrackerStrategy adapters (github-issues, linear, notion, trello, local/plain-markdown)
 │   └── vcs/          # GitHub/GitLab PR/MR via gh/glab CLI
 ├── assets/           # Static assets (bode.art) embedded at build time
 ├── cli/

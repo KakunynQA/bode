@@ -150,7 +150,7 @@ Require explicit human approval. Do not perform autonomously:
 - Disabling lint rules or TypeScript errors via `// @ts-ignore`, `// eslint-disable`
 - Pushing directly to `main`
 - Force-pushing to shared branches
-- Calling Jira REST API directly (always use MCP adapter)
+- Calling any tracker API (Jira, GitHub Issues, Linear, Notion, Trello) directly from outside `src/adapters/jira/` or `src/adapters/tracker/`
 
 ## Workflow Rules
 
@@ -197,10 +197,9 @@ When adding a new VCS provider:
 
 ## Working with Jira (via MCP)
 
-- All Jira ops go through `src/adapters/jira/`.
-- Never call Jira REST directly from anywhere else.
-- Currently using mock adapter. Real MCP Atlassian adapter to be implemented.
-- Every Jira op has timeout (default 30s) and explicit error handling.
+- All Jira ops go through `src/adapters/jira/`. The real Jira REST adapter (v3 + ADF, 30s timeout) lives there alongside the mock.
+- For non-Jira trackers (GitHub Issues, Linear, Notion, Trello, plain-markdown), use the `IssueTrackerStrategy` implementations in `src/adapters/tracker/`. Never call any tracker REST/GraphQL API directly from outside the corresponding adapter.
+- Every tracker op has an explicit timeout and structured error handling.
 
 ## Working with AI CLIs
 

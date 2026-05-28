@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.2] — 2026-05-27
+
+CI fix + full documentation pass to match the Wave 5 surface.
+
+### Fixed
+
+- **CI test runner** — `npm test` previously used `tsx --test "tests/unit/**/*.test.ts"`, which fails on Node 18 / 20 because `node --test` only gained glob support in Node 21. Replaced with `scripts/test.mjs`, a cross-platform runner that walks `tests/unit/` and hands the resolved list to `tsx --test`. CI was red on all four Node versions in the matrix; now passes everywhere.
+
+### Changed
+
+- **ROADMAP.md** — full rewrite. Waves 0–5 were functionally closed during v0.20–0.28 but the roadmap still described them as upcoming. New plan documents Waves 6 (launch readiness), 7 (adoption flywheel), 8 (daily-driver depth), and 9 (platform, hard-gated). Old waves moved to an Appendix.
+- **README.md** — full rewrite. Header version went from 0.10.1 (long stale) to 0.28.2. Added: fast path (`bode <prompt>`), no-args resume, `bode new`, `bode doctor`, `bode compare`, `bode telemetry`, `bode setup-transitions`, hooks YAML, multi-tracker examples (Jira / GitHub Issues / Linear / Notion / Trello / local), `--dangerously-approve-all` and `--dangerously-auto-merge` flags, SEA binary install path. Removed claim that Jira is required.
+- **SPEC.md** — full rewrite to match the v0.28 surface. Updated command and flag tables; added Strategy Architecture, Hooks, Telemetry, and Multi-tracker sections; refreshed the Definition of Done; cleaned up Out of Scope.
+- **CONVENTIONS.md** — corrected adapter list (removed fictional `zai` adapter, added `src/adapters/tracker/`).
+- **AGENTS.md** — corrected stale Jira-mock language (real REST adapter has existed since v0.11.0) and broadened "forbidden direct API call" rule to cover all five tracker providers.
+
+### Added
+
+- **docs/guide/** — `first-run.md`, `configuration.md`, `phases.md`, `with-jira.md`, `with-github-issues.md`, `with-linear.md`, `local-only.md`.
+- **docs/reference/** — `cli.md`, `config.md`, `skills.md`, `artifacts.md`.
+- **docs/trackers/** — `jira.md`, `github-issues.md`, `linear.md`, `notion.md`, `trello.md`, `local.md`.
+
+All 16 pages referenced by the VitePress sidebar were stubs before this release; the docs site now has every command and every tracker documented with examples.
+
+### Notes
+
+Docs-only release plus the CI fix. No engine changes.
+
 ## [0.28.1] — 2026-05-27
 
 **Closes #30 — interactive transition picker.** Last open work item besides #36 (Wave 6, gated).
