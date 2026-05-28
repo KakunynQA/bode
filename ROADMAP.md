@@ -92,7 +92,27 @@ These docs drifted during Waves 1–5. The factual errors are patched in this sa
 - **SPEC** still misses: command table updates, flag table updates, hooks lifecycle, comparison mode, tracker strategy section, telemetry semantics, `Out of Scope` cleanup (Linear/Notion/hooks are no longer out of scope).
 - **AGENTS / CONVENTIONS** are mostly correct after this PR; spot-check after each Wave 6 ship.
 
-#### 6.6 Definition of "done" for Wave 6
+#### 6.6 Neutral skills & per-model converter
+
+- **Neutral skill source format** (#37) — author skills once as `*.neutral.md`, converter emits `*.claude.md` and `*.openai.md`. `src/skills/resolver.ts` picks the right flavor based on active `CliAdapter`. Resolver order: project > global > flavored > neutral.
+- **`scripts/build-skills.mjs`** runs during `npm run build` to generate both flavors.
+
+#### 6.7 Orchestrator discipline (ship rigor)
+
+- **Plan-review phase** (#38) — new phase 1.5 between planning and implementation; AI returns structured verdict, loops back on `CHANGES REQUESTED`.
+- **YAML frontmatter contract** per skill — `phase-runner.ts` parses and blocks on missing/invalid fields.
+- **Validation gate** — `.bode.yml` `validation:` block; orchestrator runs commands, blocks PR on failure.
+- **Release Discipline check** — `.bode.yml` `release:` block; validates version bump + changelog before commit.
+- **HTML artifacts** + `bode show plan --html <KEY>`.
+- All gated behind `bode start --strict` initially.
+
+#### 6.8 Project context pipeline
+
+- **`bode init`** (#40) — scaffolds `AGENTS.md` from best-practices meta-prompt via the configured AI CLI. Supports `--overwrite`, `--from <rules-file>`. Warns at `bode start` when neither `AGENTS.md` nor `README.md` exist.
+- **`bode learn`** (#39) — auto-generates `<repo>/.bode/context.md` (stack, conventions, sensitive areas, glossary, anti-patterns) via AI CLI. Supports `--refresh`, `--detailed`. Context precedence: skill override > `.bode/context.md` > `AGENTS.md` > file tree.
+- `bode doctor` warns when `context.md` is stale (>90 days + >50 commits).
+
+#### 6.9 Definition of "done" for Wave 6
 
 We can ship Wave 6 when:
 
@@ -100,12 +120,15 @@ We can ship Wave 6 when:
 2. `bode "fix the dashboard bug"` works on a fresh machine in <60 s.
 3. The docs site has every command documented with an example.
 4. We have at least one real user (outside Kakunyn) who installed and ran it without our help.
+5. Skills ship in both Claude and OpenAI flavors (#37).
+6. `bode start --strict` enforces plan-review + validation gate + release discipline (#38).
+7. `bode init` + `bode learn` produce usable context from a fresh repo (#39, #40).
 
 ---
 
-### Wave 7 — Adoption flywheel (months 2–4 after launch)
+### Wave 7 — Adoption (months 2–4 after launch)
 
-Things that don't matter before you have users, and matter a lot once you do. Each item is gated on **real signal from real users** — telemetry numbers, GitHub stars, Discord messages.
+What turns "released" into "trusted". Each item gated on **real signal from real users** — interviews, GitHub stars, Discord activity, npm downloads/week. **No telemetry-driven decisions in Wave 7** (see §What I'm explicitly NOT doing). Five user interviews beat 500 anonymous events for early-stage signal, and the "AI work stays local" brand promise is worth more than the data.
 
 #### 7.1 Community surface
 
@@ -113,26 +136,65 @@ Things that don't matter before you have users, and matter a lot once you do. Ea
 - **`good first issue` backlog** — at least 15 issues, each scoped to a single file change.
 - **Examples repo** (`KakunynQA/bode-examples`) — one folder per workflow: "shipping a bugfix from a Jira ticket", "creating an MR on GitLab using OpenCode", "headless overnight run", "comparison run", etc.
 - **Public roadmap board** (GitHub Projects, publicly visible) — this file points at it.
+- **Weekly office hours** on Discord (1h, same time, replicable).
 
 #### 7.2 Launch loop
 
 - **Demo video (≤90 s)** — #23 carryover. Real task, real Jira ticket, real PR.
-- **Launch post** — Hacker News, dev.to, X. Title: "Bode — orchestrate Claude / Codex / OpenCode for daily dev work". Timing matters; aim for Tuesday US morning.
+- **Launch post** — Hacker News, dev.to, X. Title angle: "Bode — orchestrate Claude / Codex / OpenCode for daily dev work, no data leaves your machine". Timing matters; aim for Tuesday US morning.
 - **Comparison blog post** — "bode vs aider vs SWE-agent vs Cursor's agent mode". Honest matrix. Brings the SEO.
 - **One conference talk** — submit to a regional Node/AI meetup. Bar is low; signal is high.
 
-#### 7.3 IDE integration (one, not three)
+#### 7.3 Feedback loop (qualitative, not telemetry)
 
-Pick **VS Code** first (largest TAM, easiest WebView/Task API). Build a thin panel that:
+We learn from users by **talking to them**, not by collecting events. No funnels, no analytics endpoint, no aggregated dashboards. Wave 7 deliberately stops short of active telemetry because (a) `bode`'s brand is "AI work that stays local" and we shouldn't compromise it on a feature that produces selection-biased data anyway, and (b) qualitative signal at this stage is denser than quantitative.
 
-- Lists `~/.bode/runs/<KEY>/` entries
-- Shows current phase + log tail
-- Buttons: "Continue", "Show plan", "Abort"
-- Does not duplicate the CLI — it shells out to it.
+- **`bode feedback`** — opens a pre-filled GitHub issue template (bode version, OS, configured CLI, configured tracker). Never auto-submits; user edits before posting.
+- **5-user qualitative interviews** post-launch and once per quarter. Focus on first-week experience.
+- **Weekly office hours** (see 7.1).
+- **Public "what we're learning"** entry per release with non-feature observations from feedback.
 
-JetBrains is gated on this proving useful.
+The existing local telemetry feature (v0.27.0, opt-in, NDJSON at `~/.bode/telemetry/events.ndjson`, no network unless user configures an endpoint) **stays as-is**: useful for self-debugging, harmless because nothing leaves the machine. We do not configure a default endpoint and we do not market it as a feature.
 
-#### 7.4 Slack / Discord notifications (optional integration)
+#### 7.4 Replay / audit trail
+
+For teams to trust AI on commits, runs must be reproducible. Reference dev tools all have this (browser devtools sessions, lighthouse reports, eslint --debug). Aider, Cursor's agent mode, Codex don't ship reproducible replay out of the box — clear differentiator.
+
+- **`~/.bode/runs/<KEY>/manifest.json`** records: skill hash, AGENTS.md hash, file-tree snapshot hash, model, flags, env vars consumed.
+- **`bode replay <KEY>`** rebuilds the exact prompt and reruns against the configured CLI.
+- **`bode replay <KEY> --with-cli <other>` / `--with-model <other>`** lets you replay against a different combination — for model-upgrade smoke tests and cross-model comparison.
+- **`bode replay --export <KEY>`** produces a portable bundle (`.bode-run` zip with manifest + artifacts + readable HTML).
+- **`bode replay --import <bundle>`** lets anyone re-run a task another dev shared.
+
+#### 7.5 Cost transparency (display only)
+
+Users abandon AI tools when they fear runaway cost. Showing cost everywhere bode shows status is a confidence move, requires no new external infra, and is best-effort per `CliAdapter` (each CLI surfaces usage differently).
+
+- **`bode list`** shows `~$X.XX` per task when the underlying CLI exposes usage.
+- **`bode status <KEY>`** shows cost per phase.
+- **`bode show plan <KEY>`** header includes total cost so far.
+- Documented limits per adapter (some CLIs only expose tokens, not USD; convert via a static rate table).
+- **NOT in Wave 7:** hard budgets, abort-on-breach, soft warnings. Those stay in Wave 8.4 once we know what good thresholds look like.
+
+#### 7.6 Windows polish pass
+
+Windows users hit more edge cases than macOS/Linux: PowerShell quoting, PATH-not-inherited shells, npm 11 symlink bugs, antivirus blocking `dist/index.js`, SmartScreen warnings on unsigned `.exe`. Reference CLI tools work flawlessly on Windows from day one (gh, deno, esbuild). Bode should.
+
+- **Windows runner gates the release** (today only validates on ubuntu-latest is blocking; build-artifacts runs on windows-latest but doesn't gate).
+- **`bode doctor` detects and flags**: PowerShell vs cmd vs WSL, paths with spaces, missing `gh` / `glab` on PATH, antivirus quarantine, npm 11 + Windows symlink issue.
+- **README examples** show PowerShell side-by-side with bash where syntax diverges.
+- **SEA binary signature**: explore code-signing the Windows `.exe` so SmartScreen doesn't warn on first run.
+
+#### 7.7 SECURITY.md + data-flow doc
+
+Mandatory for any team adoption. Doubles as marketing advantage given §7.3's no-telemetry stance.
+
+- **`SECURITY.md`** at repo root: threat model summary, what bode reads/writes/sends, supported isolation modes, how to report a vuln.
+- **Data-flow table** in `SPEC.md`: source → destination for every piece of data bode touches (skill, ticket body, code, tokens). Single page, no marketing fluff.
+- **Untrusted-content handling** (already implemented per v0.18.0 `<untrusted>` markers) documented loudly with example.
+- **Auditable**: a security-conscious reader verifies each claim against `src/` in ≤30 min.
+
+#### 7.8 Slack / Discord webhook notifications
 
 A `notifications:` block in `.bode.yml`:
 
@@ -148,23 +210,22 @@ notifications:
 
 Zero new dependencies — `fetch()` to the webhook URL. Useful for unattended `--auto` runs.
 
-#### 7.5 Reliability & observability
+#### 7.9 `bode doctor --report`
 
-Once we have >50 daily-active users (per telemetry):
+Generates a redacted, human-readable health report (versions, configured tracker, CLI adapter, recent error count from local `~/.bode/runs/*/`). User pastes into a GitHub issue or Discord message. **Never auto-sent. Never collected.** Replaces the "Sentry-style error reporting" item from the previous Wave 7 draft.
 
-- **Sentry-style error reporting** behind opt-in (`telemetry.errors`, same machine-UUID model)
-- **Latency histograms** per phase / per CLI / per tracker — surface in `bode telemetry preview`
-- **`bode doctor --report`** generates a redacted health report for bug reports
+#### 7.10 Definition of "done" for Wave 7
 
-#### 7.6 Skill library, not yet marketplace
+Wave 7 closes when:
 
-Stop short of the full marketplace (#25 gated). Instead:
-
-- Curated `~/skills/community/` folder in this repo, PRs welcome.
-- `bode skills install <repo>#<path>` downloads a community skill into `~/.bode/skills/`.
-- Versioning via git refs. No central registry.
-
-This validates demand before we invest in marketplace infra.
+1. **`bode replay <KEY>`** reproduces any run from v0.30+ byte-for-byte (prompt sent to the AI), supporting `--with-model` for cross-model comparison.
+2. **`bode list` / `bode status`** show per-task and per-phase cost for at least the 3 supported CLIs (best-effort, documented limits).
+3. **Windows CI gate** green on every release for 4 consecutive weeks. `bode doctor` detects the 4 most common Windows gotchas.
+4. **`SECURITY.md`** + data-flow table published, linked from README's first 30 lines.
+5. **Discord** has ≥50 active members; `#bode-help` median response time <24h.
+6. **Launch post** published; ≥1 external case study (a real team, not Kakunyn) published.
+7. **`bode feedback`** used by ≥10 distinct users (counted by GitHub issue label, NOT by telemetry).
+8. **TTFPR P50 ≤ 5 min** validated via interview data from ≥10 users.
 
 ---
 
@@ -203,18 +264,19 @@ Most "agent-in-CI" products work by reading PR/issue comments. Bode should suppo
 
 Requires a thin server component (Cloudflare Worker or Vercel function) that auth'd customers point a GitHub App at. **Gated** on Wave 7 demand — don't pre-build.
 
-#### 8.4 Cost tracking & budgets
+#### 8.4 Cost budgets & enforcement
 
-Per-task token usage, per-phase, per-model. Optional hard budget:
+Display moved to Wave 7.5. This item is the enforcement half: optional hard budgets that abort runs when breached.
 
 ```yaml
 budget:
   per_task_max_usd: 5
   per_phase_max_usd: 2
   abort_on_breach: true
+  warn_at_pct: 80
 ```
 
-Bode can't introspect tokens directly (the underlying CLI does), so this requires each `CliAdapter` to parse usage from output, or read it from the CLI's own session log. Best-effort; document the limits.
+Builds on the per-adapter usage parsing landed in 7.5. Why split: display is a confidence move that helps everyone today; enforcement only matters once teams have real cost patterns and we know what thresholds to suggest as defaults.
 
 #### 8.5 Memory / preferences across runs
 
@@ -228,6 +290,27 @@ A task that spans `grid-api` + `grid-ui`. Already partially supported via `repos
 - PR creation creates one PR per repo, linked in tracker comment
 - Conflict checks run against each base branch
 - `bode done` waits for all PRs to merge before marking done
+
+#### 8.7 VS Code panel (deferred from old Wave 7)
+
+Pick **VS Code** first (largest TAM, easiest WebView/Task API). Thin panel that:
+
+- Lists `~/.bode/runs/<KEY>/` entries
+- Shows current phase + log tail
+- Buttons: "Continue", "Show plan", "Abort", "Replay"
+- Does NOT duplicate the CLI — shells out to it
+
+Deferred to Wave 8 because Wave 7's qualitative feedback (§7.3) must first show that users want a visual monitor for long-running tasks. If they're happy in the terminal, IDE integration is premature. JetBrains gated on VS Code proving useful.
+
+#### 8.8 Curated skill library (deferred from old Wave 7)
+
+Stop short of the full marketplace (Wave 9). Instead:
+
+- Curated `skills/community/` folder in this repo, PRs welcome.
+- `bode skills install <repo>#<path>` downloads a community skill into `~/.bode/skills/`.
+- Versioning via git refs. No central registry.
+
+Deferred because: the bundled skills must first mature (per-model flavor #37, neutral source, YAML contract per #38) before we incentivise third parties to write more.
 
 ---
 
@@ -256,6 +339,11 @@ The "AI agent governance for enterprise teams" branch:
 These remain **valid product directions for a different product**. Bode's bet is that solo and small-team adoption beats top-down enterprise rollout. We don't pre-build for use cases we haven't validated.
 
 If a real customer (paid, signed) asks for any of the above, that's signal — revisit then.
+
+### Also explicitly NOT doing in Wave 7+
+
+- **Active telemetry collection** — no analytics endpoint configured by default, no aggregated funnels, no "n% of users did X" dashboards. The local opt-in NDJSON feature from v0.27.0 stays for users who want to debug themselves; nothing leaves the machine unless the user explicitly configures an endpoint, and we do not ship a default one. Why: brand is "AI work stays local", selection bias makes opt-in telemetry numbers lie, and qualitative signal (interviews, Discord, GitHub issues) is denser at this stage. Revisit when (a) we have >500 daily-active users *and* (b) a question we can't answer through conversation.
+- **Auto-update HTTP check on `bode --version`** — even silent registry pings change "no data leaves the machine" to "data leaves the machine". A `bode update` opt-in command is fine; auto-check is not.
 
 ---
 
