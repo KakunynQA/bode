@@ -13,11 +13,13 @@ import { scanWorkdirFiles } from '~/utils/file-picker.ts';
 import type { ProjectConfig } from '~/config/schema.ts';
 import {
 	askInput,
+	askInputWithAtTrigger,
 	askSelect,
 	askPassword,
 	askSearch,
 	handlePromptError,
 	BACK,
+	AT_TRIGGER,
 } from '~/utils/prompt.ts';
 import { testJiraConnection } from '~/adapters/jira/rest.ts';
 import { getVersion } from '~/utils/version.ts';
@@ -105,38 +107,58 @@ async function askContextFiles(
 	defaults: string[],
 	message: string
 ): Promise<string[] | typeof BACK> {
-	const defaultStr = defaults.join(', ');
+	let selected = uniqueStrings(defaults);
 	const hint = pc.dim('Type @ to open file picker. Comma-separated for multiple files.');
-	console.log(`  ${hint}`);
-	const raw = await askInput({
-		message,
-		default: defaultStr,
-	});
-	if (raw === BACK) return BACK;
-
-	const entries = raw
-		.split(',')
-		.map((s) => s.trim())
-		.filter(Boolean);
-
-	const expanded: string[] = [];
-	for (const entry of entries) {
-		if (entry.startsWith('@')) {
-			const query = entry.slice(1);
-			const picked = await askSearch<string>({
-				message: 'Pick a file:',
-				source: async (input) => {
-					const files = await scanWorkdirFiles(workdir, input ?? query);
-					return files.map((f) => ({ name: f, value: f }));
-				},
-			});
+	while (true) {
+		console.log(`  ${hint}`);
+		const raw = await askInputWithAtTrigger({
+			message,
+			default: selected.join(', '),
+		});
+		if (raw === BACK) return BACK;
+		if (raw === AT_TRIGGER) {
+			const picked = await pickContextFile(workdir, 'Pick a context file:');
 			if (picked === BACK) return BACK;
-			expanded.push(picked);
-		} else {
-			expanded.push(entry);
+			selected = uniqueStrings([...selected, picked]);
+			continue;
 		}
+
+		const entries = raw
+			.split(',')
+			.map((s) => s.trim())
+			.filter(Boolean);
+
+		const expanded: string[] = [];
+		for (const entry of entries) {
+			if (entry.startsWith('@')) {
+				const picked = await pickContextFile(workdir, 'Pick a context file:', entry.slice(1));
+				if (picked === BACK) return BACK;
+				expanded.push(picked);
+			} else {
+				expanded.push(entry);
+			}
+		}
+		return uniqueStrings(expanded);
 	}
-	return expanded;
+}
+
+async function pickContextFile(
+	workdir: string,
+	message: string,
+	initialQuery = ''
+): Promise<string | typeof BACK> {
+	const picked = await askSearch<string>({
+		message,
+		source: async (input) => {
+			const files = await scanWorkdirFiles(workdir, input ?? initialQuery);
+			return files.map((f) => ({ name: f, value: f }));
+		},
+	});
+	return picked;
+}
+
+function uniqueStrings(values: string[]): string[] {
+	return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
 export async function setupAction(

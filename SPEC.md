@@ -332,7 +332,7 @@ hooks:
 | `bode` *(no args)* | Resume the latest run. |
 | `bode new <summary>` | Create local task at `.bode/tasks/<key>.md` without invoking the AI. |
 | `bode setup` | Interactive global wizard (tracker, AI CLIs, VCS). |
-| `bode setup-project` | Per-project wizard (workdir, default branch, context, overrides). |
+| `bode setup-project` | Per-project wizard (workdir, default branch, context, overrides). Context-file fields open a fuzzy picker immediately when `@` is typed. |
 | `bode setup-transitions` | Map bode phases to your tracker's workflow states. |
 | `bode start <KEY>` | Start a task. Creates branch, runs planning phase. Add `--strict` for Wave 6 gates. |
 | `bode init` | Scaffold `AGENTS.md` for the current repo via the configured AI CLI. |
