@@ -46517,10 +46517,15 @@ var init_abort = __esm({
 });
 
 // src/utils/prompt.ts
-function createBackSignal() {
+function createBackSignal(options = {}) {
   const ac = new AbortController();
   let escTimer = null;
   function onData(chunk) {
+    if (options.atTrigger && chunk.length === 1 && chunk[0] === 64) {
+      ac.abort(new AtTriggerError());
+      cleanup();
+      return;
+    }
     if (chunk.length === 1 && chunk[0] === 27) {
       if (escTimer) clearTimeout(escTimer);
       escTimer = setTimeout(() => {
@@ -46548,7 +46553,7 @@ function printFooterHint(firstStep) {
 }
 async function runWithBackSignal(fn, opts) {
   while (true) {
-    const { signal, cleanup } = createBackSignal();
+    const { signal, cleanup } = createBackSignal(opts.atTrigger ? { atTrigger: true } : {});
     try {
       return await fn(signal);
     } catch (err) {
@@ -46560,11 +46565,21 @@ async function runWithBackSignal(fn, opts) {
         }
         return BACK;
       }
+      if (isAtTriggerAbort(err)) return AT_TRIGGER;
       throw err;
     } finally {
       cleanup();
     }
   }
+}
+function isAtTriggerAbort(err) {
+  if (err instanceof AtTriggerError) return true;
+  if (err instanceof AbortPromptError) {
+    const cause = err.cause;
+    if (cause instanceof AtTriggerError) return true;
+    return err.message.includes("__AT_TRIGGER__");
+  }
+  return false;
 }
 function isBackAbort(err) {
   if (err instanceof BackError) return true;
@@ -46577,7 +46592,14 @@ function isBackAbort(err) {
 }
 async function askInput(opts, wrap = {}) {
   printFooterHint(wrap.firstStep ?? false);
-  return runWithBackSignal((signal) => dist_default7(opts, { signal }), wrap);
+  return runWithBackSignal((signal) => dist_default7(opts, { signal }), {
+    ...wrap,
+    atTrigger: false
+  });
+}
+async function askInputWithAtTrigger(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  return runWithBackSignal((signal) => dist_default7(opts, { signal }), { ...wrap, atTrigger: true });
 }
 async function askSelect(opts, wrap = {}) {
   printFooterHint(wrap.firstStep ?? false);
@@ -46603,7 +46625,7 @@ function handlePromptError(err, cleanup) {
   }
   throw err;
 }
-var import_picocolors5, BACK, BackError, FOOTER_HINT, FIRST_STEP_NO_BACK;
+var import_picocolors5, BACK, AT_TRIGGER, BackError, AtTriggerError, FOOTER_HINT, FIRST_STEP_NO_BACK;
 var init_prompt = __esm({
   "src/utils/prompt.ts"() {
     "use strict";
@@ -46611,10 +46633,17 @@ var init_prompt = __esm({
     init_dist17();
     import_picocolors5 = __toESM(require_picocolors());
     BACK = Symbol("__BACK__");
+    AT_TRIGGER = Symbol("__AT_TRIGGER__");
     BackError = class extends Error {
       constructor() {
         super("__BACK__");
         this.name = "BackError";
+      }
+    };
+    AtTriggerError = class extends Error {
+      constructor() {
+        super("__AT_TRIGGER__");
+        this.name = "AtTriggerError";
       }
     };
     FOOTER_HINT = import_picocolors5.default.dim("  (esc to go back \xB7 ctrl+c to cancel)");
@@ -47512,8 +47541,8 @@ var init_file_picker = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("1.3.0") {
-    return "1.3.0";
+  if ("1.3.1") {
+    return "1.3.1";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
@@ -47700,33 +47729,47 @@ function cliDescription(name) {
   }
 }
 async function askContextFiles(workdir, defaults, message) {
-  const defaultStr = defaults.join(", ");
+  let selected = uniqueStrings(defaults);
   const hint = import_picocolors12.default.dim("Type @ to open file picker. Comma-separated for multiple files.");
-  console.log(`  ${hint}`);
-  const raw = await askInput({
-    message,
-    default: defaultStr
-  });
-  if (raw === BACK) return BACK;
-  const entries = raw.split(",").map((s) => s.trim()).filter(Boolean);
-  const expanded = [];
-  for (const entry of entries) {
-    if (entry.startsWith("@")) {
-      const query = entry.slice(1);
-      const picked = await askSearch({
-        message: "Pick a file:",
-        source: async (input) => {
-          const files = await scanWorkdirFiles(workdir, input ?? query);
-          return files.map((f) => ({ name: f, value: f }));
-        }
-      });
+  while (true) {
+    console.log(`  ${hint}`);
+    const raw = await askInputWithAtTrigger({
+      message,
+      default: selected.join(", ")
+    });
+    if (raw === BACK) return BACK;
+    if (raw === AT_TRIGGER) {
+      const picked = await pickContextFile(workdir, "Pick a context file:");
       if (picked === BACK) return BACK;
-      expanded.push(picked);
-    } else {
-      expanded.push(entry);
+      selected = uniqueStrings([...selected, picked]);
+      continue;
     }
+    const entries = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    const expanded = [];
+    for (const entry of entries) {
+      if (entry.startsWith("@")) {
+        const picked = await pickContextFile(workdir, "Pick a context file:", entry.slice(1));
+        if (picked === BACK) return BACK;
+        expanded.push(picked);
+      } else {
+        expanded.push(entry);
+      }
+    }
+    return uniqueStrings(expanded);
   }
-  return expanded;
+}
+async function pickContextFile(workdir, message, initialQuery = "") {
+  const picked = await askSearch({
+    message,
+    source: async (input) => {
+      const files = await scanWorkdirFiles(workdir, input ?? initialQuery);
+      return files.map((f) => ({ name: f, value: f }));
+    }
+  });
+  return picked;
+}
+function uniqueStrings(values) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 async function setupAction(subcommand, options) {
   if (subcommand === "project") {

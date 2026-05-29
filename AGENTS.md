@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v1.2.0) that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v1.2.0 adds Wave 7 adoption primitives: feedback issue URLs, replay/audit manifests, doctor reports with Windows diagnostics, security/data-flow docs, and cost visibility refinements. **Waves 0-6 are functionally closed except external launch actions.** See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local CLI (v1.3.1) that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v1.3.x focuses on setup-project context onboarding: project context investigation, context-file picker UX, and consistent wizard navigation. **Waves 0-6 are functionally closed except external launch actions.** See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 

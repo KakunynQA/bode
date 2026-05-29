@@ -180,6 +180,7 @@ bode fetches the ticket, creates the branch (`feat/`, `fix/`, `chore/`, or `refa
 bode setup           # global wizard: tracker, AI CLIs, VCS provider
 bode setup-project   # per-project: workdir, default branch, context files,
                      # optional AI-driven project context investigation.
+                     # Type @ in context-file fields to open the picker.
                      # Flags: --shared-in-repo  (write PROJECT_CONTEXT.md to the
                      #                          workdir instead of ~/.bode/)
                      #        --refresh-context (re-run only investigation)
