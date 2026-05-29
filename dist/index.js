@@ -41275,8 +41275,17 @@ var init_registry = __esm({
 
 // src/skills/resolver.ts
 import { existsSync as existsSync7 } from "node:fs";
-import { join as join8 } from "node:path";
+import { dirname as dirname2, join as join8 } from "node:path";
 import { readFile as readFile6 } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+function moduleDir() {
+  if (typeof __dirname !== "undefined") return __dirname;
+  try {
+    return dirname2(fileURLToPath(import.meta.url));
+  } catch {
+    return null;
+  }
+}
 function flavorForCli(cli) {
   if (cli === "claude-code") return "claude";
   if (cli === "codex" || cli === "opencode") return "openai";
@@ -41289,21 +41298,22 @@ function getEmbeddedSkill(phase) {
   return content && content.length > 0 ? content : null;
 }
 function getDevBundledPath(phase, flavor) {
-  if (typeof __dirname === "undefined") return null;
+  const base = moduleDir();
+  if (!base) return null;
   const preferred = flavor === "neutral" ? `${phase}.neutral.md` : `${phase}.${flavor}.md`;
   const candidates = [
-    join8(__dirname, "defaults", preferred),
-    join8(__dirname, "defaults", `${phase}.md`),
-    join8(__dirname, "..", "src", "skills", "defaults", preferred),
-    join8(__dirname, "..", "src", "skills", "defaults", `${phase}.md`),
-    join8(__dirname, "..", "skills", "defaults", preferred),
-    join8(__dirname, "..", "skills", "defaults", `${phase}.md`),
-    join8(__dirname, "skills", "defaults", preferred),
-    join8(__dirname, "skills", "defaults", `${phase}.md`),
-    join8(__dirname, "defaults", `${phase}.neutral.md`),
-    join8(__dirname, "..", "src", "skills", "defaults", `${phase}.neutral.md`),
-    join8(__dirname, "..", "skills", "defaults", `${phase}.neutral.md`),
-    join8(__dirname, "skills", "defaults", `${phase}.neutral.md`)
+    join8(base, "defaults", preferred),
+    join8(base, "defaults", `${phase}.md`),
+    join8(base, "..", "src", "skills", "defaults", preferred),
+    join8(base, "..", "src", "skills", "defaults", `${phase}.md`),
+    join8(base, "..", "skills", "defaults", preferred),
+    join8(base, "..", "skills", "defaults", `${phase}.md`),
+    join8(base, "skills", "defaults", preferred),
+    join8(base, "skills", "defaults", `${phase}.md`),
+    join8(base, "defaults", `${phase}.neutral.md`),
+    join8(base, "..", "src", "skills", "defaults", `${phase}.neutral.md`),
+    join8(base, "..", "skills", "defaults", `${phase}.neutral.md`),
+    join8(base, "skills", "defaults", `${phase}.neutral.md`)
   ];
   for (const c of candidates) {
     if (existsSync7(c)) return c;
@@ -46838,7 +46848,7 @@ var init_lock_release = __esm({
 // src/orchestrator/scheduler.ts
 import { existsSync as existsSync18 } from "node:fs";
 import { mkdir as mkdir6, readFile as readFile12, writeFile as writeFile6 } from "node:fs/promises";
-import { dirname as dirname2 } from "node:path";
+import { dirname as dirname3 } from "node:path";
 async function readScheduler() {
   const path3 = getSchedulerPath();
   if (!existsSync18(path3)) return emptyState();
@@ -46885,7 +46895,7 @@ function createSchedulerTask(options) {
 }
 async function writeScheduler(state) {
   const path3 = getSchedulerPath();
-  await mkdir6(dirname2(path3), { recursive: true });
+  await mkdir6(dirname3(path3), { recursive: true });
   state.updated_at = (/* @__PURE__ */ new Date()).toISOString();
   await writeFile6(path3, JSON.stringify(state, null, 2), "utf-8");
 }
@@ -47508,16 +47518,23 @@ var init_file_picker = __esm({
 
 // src/utils/version.ts
 import { existsSync as existsSync19, readFileSync as readFileSync3 } from "node:fs";
-import { join as join21 } from "node:path";
+import { dirname as dirname4, join as join21 } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+function moduleDir2() {
+  if (typeof __dirname !== "undefined") return __dirname;
+  try {
+    return dirname4(fileURLToPath2(import.meta.url));
+  } catch {
+    return null;
+  }
+}
 function getVersion() {
   if ("1.3.0") {
     return "1.3.0";
   }
-  if (typeof __dirname !== "undefined") {
-    const candidates = [
-      join21(__dirname, "..", "..", "package.json"),
-      join21(__dirname, "..", "package.json")
-    ];
+  const base = moduleDir2();
+  if (base) {
+    const candidates = [join21(base, "..", "..", "package.json"), join21(base, "..", "package.json")];
     for (const path3 of candidates) {
       if (existsSync19(path3)) {
         try {
@@ -49737,7 +49754,7 @@ __export(setup_transitions_exports, {
 });
 import { writeFile as writeFile9, readFile as readFile15, mkdir as mkdir9 } from "node:fs/promises";
 import { existsSync as existsSync27 } from "node:fs";
-import { join as join29, dirname as dirname3 } from "node:path";
+import { join as join29, dirname as dirname5 } from "node:path";
 async function setupTransitionsAction(options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
@@ -49826,7 +49843,7 @@ async function setupTransitionsAction(options) {
       transitions: picks
     }
   };
-  await mkdir9(dirname3(target), { recursive: true });
+  await mkdir9(dirname5(target), { recursive: true });
   await writeFile9(target, (0, import_yaml5.stringify)(updated), "utf-8");
   console.log("");
   console.log(import_picocolors28.default.green(`\u2713 Saved transitions to ${target}`));
