@@ -1,4 +1,4 @@
-# Bode — Technical Specification (v1.0.0)
+# Bode — Technical Specification (v1.2.0)
 
 ## What Bode Is
 
@@ -335,14 +335,16 @@ hooks:
 | `bode init` | Scaffold `AGENTS.md` for the current repo via the configured AI CLI. |
 | `bode learn` | Generate `<repo>/.bode/context.md` for future phase prompts. |
 | `bode continue <KEY>` | Advance to next phase. Creates PR at awaiting-merge. |
-| `bode status <KEY>` | Show current phase, branch, PR link, conflict status. |
-| `bode show <artifact> <KEY>` | Print artifact (`plan` / `implementation` / `review`) to stdout. |
+| `bode status <KEY>` | Show current phase, branch, PR link, conflict status, and task/phase cost. |
+| `bode show <artifact> <KEY>` | Print artifact (`plan` / `implementation` / `review`) to stdout with cost header. |
+| `bode replay <KEY>` | Replay a saved phase prompt, or export/import a portable `.bode-run` bundle. |
 | `bode log <KEY>` | Show the log of the current or last phase. |
 | `bode list` | List all locally tracked tasks. |
 | `bode abort <KEY>` | Cancel execution, clean up branch, reset tracker state. |
 | `bode done <KEY>` | Mark done. Switch to base. Optionally merge PR. |
 | `bode skills` | Show resolved skill paths and prompts. |
-| `bode doctor` | Diagnose env, config, AI CLIs, VCS tooling. |
+| `bode doctor [--report]` | Diagnose env, config, AI CLIs, VCS tooling, and Windows gotchas; optionally write a redacted local report. |
+| `bode feedback [--open]` | Create a pre-filled GitHub feedback issue URL. Never auto-submits. |
 | `bode telemetry [on\|off\|status\|preview]` | Opt-in anonymous telemetry control. |
 | `bode compare <KEY> --agents <list>` | Run planning across multiple agents headlessly and compare. |
 
@@ -358,6 +360,9 @@ hooks:
 | `--dangerously-approve-all` | start, continue, fast path | Pass each CLI its bypass-approvals/sandbox flag |
 | `--auto-approve-pr-merge` | done | Automatically merge PR before cleanup |
 | `--agents <list>` | compare | Comma-separated agents (e.g. `claude-code,codex` or `claude-code:claude-opus-4-7,codex:gpt-5.5`) |
+| `--phase <name>` | replay | Replay a specific saved phase prompt. |
+| `--with-cli <name>` / `--with-model <name>` | replay | Replay the saved prompt with another CLI/model. |
+| `--export [path]` / `--import <path>` | replay | Export/import a portable `.bode-run` JSON bundle. |
 | `-y, --yes` | abort, done | Skip confirmation |
 
 ## Phase Execution Detail
@@ -631,6 +636,35 @@ Per event (`src/utils/telemetry.ts`):
 
 - Local NDJSON at `~/.bode/telemetry/events.ndjson`
 - No network unless `telemetry.endpoint` is configured (defaults to none)
+
+## Wave 7 Adoption Surfaces
+
+### Replay / audit trail
+
+Every phase writes the exact prompt sent to the AI CLI as `<phase>.prompt.md` and records `manifest.json` with the phase, CLI, model, prompt hash, skill hash, flags, and timestamps. `bode replay <KEY>` reuses that saved prompt byte-for-byte. `--with-cli` and `--with-model` only change the adapter/model used for the replay, not the prompt contents. `--export` writes a local `.bode-run` JSON bundle containing the run directory artifacts; `--import` restores that bundle under `~/.bode/runs/<KEY>/`.
+
+### Qualitative feedback
+
+`bode feedback` prints a pre-filled GitHub issue URL with Bode version, OS, and placeholders for CLI/tracker context. `--open` opens the URL in the default browser. Bode never auto-submits feedback and never sends logs or telemetry as part of this command.
+
+### Doctor reports and Windows diagnostics
+
+`bode doctor --report [path]` writes a redacted markdown report for support. On Windows, doctor also reports the inherited shell, PATH availability, and npm 11 global-install symlink warning. CI workflow changes remain outside autonomous agent scope because `.github/workflows/` changes require explicit human approval.
+
+## Data Flow
+
+| Data | Source | Destination | Network by default? | Notes |
+|---|---|---|---|---|
+| Config | `~/.bode/config.yml`, `.bode.yml` | Process memory | No | Tokens stay local and must not be logged. |
+| Task content | Tracker adapter or `.bode/tasks/*.md` | AI prompt, run artifacts | Yes, to configured AI CLI only | Wrapped as untrusted input before prompt injection. |
+| Repo context | `AGENTS.md`, `.bode/context.md`, file tree | AI prompt, run manifest hash | Yes, to configured AI CLI only | Context paths are preflighted before use. |
+| Skill prompts | bundled/project/global skill files | AI prompt, manifest hash | Yes, to configured AI CLI only | Skill hash stored in `manifest.json`. |
+| AI prompts | `phase-runner` generated prompt | `<phase>.prompt.md`, AI CLI stdin | Yes, to configured AI CLI only | Replay uses the saved prompt byte-for-byte. |
+| AI output | AI CLI stdout/stderr and artifact files | `~/.bode/runs/<KEY>/` | No additional network | Interactive sessions may not capture stdout. |
+| Cost usage | CLI usage extraction / budget tracker | `~/.bode/usage/<date>.json` | No | Best-effort; currently display-only unless budget config is set. |
+| Telemetry | Local command events | `~/.bode/telemetry/events.ndjson` | No | Endpoint is unset by default; opt-in only. |
+| Feedback | User-edited GitHub issue URL | Browser / GitHub Issues | Only if user submits | `bode feedback` prints/opens only. |
+| Doctor report | Local diagnostics | User-chosen markdown file | No | User reviews/redacts before sharing. |
 
 ## Definition of Done (current)
 

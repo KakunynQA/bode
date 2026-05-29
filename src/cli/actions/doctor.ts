@@ -7,6 +7,7 @@ import { loadConfig } from '~/config/loader.ts';
 import { getGlobalConfigPath, getRunsDir } from '~/config/defaults.ts';
 import { listAdapterNames } from '~/adapters/cli/registry.ts';
 import { getVersion } from '~/utils/version.ts';
+import { writeText } from '~/utils/fs.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -14,6 +15,10 @@ type CheckResult = {
 	name: string;
 	status: 'ok' | 'warn' | 'fail';
 	detail: string;
+};
+
+type DoctorOptions = {
+	report?: string | boolean;
 };
 
 function fmt(c: CheckResult): string {
@@ -83,7 +88,45 @@ async function checkRunsDir(): Promise<CheckResult> {
 	return { name: 'Runs directory', status: 'ok', detail: dir };
 }
 
-export async function doctorAction(): Promise<void> {
+async function checkWindowsShell(): Promise<CheckResult> {
+	if (process.platform !== 'win32') {
+		return { name: 'Windows shell', status: 'ok', detail: 'not Windows' };
+	}
+	const shell = process.env.ComSpec ?? process.env.SHELL ?? 'unknown';
+	return { name: 'Windows shell', status: 'ok', detail: shell };
+}
+
+async function checkWindowsPath(): Promise<CheckResult> {
+	if (process.platform !== 'win32') {
+		return { name: 'Windows PATH', status: 'ok', detail: 'not Windows' };
+	}
+	return process.env.PATH?.trim()
+		? { name: 'Windows PATH', status: 'ok', detail: 'PATH inherited by this shell' }
+		: { name: 'Windows PATH', status: 'warn', detail: 'PATH is empty in this shell' };
+}
+
+async function checkNpmWindowsSymlink(): Promise<CheckResult> {
+	if (process.platform !== 'win32') {
+		return { name: 'npm Windows symlinks', status: 'ok', detail: 'not Windows' };
+	}
+	try {
+		const { stdout } = await execFileAsync('npm', ['--version']);
+		const version = stdout.trim();
+		const major = parseInt(version.split('.')[0] ?? '0', 10);
+		return {
+			name: 'npm Windows symlinks',
+			status: major >= 11 ? 'warn' : 'ok',
+			detail:
+				major >= 11
+					? `npm ${version}; global installs may hit Windows symlink quirks`
+					: `npm ${version}`,
+		};
+	} catch {
+		return { name: 'npm Windows symlinks', status: 'warn', detail: 'npm not found on PATH' };
+	}
+}
+
+export async function doctorAction(options: DoctorOptions = {}): Promise<void> {
 	const workdir = process.cwd();
 	console.log('');
 	console.log(pc.bold(`bode doctor`) + pc.dim(`  v${getVersion()}`));
@@ -94,6 +137,9 @@ export async function doctorAction(): Promise<void> {
 	checks.push(await checkNodeVersion());
 	checks.push(await checkGlobalConfig());
 	checks.push(await checkRunsDir());
+	checks.push(await checkWindowsShell());
+	checks.push(await checkWindowsPath());
+	checks.push(await checkNpmWindowsSymlink());
 
 	// Env detection
 	const env = await detectEnv(workdir, { globalConfigPath: getGlobalConfigPath() });
@@ -163,6 +209,12 @@ export async function doctorAction(): Promise<void> {
 
 	for (const c of checks) console.log(fmt(c));
 
+	if (options.report) {
+		const target = typeof options.report === 'string' ? options.report : 'bode-doctor-report.md';
+		await writeText(target, buildReport(checks, workdir));
+		console.log(pc.dim(`Report: ${target}`));
+	}
+
 	const fails = checks.filter((c) => c.status === 'fail').length;
 	const warns = checks.filter((c) => c.status === 'warn').length;
 
@@ -177,4 +229,29 @@ export async function doctorAction(): Promise<void> {
 	}
 	console.log(pc.red(`${fails} failure(s), ${warns} warning(s).`));
 	process.exit(1);
+}
+
+function buildReport(checks: CheckResult[], workdir: string): string {
+	const rows = checks
+		.map((check) => `| ${check.name} | ${check.status.toUpperCase()} | ${redact(check.detail)} |`)
+		.join('\n');
+	return [
+		`# Bode Doctor Report`,
+		'',
+		`Generated: ${new Date().toISOString()}`,
+		`Bode version: ${getVersion()}`,
+		`OS: ${process.platform} ${process.arch}`,
+		`Workdir: ${redact(workdir)}`,
+		'',
+		'No data was sent anywhere. Review and redact this file before sharing.',
+		'',
+		'| Check | Status | Detail |',
+		'|---|---|---|',
+		rows,
+		'',
+	].join('\n');
+}
+
+function redact(value: string): string {
+	return value.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '<email>');
 }

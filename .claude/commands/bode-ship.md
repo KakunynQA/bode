@@ -42,8 +42,9 @@ Ask only the unanswered ones, grouped in a single message. Skip any already cove
 3. **Run global-install smoke test** in Phase 3 (`npm pack && npm i -g bode-*.tgz && bode --version`)? (default yes when behaviour or version changes)
 4. **Open a PR** when gates pass? (default yes; otherwise stop at local commit)
 5. **Generate an HTML visualization** of the plan in `.local/docs/`? (default no)
-6. **Memory log mode** for execution? (one Dynamic-MD memory log per phase under `.local/docs/implementing/` — recommended for tasks > 4 phases or > 4h estimated; default off)
-7. **Plan-review strictness**: `strict` (block on any missing section — default for config schema / run-meta / adapter / CLI surface changes) or `pragmatic` (block only on missing tests / Release Discipline / risk — default for single-file fixes and docs-only).
+6. **Process watchdog timeout** for long-running commands? Default: 30 minutes.
+7. **Memory log mode** for execution? Default: `auto`, mandatory for multi-repo work, HIGH-risk phases, delegation, more than 4 phases, estimated work above 4 hours, or watchdog intervention.
+8. **Plan-review strictness**: `strict` (block on any missing section — default for config schema / run-meta / adapter / CLI surface changes) or `pragmatic` (block only on missing tests / Release Discipline / risk — default for single-file fixes and docs-only).
 
 ## Pre-flight
 
@@ -60,7 +61,7 @@ Before Phase 1:
 
 1. Inspect the affected code paths before proposing anything (use `glob` + `grep`; do not load whole repo).
 2. Identify: files to touch, tests required, docs to update, Release Discipline impact (version bump tier, CHANGELOG section, dist rebuild), risk.
-3. Write the plan to `.local/docs/planning/<task-slug>-plan.md`. **Every phase MUST open with a YAML frontmatter block** as defined in `/bode-prompt-planning` §Task YAML Frontmatter (`objective`, `depends_on`, `files`, `parallelization`, `validation`, `expected_output`, `release`, `risk`, optional `reporting.memory_log`).
+3. Write the plan to `.local/docs/planning/<task-slug>-plan.md`. **Every phase MUST open with a YAML frontmatter block** as defined in `/bode-prompt-planning` §Task YAML Frontmatter (`objective`, `depends_on`, `files`, `parallelization`, `watchdog`, `validation`, `expected_output`, `release`, `risk`, optional `reporting.memory_log`).
 4. When the plan is complete, move it to `.local/docs/to-implement/<task-slug>-plan.md`.
 5. If HTML was requested, write `.local/docs/to-implement/<task-slug>-plan.html` alongside (self-contained, inline CSS).
 6. **Checkpoint:** print a one-screen summary of the plan, then continue automatically. Pause only if a HIGH risk is identified — surface it and wait for the user.
@@ -73,7 +74,7 @@ Before Phase 1:
 
 Run the plan reviewer **before any code is touched**. This is the structured second look APM provides via `Project_Breakdown_Review_Guide.md` and prevents wasted Phase 2 work.
 
-1. Invoke `/bode-prompt-review-plan` against `.local/docs/to-implement/<task-slug>-plan.md` with the strictness chosen in question 7.
+1. Invoke `/bode-prompt-review-plan` against `.local/docs/to-implement/<task-slug>-plan.md` with the strictness chosen in question 8.
 2. Write the verdict to `.local/docs/to-implement/<task-slug>-review.md`.
 3. **If verdict is `CHANGES REQUESTED`:** stop. Print the Findings table, return to Phase 1, fix the plan, rerun Phase 1.5.
 4. **If verdict is `APPROVED WITH MINOR CHANGES`:** auto-apply patches inline (allowed in this executor since the user already opted into full execution), then continue.
@@ -93,7 +94,9 @@ Do not skip this phase even for small plans — the reviewer is cheap and the ch
 6. Run targeted tests as you go (the specific spec file under `tests/` for the module touched).
 7. Run `npm run build` so the committed `dist/index.js` matches the new version.
 8. Append an **Implementation notes** section to the plan markdown: actual line numbers, deviations, decisions made.
-9. **If memory log mode is on (question 6 = yes):** write one Dynamic-MD memory log per phase at the path declared in the phase YAML (default `.local/docs/implementing/<task-slug>-phase-<n>-memory.md`). Follow the section structure in `/bode-prompt-execution` §Memory Log Mode (Summary / Details / Output / Issues / Compatibility Concerns / Ad-Hoc Agent Delegation / Important Findings / Next Steps). Write it as the phase progresses, not retroactively.
+9. Apply `/bode-process-watchdog` to any command that exceeds the configured threshold. Inspect before killing; document every continue/terminate/ask decision in the plan notes.
+10. Use `/bode-prompt-delegate-research` when current external facts are needed and `/bode-prompt-delegate-debug` after 3 failed debugging attempts, or immediately for systemic, CI-only, environment-specific, or unclear failures. Do not make a fourth local fix attempt.
+11. **Memory logs:** in `auto` mode, write one Dynamic-MD memory log per phase when mandatory triggers apply: multi-repo, HIGH risk, delegation, more than 4 phases, work above 4 hours, watchdog intervention, or explicit phase `reporting.memory_log`.
 
 ---
 
@@ -178,11 +181,15 @@ Never commit `.local/docs/` artifacts unless the user explicitly asks.
 - Never call tracker APIs (Jira, GitHub Issues, Linear, Notion, Trello) from outside `src/adapters/jira/` or `src/adapters/tracker/`.
 - Never call `gh` / `glab` / `git` from outside `src/adapters/vcs/`.
 - If CI fails for more than 30 minutes on the same root cause, escalate to the user with the failure log instead of retrying silently.
+- If a local process runs longer than the configured watchdog timeout, inspect before killing it. Document the decision in plan notes and in the phase memory log when memory logging is mandatory.
 
 ## Related skills
 
 - `/bode-prompt-ship` — assembles this command's 4-phase prompt. Run standalone if you want the prompt text without execution.
 - `/bode-prompt-planning` — Phase 1 contract (used when only planning is needed). Defines the Task YAML Frontmatter every phase must carry.
 - `/bode-prompt-review-plan` — Phase 1.5 contract (plan reviewer pass between Plan and Execute).
-- `/bode-prompt-execution` — Phase 2 contract (executing an existing plan). Defines the opt-in Memory Log mode.
+- `/bode-prompt-execution` — Phase 2 contract (executing an existing plan). Defines auto Memory Log mode, delegation, and watchdog behavior.
 - `/bode-prompt-review` — Phase 3 contract (validation chain + Release Discipline gate).
+- `/bode-process-watchdog` - inspect and optionally terminate long-running commands.
+- `/bode-prompt-delegate-research` - create scoped research delegation prompts.
+- `/bode-prompt-delegate-debug` - create scoped debug delegation prompts.

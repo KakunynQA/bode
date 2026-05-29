@@ -55,6 +55,11 @@ export async function getTaskCost(taskKey: string): Promise<number> {
 	return usage.tasks[taskKey.toUpperCase()]?.total_usd ?? 0;
 }
 
+export async function getTaskPhaseCosts(taskKey: string): Promise<Record<string, number>> {
+	const usage = await readTodayUsage();
+	return usage.tasks[taskKey.toUpperCase()]?.phases ?? {};
+}
+
 async function readTodayUsage(): Promise<UsageState> {
 	const path = todayPath();
 	if (!existsSync(path)) return { date: today(), tasks: {} };

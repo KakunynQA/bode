@@ -41783,6 +41783,10 @@ async function getTaskCost(taskKey) {
   const usage = await readTodayUsage();
   return usage.tasks[taskKey.toUpperCase()]?.total_usd ?? 0;
 }
+async function getTaskPhaseCosts(taskKey) {
+  const usage = await readTodayUsage();
+  return usage.tasks[taskKey.toUpperCase()]?.phases ?? {};
+}
 async function readTodayUsage() {
   const path3 = todayPath();
   if (!(0, import_node_fs13.existsSync)(path3)) return { date: today(), tasks: {} };
@@ -41810,6 +41814,69 @@ var init_budget_tracker = __esm({
     import_promises11 = require("node:fs/promises");
     import_node_path15 = require("node:path");
     init_defaults();
+  }
+});
+
+// src/orchestrator/run-manifest.ts
+async function recordManifestPhase(options) {
+  const runDir = getRunDir(options.taskKey);
+  const manifest = await readManifest(options.taskKey);
+  const promptPath = (0, import_node_path16.join)(runDir, `${options.phase}.prompt.md`);
+  const entry = {
+    phase: options.phase,
+    prompt_path: (0, import_node_path16.basename)(promptPath),
+    prompt_sha256: sha256(options.prompt),
+    skill_sha256: sha256(options.skillContent),
+    model: options.model,
+    cli: options.cli,
+    flags: options.flags ?? [],
+    created_at: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  manifest.updated_at = entry.created_at;
+  manifest.phases = [...manifest.phases.filter((p) => p.phase !== options.phase), entry];
+  await writeJson((0, import_node_path16.join)(runDir, "manifest.json"), manifest);
+}
+async function readManifest(taskKey) {
+  const path3 = (0, import_node_path16.join)(getRunDir(taskKey), "manifest.json");
+  if ((0, import_node_fs14.existsSync)(path3)) {
+    const manifest = await readJson(path3);
+    if (manifest) return manifest;
+  }
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  return {
+    version: 1,
+    task_key: taskKey.toUpperCase(),
+    created_at: now,
+    updated_at: now,
+    phases: []
+  };
+}
+async function exportRunBundle(taskKey) {
+  const runDir = getRunDir(taskKey);
+  const files = await (0, import_promises12.readdir)(runDir);
+  const bundle = {
+    version: 1,
+    task_key: taskKey.toUpperCase(),
+    files: {}
+  };
+  for (const file2 of files) {
+    bundle.files[file2] = await (0, import_promises12.readFile)((0, import_node_path16.join)(runDir, file2), "utf-8");
+  }
+  return JSON.stringify(bundle, null, 2);
+}
+function sha256(value) {
+  return (0, import_node_crypto3.createHash)("sha256").update(value).digest("hex");
+}
+var import_node_crypto3, import_node_fs14, import_promises12, import_node_path16;
+var init_run_manifest = __esm({
+  "src/orchestrator/run-manifest.ts"() {
+    "use strict";
+    import_node_crypto3 = require("node:crypto");
+    import_node_fs14 = require("node:fs");
+    import_promises12 = require("node:fs/promises");
+    import_node_path16 = require("node:path");
+    init_defaults();
+    init_fs();
   }
 });
 
@@ -41849,7 +41916,7 @@ async function runPhase(taskKey, status, config2, tracker, options) {
   if (!issueResult.ok) return issueResult;
   const issue2 = issueResult.value;
   const priorPhaseFile = getPriorPhaseFile(phaseName);
-  const priorArtifact = priorPhaseFile ? await readText((0, import_node_path16.join)(getRunDir(taskKey), priorPhaseFile)) ?? void 0 : void 0;
+  const priorArtifact = priorPhaseFile ? await readText((0, import_node_path17.join)(getRunDir(taskKey), priorPhaseFile)) ?? void 0 : void 0;
   let projectAgentsMd;
   let repoFileTree;
   if (options.projectConfig) {
@@ -41863,9 +41930,9 @@ async function runPhase(taskKey, status, config2, tracker, options) {
     return entry;
   });
   const runDir = getRunDir(taskKey);
-  const logPath = (0, import_node_path16.join)(runDir, `${phaseName}.log`);
-  const artifactPath = (0, import_node_path16.join)(runDir, `${phaseName}.md`);
-  const branchFile = (0, import_node_path16.join)(runDir, "branch.txt");
+  const logPath = (0, import_node_path17.join)(runDir, `${phaseName}.log`);
+  const artifactPath = (0, import_node_path17.join)(runDir, `${phaseName}.md`);
+  const branchFile = (0, import_node_path17.join)(runDir, "branch.txt");
   const currentMetaResult = await loadRunMeta(taskKey);
   const currentMeta = currentMetaResult.ok ? currentMetaResult.value : null;
   const baseBranch = currentMeta?.baseBranch;
@@ -41883,6 +41950,16 @@ async function runPhase(taskKey, status, config2, tracker, options) {
     ...repos ? { repos } : {},
     ...options.projectConfig?.branch_tool ? { branchTool: options.projectConfig.branch_tool } : {},
     ...options.projectRoot ? { mainWorkdir: options.projectRoot } : {}
+  });
+  await writeText((0, import_node_path17.join)(runDir, `${phaseName}.prompt.md`), prompt);
+  await recordManifestPhase({
+    taskKey,
+    phase: phaseName,
+    prompt,
+    skillContent: skillResult.value,
+    cli: phaseConfig.cli,
+    model: phaseConfig.model,
+    flags: options.dangerousBypass ? ["dangerousBypass"] : []
   });
   const cliConfig = {
     cli: phaseConfig.cli,
@@ -41951,7 +42028,7 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
       value: { kind: "missing-artifact", logPath, durationMs: invocation.durationMs }
     };
   }
-  if (!(0, import_node_fs14.existsSync)(artifactPath)) {
+  if (!(0, import_node_fs15.existsSync)(artifactPath)) {
     await writeText(artifactPath, artifact);
   }
   const labelsConfig = config2.jira_labels;
@@ -41965,7 +42042,7 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
     }
   }
   let aiBranch = null;
-  if ((0, import_node_fs14.existsSync)(branchFile)) {
+  if ((0, import_node_fs15.existsSync)(branchFile)) {
     const raw = await readText(branchFile);
     const trimmed = raw?.trim();
     if (trimmed && trimmed.length > 0 && trimmed.length < 200) {
@@ -41994,9 +42071,9 @@ ${invocation.stderr.trim().slice(-500)}` : ""}`;
   };
 }
 async function readArtifact(artifactPath, headlessStdout) {
-  if ((0, import_node_fs14.existsSync)(artifactPath)) {
+  if ((0, import_node_fs15.existsSync)(artifactPath)) {
     try {
-      const s = await (0, import_promises12.stat)(artifactPath);
+      const s = await (0, import_promises13.stat)(artifactPath);
       if (s.size > 0) {
         const content = await readText(artifactPath);
         if (content && content.trim().length > 0) return content;
@@ -42049,7 +42126,7 @@ function getNextLabelKey(phase) {
       return null;
   }
 }
-var import_node_path16, import_node_fs14, import_promises12;
+var import_node_path17, import_node_fs15, import_promises13;
 var init_phase_runner = __esm({
   "src/orchestrator/phase-runner.ts"() {
     "use strict";
@@ -42063,9 +42140,10 @@ var init_phase_runner = __esm({
     init_context();
     init_preflight();
     init_budget_tracker();
-    import_node_path16 = require("node:path");
-    import_node_fs14 = require("node:fs");
-    import_promises12 = require("node:fs/promises");
+    init_run_manifest();
+    import_node_path17 = require("node:path");
+    import_node_fs15 = require("node:fs");
+    import_promises13 = require("node:fs/promises");
   }
 });
 
@@ -42127,7 +42205,7 @@ var init_contract = __esm({
 
 // src/orchestrator/validation-gate.ts
 async function runValidationGate(options) {
-  const logPath = (0, import_node_path17.join)(getRunDir(options.taskKey), "validation.log");
+  const logPath = (0, import_node_path18.join)(getRunDir(options.taskKey), "validation.log");
   const results = [];
   const log = [];
   for (const command of options.commands) {
@@ -42159,12 +42237,12 @@ function runShell(command, cwd) {
     child.on("error", (error52) => resolve({ exitCode: 1, output: error52.message }));
   });
 }
-var import_node_child_process5, import_node_path17;
+var import_node_child_process5, import_node_path18;
 var init_validation_gate = __esm({
   "src/orchestrator/validation-gate.ts"() {
     "use strict";
     import_node_child_process5 = require("node:child_process");
-    import_node_path17 = require("node:path");
+    import_node_path18 = require("node:path");
     init_fs();
     init_defaults();
   }
@@ -42176,28 +42254,28 @@ function runReleaseGate(options) {
   if (!release) return { ok: true, value: void 0 };
   const errors = [];
   if (release.require_version_bump) {
-    const pkgPath = (0, import_node_path18.join)(options.workdir, "package.json");
-    if (!(0, import_node_fs15.existsSync)(pkgPath)) errors.push("package.json is missing");
+    const pkgPath = (0, import_node_path19.join)(options.workdir, "package.json");
+    if (!(0, import_node_fs16.existsSync)(pkgPath)) errors.push("package.json is missing");
     else {
-      const pkg = JSON.parse((0, import_node_fs15.readFileSync)(pkgPath, "utf-8"));
+      const pkg = JSON.parse((0, import_node_fs16.readFileSync)(pkgPath, "utf-8"));
       if (!pkg.version) errors.push("package.json has no version");
     }
   }
   if (release.require_changelog_entry) {
-    const changelogPath = (0, import_node_path18.join)(options.workdir, "CHANGELOG.md");
-    if (!(0, import_node_fs15.existsSync)(changelogPath)) errors.push("CHANGELOG.md is missing");
-    else if (!/^## \[[0-9]+\.[0-9]+\.[0-9]+\]/m.test((0, import_node_fs15.readFileSync)(changelogPath, "utf-8"))) {
+    const changelogPath = (0, import_node_path19.join)(options.workdir, "CHANGELOG.md");
+    if (!(0, import_node_fs16.existsSync)(changelogPath)) errors.push("CHANGELOG.md is missing");
+    else if (!/^## \[[0-9]+\.[0-9]+\.[0-9]+\]/m.test((0, import_node_fs16.readFileSync)(changelogPath, "utf-8"))) {
       errors.push("CHANGELOG.md has no versioned entry");
     }
   }
   return errors.length > 0 ? { ok: false, error: new Error(errors.join("; ")) } : { ok: true, value: void 0 };
 }
-var import_node_fs15, import_node_path18;
+var import_node_fs16, import_node_path19;
 var init_release_gate = __esm({
   "src/orchestrator/release-gate.ts"() {
     "use strict";
-    import_node_fs15 = require("node:fs");
-    import_node_path18 = require("node:path");
+    import_node_fs16 = require("node:fs");
+    import_node_path19 = require("node:path");
   }
 });
 
@@ -42236,13 +42314,13 @@ var init_transitions = __esm({
 // src/cli/summary.ts
 async function printPhaseArtifacts(taskKey, phaseName) {
   const runDir = getRunDir(taskKey);
-  const logPath = (0, import_node_path19.join)(runDir, `${phaseName}.log`);
-  const artifactPath = (0, import_node_path19.join)(runDir, `${phaseName}.md`);
+  const logPath = (0, import_node_path20.join)(runDir, `${phaseName}.log`);
+  const artifactPath = (0, import_node_path20.join)(runDir, `${phaseName}.md`);
   const lines = [];
-  if ((0, import_node_fs16.existsSync)(artifactPath)) {
+  if ((0, import_node_fs17.existsSync)(artifactPath)) {
     lines.push(`  Artifact: ${import_picocolors.default.cyan(artifactPath)}`);
   }
-  if ((0, import_node_fs16.existsSync)(logPath)) {
+  if ((0, import_node_fs17.existsSync)(logPath)) {
     lines.push(`  Log:      ${import_picocolors.default.dim(logPath)}`);
   }
   if (lines.length > 0) {
@@ -42277,10 +42355,10 @@ function printTaskSummary(meta3) {
   console.log(import_picocolors.default.bold("  Artifacts"));
   let any2 = false;
   for (const phase of PHASE_FILES) {
-    const md = (0, import_node_path19.join)(runDir, `${phase}.md`);
-    const log = (0, import_node_path19.join)(runDir, `${phase}.log`);
-    const hasMd = (0, import_node_fs16.existsSync)(md);
-    const hasLog = (0, import_node_fs16.existsSync)(log);
+    const md = (0, import_node_path20.join)(runDir, `${phase}.md`);
+    const log = (0, import_node_path20.join)(runDir, `${phase}.log`);
+    const hasMd = (0, import_node_fs17.existsSync)(md);
+    const hasLog = (0, import_node_fs17.existsSync)(log);
     if (!hasMd && !hasLog) continue;
     any2 = true;
     console.log(`    ${import_picocolors.default.cyan(phase)}`);
@@ -42304,13 +42382,13 @@ function formatDuration(ms) {
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m`;
 }
-var import_picocolors, import_node_fs16, import_node_path19, PHASE_FILES;
+var import_picocolors, import_node_fs17, import_node_path20, PHASE_FILES;
 var init_summary = __esm({
   "src/cli/summary.ts"() {
     "use strict";
     import_picocolors = __toESM(require_picocolors());
-    import_node_fs16 = require("node:fs");
-    import_node_path19 = require("node:path");
+    import_node_fs17 = require("node:fs");
+    import_node_path20 = require("node:path");
     init_defaults();
     PHASE_FILES = ["planning", "implementation", "review"];
   }
@@ -45699,14 +45777,14 @@ __export(pr_creator_exports, {
 });
 async function createPullRequestViaAI(args) {
   const runDir = getRunDir(args.taskKey);
-  const prFile = (0, import_node_path20.join)(runDir, "pr.txt");
-  const logPath = (0, import_node_path20.join)(runDir, "pr.log");
-  if ((0, import_node_fs17.existsSync)(prFile)) {
+  const prFile = (0, import_node_path21.join)(runDir, "pr.txt");
+  const logPath = (0, import_node_path21.join)(runDir, "pr.log");
+  if ((0, import_node_fs18.existsSync)(prFile)) {
     await writeText(prFile, "");
   }
-  const planning = await readText((0, import_node_path20.join)(runDir, "planning.md")) ?? "(no plan artifact)";
-  const implementation = await readText((0, import_node_path20.join)(runDir, "implementation.md")) ?? "(no implementation artifact)";
-  const review = await readText((0, import_node_path20.join)(runDir, "review.md")) ?? "(no review artifact)";
+  const planning = await readText((0, import_node_path21.join)(runDir, "planning.md")) ?? "(no plan artifact)";
+  const implementation = await readText((0, import_node_path21.join)(runDir, "implementation.md")) ?? "(no implementation artifact)";
+  const review = await readText((0, import_node_path21.join)(runDir, "review.md")) ?? "(no review artifact)";
   const tool = args.provider === "gitlab" ? "glab" : "gh";
   const createCmd = args.provider === "gitlab" ? `glab mr create --source-branch ${args.branch} --target-branch ${args.baseBranch} --title <title> --description <body> --no-editor` : `gh pr create --head ${args.branch} --base ${args.baseBranch} --title <title> --body <body>`;
   const prompt = buildPrPrompt({
@@ -45829,12 +45907,12 @@ function extractPrNumber(url2, provider) {
   const match = url2.match(re);
   return match?.[1] ? parseInt(match[1], 10) : 0;
 }
-var import_node_path20, import_node_fs17, __testing;
+var import_node_path21, import_node_fs18, __testing;
 var init_pr_creator = __esm({
   "src/orchestrator/pr-creator.ts"() {
     "use strict";
-    import_node_path20 = require("node:path");
-    import_node_fs17 = require("node:fs");
+    import_node_path21 = require("node:path");
+    import_node_fs18 = require("node:fs");
     init_fs();
     init_defaults();
     init_registry();
@@ -46579,13 +46657,13 @@ function isPidAlive(pid) {
   }
 }
 function lockPath(taskKey) {
-  return (0, import_node_path21.join)(getRunDir(taskKey), LOCK_FILE);
+  return (0, import_node_path22.join)(getRunDir(taskKey), LOCK_FILE);
 }
 async function readLock(taskKey) {
   const path3 = lockPath(taskKey);
-  if (!(0, import_node_fs18.existsSync)(path3)) return null;
+  if (!(0, import_node_fs19.existsSync)(path3)) return null;
   try {
-    const raw = await (0, import_promises13.readFile)(path3, "utf-8");
+    const raw = await (0, import_promises14.readFile)(path3, "utf-8");
     return JSON.parse(raw);
   } catch {
     return null;
@@ -46593,7 +46671,7 @@ async function readLock(taskKey) {
 }
 async function acquireLock(taskKey, command) {
   const path3 = lockPath(taskKey);
-  await (0, import_promises13.mkdir)((0, import_node_path21.join)(getRunDir(taskKey)), { recursive: true });
+  await (0, import_promises14.mkdir)((0, import_node_path22.join)(getRunDir(taskKey)), { recursive: true });
   const existing = await readLock(taskKey);
   if (existing) {
     const stale = existing.host !== (0, import_node_os4.hostname)() || !isPidAlive(existing.pid) || existing.pid === process.pid;
@@ -46614,25 +46692,25 @@ async function acquireLock(taskKey, command) {
     startedAt: Date.now(),
     command
   };
-  await (0, import_promises13.writeFile)(path3, JSON.stringify(info2, null, 2), "utf-8");
+  await (0, import_promises14.writeFile)(path3, JSON.stringify(info2, null, 2), "utf-8");
   const release = async () => {
     try {
       const current = await readLock(taskKey);
       if (current && current.pid === process.pid && current.host === (0, import_node_os4.hostname)()) {
-        await (0, import_promises13.unlink)(path3);
+        await (0, import_promises14.unlink)(path3);
       }
     } catch {
     }
   };
   return { ok: true, value: { release } };
 }
-var import_node_fs18, import_promises13, import_node_path21, import_node_os4, LOCK_FILE;
+var import_node_fs19, import_promises14, import_node_path22, import_node_os4, LOCK_FILE;
 var init_lockfile = __esm({
   "src/storage/lockfile.ts"() {
     "use strict";
-    import_node_fs18 = require("node:fs");
-    import_promises13 = require("node:fs/promises");
-    import_node_path21 = require("node:path");
+    import_node_fs19 = require("node:fs");
+    import_promises14 = require("node:fs/promises");
+    import_node_path22 = require("node:path");
     import_node_os4 = require("node:os");
     init_defaults();
     LOCK_FILE = ".lock";
@@ -46676,9 +46754,9 @@ var init_lock_release = __esm({
 // src/orchestrator/scheduler.ts
 async function readScheduler() {
   const path3 = getSchedulerPath();
-  if (!(0, import_node_fs19.existsSync)(path3)) return emptyState();
+  if (!(0, import_node_fs20.existsSync)(path3)) return emptyState();
   try {
-    const parsed = JSON.parse(await (0, import_promises14.readFile)(path3, "utf-8"));
+    const parsed = JSON.parse(await (0, import_promises15.readFile)(path3, "utf-8"));
     return reapCrashed(parsed);
   } catch {
     return emptyState();
@@ -46720,9 +46798,9 @@ function createSchedulerTask(options) {
 }
 async function writeScheduler(state) {
   const path3 = getSchedulerPath();
-  await (0, import_promises14.mkdir)((0, import_node_path22.dirname)(path3), { recursive: true });
+  await (0, import_promises15.mkdir)((0, import_node_path23.dirname)(path3), { recursive: true });
   state.updated_at = (/* @__PURE__ */ new Date()).toISOString();
-  await (0, import_promises14.writeFile)(path3, JSON.stringify(state, null, 2), "utf-8");
+  await (0, import_promises15.writeFile)(path3, JSON.stringify(state, null, 2), "utf-8");
 }
 function emptyState() {
   return { tasks: [], updated_at: (/* @__PURE__ */ new Date()).toISOString() };
@@ -46744,13 +46822,13 @@ function isPidAlive2(pid) {
     return false;
   }
 }
-var import_node_fs19, import_promises14, import_node_path22;
+var import_node_fs20, import_promises15, import_node_path23;
 var init_scheduler = __esm({
   "src/orchestrator/scheduler.ts"() {
     "use strict";
-    import_node_fs19 = require("node:fs");
-    import_promises14 = require("node:fs/promises");
-    import_node_path22 = require("node:path");
+    import_node_fs20 = require("node:fs");
+    import_promises15 = require("node:fs/promises");
+    import_node_path23 = require("node:path");
     init_defaults();
   }
 });
@@ -47260,18 +47338,18 @@ var init_models = __esm({
 
 // src/utils/version.ts
 function getVersion() {
-  if ("1.1.0") {
-    return "1.1.0";
+  if ("1.2.0") {
+    return "1.2.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
-      (0, import_node_path23.join)(__dirname, "..", "..", "package.json"),
-      (0, import_node_path23.join)(__dirname, "..", "package.json")
+      (0, import_node_path24.join)(__dirname, "..", "..", "package.json"),
+      (0, import_node_path24.join)(__dirname, "..", "package.json")
     ];
     for (const path3 of candidates) {
-      if ((0, import_node_fs20.existsSync)(path3)) {
+      if ((0, import_node_fs21.existsSync)(path3)) {
         try {
-          const pkg = JSON.parse((0, import_node_fs20.readFileSync)(path3, "utf-8"));
+          const pkg = JSON.parse((0, import_node_fs21.readFileSync)(path3, "utf-8"));
           if (pkg.version) return pkg.version;
         } catch {
         }
@@ -47280,12 +47358,12 @@ function getVersion() {
   }
   return FALLBACK_VERSION;
 }
-var import_node_fs20, import_node_path23, FALLBACK_VERSION;
+var import_node_fs21, import_node_path24, FALLBACK_VERSION;
 var init_version = __esm({
   "src/utils/version.ts"() {
     "use strict";
-    import_node_fs20 = require("node:fs");
-    import_node_path23 = require("node:path");
+    import_node_fs21 = require("node:fs");
+    import_node_path24 = require("node:path");
     FALLBACK_VERSION = "0.0.0-dev";
   }
 });
@@ -47409,7 +47487,7 @@ async function setupAction(subcommand) {
   await ensureDir(`${globalDir}/projects`);
   console.log(import_picocolors11.default.green(`\u2713 Created ${globalDir}
 `));
-  const existingConfig = (0, import_node_fs21.existsSync)(getGlobalConfigPath());
+  const existingConfig = (0, import_node_fs22.existsSync)(getGlobalConfigPath());
   let currentJiraSite = "";
   let currentProject = "";
   let currentJiraEmail = "";
@@ -47741,7 +47819,7 @@ async function setupProjectAction() {
           console.error(import_picocolors11.default.red("Working directory is required."));
           process.exit(1);
         }
-        if (!(0, import_node_fs21.existsSync)(workdirPath)) {
+        if (!(0, import_node_fs22.existsSync)(workdirPath)) {
           console.error(import_picocolors11.default.red(`Directory does not exist: ${workdirPath}`));
           process.exit(1);
         }
@@ -47963,7 +48041,7 @@ async function setupProjectAction() {
     );
   });
 }
-var import_picocolors11, import_node_fs21;
+var import_picocolors11, import_node_fs22;
 var init_setup = __esm({
   "src/cli/actions/setup.ts"() {
     "use strict";
@@ -47971,7 +48049,7 @@ var init_setup = __esm({
     init_ora();
     init_dist17();
     init_defaults();
-    import_node_fs21 = require("node:fs");
+    import_node_fs22 = require("node:fs");
     init_fs();
     init_loader();
     init_registry();
@@ -48112,9 +48190,13 @@ async function statusAction(taskKey) {
   }
   const meta3 = result.value;
   const cost = await getTaskCost(meta3.taskKey);
+  const phaseCosts = await getTaskPhaseCosts(meta3.taskKey);
   console.log(`Task: ${import_picocolors13.default.bold(meta3.taskKey)} - ${meta3.trackerSummary}`);
   console.log(`Status: ${import_picocolors13.default.cyan(getPhaseStatusLabel(meta3.status))}`);
   console.log(`Cost: ${import_picocolors13.default.dim(`$${cost.toFixed(2)}`)}`);
+  for (const [phase, phaseCost] of Object.entries(phaseCosts)) {
+    console.log(`  ${phase}: ${import_picocolors13.default.dim(`$${phaseCost.toFixed(2)}`)}`);
+  }
   if (meta3.branch) {
     console.log(`Branch: ${import_picocolors13.default.dim(meta3.branch)} (from ${meta3.baseBranch ?? "unknown"})`);
   }
@@ -48207,6 +48289,9 @@ async function showAction(artifact, taskKey, options = {}) {
     console.log(htmlPath);
     return;
   }
+  const cost = await getTaskCost(taskKey);
+  console.log(import_picocolors14.default.dim(`${taskKey.toUpperCase()} ${normalized} | cost so far ~$${cost.toFixed(2)}`));
+  console.log("");
   console.log(content);
 }
 var import_picocolors14, VALID_ARTIFACTS;
@@ -48216,9 +48301,97 @@ var init_show = __esm({
     init_defaults();
     init_fs();
     init_html_renderer();
+    init_budget_tracker();
     init_fs();
     import_picocolors14 = __toESM(require_picocolors());
     VALID_ARTIFACTS = ["plan", "planning", "implementation", "review"];
+  }
+});
+
+// src/cli/actions/replay.ts
+var replay_exports = {};
+__export(replay_exports, {
+  replayAction: () => replayAction
+});
+async function replayAction(taskKey, options) {
+  if (options.import) {
+    await importBundle(taskKey, options.import);
+    return;
+  }
+  if (options.export) {
+    const content = await exportRunBundle(taskKey);
+    const target = typeof options.export === "string" ? options.export : `${taskKey}.bode-run`;
+    await writeText(target, content);
+    console.log(target);
+    return;
+  }
+  const manifest = await readManifest(taskKey);
+  const phase = options.phase ? manifest.phases.find((entry) => entry.phase === options.phase) : manifest.phases.at(-1);
+  if (!phase) {
+    console.error(import_picocolors15.default.yellow(`No replay manifest phase found for ${taskKey}`));
+    process.exit(1);
+  }
+  const prompt = await readText((0, import_node_path25.join)(getRunDir(taskKey), phase.prompt_path));
+  if (!prompt) {
+    console.error(import_picocolors15.default.red(`Prompt artifact missing: ${phase.prompt_path}`));
+    process.exit(1);
+  }
+  const cli = options.withCli ?? phase.cli;
+  const model = options.withModel ?? phase.model;
+  const adapter = getAdapter(cli);
+  if (!adapter.ok) {
+    console.error(import_picocolors15.default.red(adapter.error.message));
+    process.exit(1);
+  }
+  console.log(import_picocolors15.default.bold(`Replaying ${taskKey.toUpperCase()} ${phase.phase}`));
+  console.log(import_picocolors15.default.dim(`cli=${cli} model=${model}`));
+  const result = await adapter.value.invoke(
+    prompt,
+    { cli, model, timeout_minutes: 60 },
+    { interactive: true }
+  );
+  if (!result.ok) {
+    console.error(import_picocolors15.default.red(result.error.message));
+    process.exit(1);
+  }
+  await writeText(
+    (0, import_node_path25.join)(getRunDir(taskKey), `${phase.phase}.replay.log`),
+    `STDOUT:
+${result.value.stdout}
+
+STDERR:
+${result.value.stderr}`
+  );
+  if (result.value.exitCode !== 0) process.exit(result.value.exitCode);
+}
+async function importBundle(taskKey, bundlePath) {
+  const raw = await readText(bundlePath);
+  if (!raw) {
+    console.error(import_picocolors15.default.red(`Bundle not found: ${bundlePath}`));
+    process.exit(1);
+  }
+  const bundle = JSON.parse(raw);
+  if (!bundle.files) {
+    console.error(import_picocolors15.default.red("Invalid .bode-run bundle"));
+    process.exit(1);
+  }
+  const runDir = getRunDir(taskKey);
+  await ensureDir(runDir);
+  for (const [file2, content] of Object.entries(bundle.files)) {
+    await writeText((0, import_node_path25.join)(runDir, file2), content);
+  }
+  console.log(import_picocolors15.default.green(`Imported ${Object.keys(bundle.files).length} file(s) into ${runDir}`));
+}
+var import_node_path25, import_picocolors15;
+var init_replay = __esm({
+  "src/cli/actions/replay.ts"() {
+    "use strict";
+    import_node_path25 = require("node:path");
+    import_picocolors15 = __toESM(require_picocolors());
+    init_registry();
+    init_defaults();
+    init_run_manifest();
+    init_fs();
   }
 });
 
@@ -48229,9 +48402,9 @@ __export(init_exports, {
 });
 async function initAction(options) {
   const workdir = process.cwd();
-  const outPath = (0, import_node_path24.join)(workdir, "AGENTS.md");
-  if ((0, import_node_fs22.existsSync)(outPath) && !options.overwrite) {
-    console.error(import_picocolors15.default.yellow("AGENTS.md already exists. Use --overwrite to regenerate."));
+  const outPath = (0, import_node_path26.join)(workdir, "AGENTS.md");
+  if ((0, import_node_fs23.existsSync)(outPath) && !options.overwrite) {
+    console.error(import_picocolors16.default.yellow("AGENTS.md already exists. Use --overwrite to regenerate."));
     process.exit(1);
   }
   const configResult = await loadConfig(workdir);
@@ -48245,7 +48418,7 @@ async function initAction(options) {
     cli: phaseConfig.cli
   });
   if (!skill.ok) throw skill.error;
-  const importedRules = options.from && (0, import_node_fs22.existsSync)((0, import_node_path24.join)(workdir, options.from)) ? (0, import_node_fs22.readFileSync)((0, import_node_path24.join)(workdir, options.from), "utf-8") : void 0;
+  const importedRules = options.from && (0, import_node_fs23.existsSync)((0, import_node_path26.join)(workdir, options.from)) ? (0, import_node_fs23.readFileSync)((0, import_node_path26.join)(workdir, options.from), "utf-8") : void 0;
   const prompt = buildPrompt(skill.value, {
     jiraIssue: {
       key: "INIT",
@@ -48264,23 +48437,23 @@ async function initAction(options) {
     phaseName: "planning",
     mainWorkdir: workdir
   });
-  (0, import_node_fs22.mkdirSync)(workdir, { recursive: true });
+  (0, import_node_fs23.mkdirSync)(workdir, { recursive: true });
   const result = await adapterResult.value.invoke(prompt, phaseConfig, {
     interactive: true,
     workdir
   });
   if (!result.ok) throw result.error;
-  if (!(0, import_node_fs22.existsSync)(outPath) && result.value.stdout.trim())
+  if (!(0, import_node_fs23.existsSync)(outPath) && result.value.stdout.trim())
     await writeText(outPath, result.value.stdout);
-  console.log(import_picocolors15.default.green(`AGENTS.md written to ${outPath}`));
+  console.log(import_picocolors16.default.green(`AGENTS.md written to ${outPath}`));
 }
-var import_node_fs22, import_node_path24, import_picocolors15;
+var import_node_fs23, import_node_path26, import_picocolors16;
 var init_init = __esm({
   "src/cli/actions/init.ts"() {
     "use strict";
-    import_node_fs22 = require("node:fs");
-    import_node_path24 = require("node:path");
-    import_picocolors15 = __toESM(require_picocolors());
+    import_node_fs23 = require("node:fs");
+    import_node_path26 = require("node:path");
+    import_picocolors16 = __toESM(require_picocolors());
     init_loader();
     init_resolver();
     init_prompt_builder();
@@ -48296,10 +48469,10 @@ __export(learn_exports, {
 });
 async function learnAction(options) {
   const workdir = process.cwd();
-  const outDir = (0, import_node_path25.join)(workdir, ".bode");
-  const outPath = (0, import_node_path25.join)(outDir, "context.md");
-  if ((0, import_node_fs23.existsSync)(outPath) && !options.refresh) {
-    console.log(import_picocolors16.default.yellow(`${outPath} already exists. Use --refresh to regenerate.`));
+  const outDir = (0, import_node_path27.join)(workdir, ".bode");
+  const outPath = (0, import_node_path27.join)(outDir, "context.md");
+  if ((0, import_node_fs24.existsSync)(outPath) && !options.refresh) {
+    console.log(import_picocolors17.default.yellow(`${outPath} already exists. Use --refresh to regenerate.`));
     return;
   }
   const configResult = await loadConfig(workdir);
@@ -48331,23 +48504,23 @@ async function learnAction(options) {
     phaseName: "planning",
     mainWorkdir: workdir
   });
-  (0, import_node_fs23.mkdirSync)(outDir, { recursive: true });
+  (0, import_node_fs24.mkdirSync)(outDir, { recursive: true });
   const result = await adapterResult.value.invoke(prompt, phaseConfig, {
     interactive: true,
     workdir
   });
   if (!result.ok) throw result.error;
-  if (!(0, import_node_fs23.existsSync)(outPath) && result.value.stdout.trim())
+  if (!(0, import_node_fs24.existsSync)(outPath) && result.value.stdout.trim())
     await writeText(outPath, result.value.stdout);
-  console.log(import_picocolors16.default.green(`Project context written to ${outPath}`));
+  console.log(import_picocolors17.default.green(`Project context written to ${outPath}`));
 }
-var import_node_fs23, import_node_path25, import_picocolors16;
+var import_node_fs24, import_node_path27, import_picocolors17;
 var init_learn = __esm({
   "src/cli/actions/learn.ts"() {
     "use strict";
-    import_node_fs23 = require("node:fs");
-    import_node_path25 = require("node:path");
-    import_picocolors16 = __toESM(require_picocolors());
+    import_node_fs24 = require("node:fs");
+    import_node_path27 = require("node:path");
+    import_picocolors17 = __toESM(require_picocolors());
     init_loader();
     init_resolver();
     init_prompt_builder();
@@ -48362,36 +48535,36 @@ __export(log_exports, {
   logAction: () => logAction
 });
 async function logAction(taskKey) {
-  const { readdir: readdir5 } = await import("node:fs/promises");
-  const { join: join26 } = await import("node:path");
+  const { readdir: readdir6 } = await import("node:fs/promises");
+  const { join: join28 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
-    const files = await readdir5(runDir);
+    const files = await readdir6(runDir);
     const logFiles = files.filter((f) => f.endsWith(".log")).sort();
     if (logFiles.length === 0) {
-      console.error(import_picocolors17.default.yellow(`No logs found for ${taskKey}`));
+      console.error(import_picocolors18.default.yellow(`No logs found for ${taskKey}`));
       return;
     }
     const latest = logFiles[logFiles.length - 1];
     if (!latest) {
-      console.error(import_picocolors17.default.yellow("No log file available"));
+      console.error(import_picocolors18.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join26(runDir, latest));
+    const content = await readText(join28(runDir, latest));
     if (content) {
       console.log(content);
     }
   } catch {
-    console.error(import_picocolors17.default.yellow(`No run directory found for ${taskKey}`));
+    console.error(import_picocolors18.default.yellow(`No run directory found for ${taskKey}`));
   }
 }
-var import_picocolors17;
+var import_picocolors18;
 var init_log = __esm({
   "src/cli/actions/log.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_picocolors17 = __toESM(require_picocolors());
+    import_picocolors18 = __toESM(require_picocolors());
   }
 });
 
@@ -48402,12 +48575,12 @@ __export(done_exports, {
 });
 async function doneAction(taskKey, options) {
   if (!options.yes) {
-    console.log(import_picocolors18.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
+    console.log(import_picocolors19.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
     return;
   }
   const result = await loadRunMeta(taskKey);
   if (!result.ok || !result.value) {
-    console.error(import_picocolors18.default.red(`No run found for ${taskKey}`));
+    console.error(import_picocolors19.default.red(`No run found for ${taskKey}`));
     process.exit(1);
   }
   const meta3 = result.value;
@@ -48434,22 +48607,22 @@ async function doneAction(taskKey, options) {
   }
   if (options.autoApprovePrMerge && meta3.prNumber) {
     console.log(
-      import_picocolors18.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
+      import_picocolors19.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
     );
     const mergeResult = await mergePR(meta3.prNumber, provider);
     if (!mergeResult.ok) {
-      console.error(import_picocolors18.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
-      console.error(import_picocolors18.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
+      console.error(import_picocolors19.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
+      console.error(import_picocolors19.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
     } else {
-      console.log(import_picocolors18.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
+      console.log(import_picocolors19.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
     }
   } else if (meta3.prUrl) {
-    console.log(import_picocolors18.default.dim(`
+    console.log(import_picocolors19.default.dim(`
 PR pending: ${meta3.prUrl} \u2014 merge manually when ready.`));
   }
   if (meta3.baseBranch) {
     console.log(
-      import_picocolors18.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
+      import_picocolors19.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
     );
   }
   await finalize2(taskKey, meta3, config2, projectCfg);
@@ -48465,9 +48638,9 @@ async function finalize2(taskKey, meta3, config2, projectCfg) {
     if (doneTarget.trim() !== "") {
       const transResult = await trackerAdapter.setStatus(taskKey, doneTarget);
       if (!transResult.ok) {
-        console.warn(import_picocolors18.default.yellow(`[bode] Tracker transition skipped: ${transResult.error.message}`));
+        console.warn(import_picocolors19.default.yellow(`[bode] Tracker transition skipped: ${transResult.error.message}`));
         console.warn(
-          import_picocolors18.default.dim(
+          import_picocolors19.default.dim(
             "  Configure tracker transitions (done) in your project YAML to match your workflow."
           )
         );
@@ -48495,7 +48668,7 @@ async function removeBodeLabels(taskKey, config2, meta3) {
     });
   }
 }
-var import_picocolors18;
+var import_picocolors19;
 var init_done = __esm({
   "src/cli/actions/done.ts"() {
     "use strict";
@@ -48506,7 +48679,7 @@ var init_done = __esm({
     init_transitions();
     init_projects();
     init_summary();
-    import_picocolors18 = __toESM(require_picocolors());
+    import_picocolors19 = __toESM(require_picocolors());
   }
 });
 
@@ -48518,7 +48691,7 @@ __export(list_exports, {
 async function listAction(options = {}) {
   if (options.watch) {
     if (!process.stdout.isTTY) {
-      console.log(import_picocolors19.default.dim("bode list --watch requires a TTY."));
+      console.log(import_picocolors20.default.dim("bode list --watch requires a TTY."));
       return;
     }
     while (true) {
@@ -48529,9 +48702,9 @@ async function listAction(options = {}) {
   }
   const runsDir = getRunsDir();
   try {
-    const entries = await (0, import_promises15.readdir)(runsDir);
+    const entries = await (0, import_promises16.readdir)(runsDir);
     if (entries.length === 0) {
-      console.log(import_picocolors19.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+      console.log(import_picocolors20.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
       return;
     }
     for (const entry of entries) {
@@ -48539,43 +48712,43 @@ async function listAction(options = {}) {
       if (result.ok && result.value) {
         const meta3 = result.value;
         const cost = await getTaskCost(meta3.taskKey);
-        const branchInfo = meta3.branch ? import_picocolors19.default.dim(` (${meta3.branch})`) : "";
-        const conflictInfo = meta3.conflict ? import_picocolors19.default.red(" [CONFLICT]") : "";
+        const branchInfo = meta3.branch ? import_picocolors20.default.dim(` (${meta3.branch})`) : "";
+        const conflictInfo = meta3.conflict ? import_picocolors20.default.red(" [CONFLICT]") : "";
         console.log(
-          `${import_picocolors19.default.bold(meta3.taskKey)} ${import_picocolors19.default.dim("-")} ${meta3.trackerSummary} ${import_picocolors19.default.dim("|")} ${getPhaseStatusLabel(meta3.status)} ${import_picocolors19.default.dim(`$${cost.toFixed(2)}`)}${branchInfo}${conflictInfo}`
+          `${import_picocolors20.default.bold(meta3.taskKey)} ${import_picocolors20.default.dim("-")} ${meta3.trackerSummary} ${import_picocolors20.default.dim("|")} ${getPhaseStatusLabel(meta3.status)} ${import_picocolors20.default.dim(`$${cost.toFixed(2)}`)}${branchInfo}${conflictInfo}`
         );
       }
     }
   } catch {
-    console.log(import_picocolors19.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+    console.log(import_picocolors20.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
   }
 }
 async function printScheduler() {
   const state = await readScheduler();
-  console.log(import_picocolors19.default.bold("Bode scheduler"));
-  console.log(import_picocolors19.default.dim(`updated ${state.updated_at}`));
+  console.log(import_picocolors20.default.bold("Bode scheduler"));
+  console.log(import_picocolors20.default.dim(`updated ${state.updated_at}`));
   console.log("");
   if (state.tasks.length === 0) {
-    console.log(import_picocolors19.default.dim("No scheduled tasks."));
+    console.log(import_picocolors20.default.dim("No scheduled tasks."));
     return;
   }
   for (const task of state.tasks) {
     console.log(
-      `${import_picocolors19.default.bold(task.key)} ${task.status.padEnd(9)} ${task.phase.padEnd(14)} pid=${task.pid} ${import_picocolors19.default.dim(task.repo)}`
+      `${import_picocolors20.default.bold(task.key)} ${task.status.padEnd(9)} ${task.phase.padEnd(14)} pid=${task.pid} ${import_picocolors20.default.dim(task.repo)}`
     );
   }
 }
-var import_promises15, import_picocolors19;
+var import_promises16, import_picocolors20;
 var init_list = __esm({
   "src/cli/actions/list.ts"() {
     "use strict";
-    import_promises15 = require("node:fs/promises");
+    import_promises16 = require("node:fs/promises");
     init_defaults();
     init_run_meta();
     init_phase();
     init_scheduler();
     init_budget_tracker();
-    import_picocolors19 = __toESM(require_picocolors());
+    import_picocolors20 = __toESM(require_picocolors());
   }
 });
 
@@ -48588,7 +48761,7 @@ async function cancelAction(taskKey) {
   const state = await readScheduler();
   const task = state.tasks.find((t) => t.key.toUpperCase() === taskKey.toUpperCase());
   if (!task) {
-    console.log(import_picocolors20.default.yellow(`No scheduled task found for ${taskKey}`));
+    console.log(import_picocolors21.default.yellow(`No scheduled task found for ${taskKey}`));
     return;
   }
   if (task.status === "running") {
@@ -48599,13 +48772,13 @@ async function cancelAction(taskKey) {
   }
   await updateSchedulerTask(taskKey, { status: "cancelled" });
   await removeSchedulerTask(taskKey);
-  console.log(import_picocolors20.default.green(`Cancelled ${taskKey}`));
+  console.log(import_picocolors21.default.green(`Cancelled ${taskKey}`));
 }
-var import_picocolors20;
+var import_picocolors21;
 var init_cancel = __esm({
   "src/cli/actions/cancel.ts"() {
     "use strict";
-    import_picocolors20 = __toESM(require_picocolors());
+    import_picocolors21 = __toESM(require_picocolors());
     init_scheduler();
   }
 });
@@ -48632,10 +48805,10 @@ async function skillsAction(options) {
     const result = await resolveSkillPath(phase, opts);
     if (result.ok) {
       console.log(
-        `${import_picocolors21.default.bold(phase)}: ${import_picocolors21.default.cyan(result.value)} ${import_picocolors21.default.dim(`(${flavorForCli(phaseConfig?.cli)})`)}`
+        `${import_picocolors22.default.bold(phase)}: ${import_picocolors22.default.cyan(result.value)} ${import_picocolors22.default.dim(`(${flavorForCli(phaseConfig?.cli)})`)}`
       );
     } else {
-      console.log(`${import_picocolors21.default.bold(phase)}: ${import_picocolors21.default.yellow("not found")}`);
+      console.log(`${import_picocolors22.default.bold(phase)}: ${import_picocolors22.default.yellow("not found")}`);
     }
   }
 }
@@ -48657,10 +48830,10 @@ async function manageSkills(subcommand, args) {
       await listInstalledSkills();
       return;
     case "update":
-      console.log(import_picocolors21.default.dim("Community skills are pinned by source. Re-run install to update."));
+      console.log(import_picocolors22.default.dim("Community skills are pinned by source. Re-run install to update."));
       return;
     default:
-      console.error(import_picocolors21.default.red(`Unknown skills command: ${subcommand}`));
+      console.error(import_picocolors22.default.red(`Unknown skills command: ${subcommand}`));
       process.exit(1);
   }
 }
@@ -48668,52 +48841,52 @@ async function installSkill(source) {
   if (!source) throw new Error("Usage: bode skills install <repo>#<path>");
   const [, sourcePath] = source.split("#");
   if (!sourcePath) throw new Error("Skill source must use <repo>#<path>");
-  const localSource = (0, import_node_path26.join)(process.cwd(), sourcePath);
-  if (!(0, import_node_fs24.existsSync)(localSource))
+  const localSource = (0, import_node_path28.join)(process.cwd(), sourcePath);
+  if (!(0, import_node_fs25.existsSync)(localSource))
     throw new Error(`Only local fixture installs are supported here: ${localSource}`);
   const slug = sourcePath.split(/[\\/]/).filter(Boolean).pop() ?? "skill";
-  const dest = (0, import_node_path26.join)(getSkillsDir(), slug);
-  (0, import_node_fs24.mkdirSync)(getSkillsDir(), { recursive: true });
-  await (0, import_promises16.cp)(localSource, dest, { recursive: true, force: true });
-  (0, import_node_fs24.writeFileSync)(
-    (0, import_node_path26.join)(dest, ".install.json"),
+  const dest = (0, import_node_path28.join)(getSkillsDir(), slug);
+  (0, import_node_fs25.mkdirSync)(getSkillsDir(), { recursive: true });
+  await (0, import_promises17.cp)(localSource, dest, { recursive: true, force: true });
+  (0, import_node_fs25.writeFileSync)(
+    (0, import_node_path28.join)(dest, ".install.json"),
     JSON.stringify({ source, installed_at: (/* @__PURE__ */ new Date()).toISOString(), version: "local" }, null, 2)
   );
-  console.log(import_picocolors21.default.green(`Installed ${slug} to ${dest}`));
+  console.log(import_picocolors22.default.green(`Installed ${slug} to ${dest}`));
 }
 async function listInstalledSkills() {
-  if (!(0, import_node_fs24.existsSync)(getSkillsDir())) {
-    console.log(import_picocolors21.default.dim("No global skills installed."));
+  if (!(0, import_node_fs25.existsSync)(getSkillsDir())) {
+    console.log(import_picocolors22.default.dim("No global skills installed."));
     return;
   }
-  for (const entry of await (0, import_promises16.readdir)(getSkillsDir())) console.log(entry);
+  for (const entry of await (0, import_promises17.readdir)(getSkillsDir())) console.log(entry);
 }
 function removeSkill(slug) {
   if (!slug) throw new Error("Usage: bode skills remove <slug>");
-  (0, import_node_fs24.rmSync)((0, import_node_path26.join)(getSkillsDir(), slug), { recursive: true, force: true });
-  console.log(import_picocolors21.default.green(`Removed ${slug}`));
+  (0, import_node_fs25.rmSync)((0, import_node_path28.join)(getSkillsDir(), slug), { recursive: true, force: true });
+  console.log(import_picocolors22.default.green(`Removed ${slug}`));
 }
 async function searchSkills(query) {
-  const dir = (0, import_node_path26.join)(process.cwd(), "skills", "community");
-  if (!(0, import_node_fs24.existsSync)(dir)) return;
-  for (const entry of await (0, import_promises16.readdir)(dir)) {
-    const readme = (0, import_node_path26.join)(dir, entry, "README.md");
-    if (!(0, import_node_fs24.existsSync)(readme)) continue;
-    const text = await (0, import_promises16.readFile)(readme, "utf-8");
+  const dir = (0, import_node_path28.join)(process.cwd(), "skills", "community");
+  if (!(0, import_node_fs25.existsSync)(dir)) return;
+  for (const entry of await (0, import_promises17.readdir)(dir)) {
+    const readme = (0, import_node_path28.join)(dir, entry, "README.md");
+    if (!(0, import_node_fs25.existsSync)(readme)) continue;
+    const text = await (0, import_promises17.readFile)(readme, "utf-8");
     if (!query || text.toLowerCase().includes(query.toLowerCase())) console.log(entry);
   }
 }
-var import_node_fs24, import_promises16, import_node_path26, import_picocolors21, PHASES;
+var import_node_fs25, import_promises17, import_node_path28, import_picocolors22, PHASES;
 var init_skills = __esm({
   "src/cli/actions/skills.ts"() {
     "use strict";
     init_resolver();
     init_loader();
-    import_node_fs24 = require("node:fs");
-    import_promises16 = require("node:fs/promises");
-    import_node_path26 = require("node:path");
+    import_node_fs25 = require("node:fs");
+    import_promises17 = require("node:fs/promises");
+    import_node_path28 = require("node:path");
     init_defaults();
-    import_picocolors21 = __toESM(require_picocolors());
+    import_picocolors22 = __toESM(require_picocolors());
     PHASES = ["planning", "plan-review", "implementation", "review", "learn", "init-agents"];
   }
 });
@@ -48724,8 +48897,8 @@ __export(doctor_exports, {
   doctorAction: () => doctorAction
 });
 function fmt(c) {
-  const symbol2 = c.status === "ok" ? import_picocolors22.default.green("\u2713") : c.status === "warn" ? import_picocolors22.default.yellow("\u26A0") : import_picocolors22.default.red("\u2717");
-  return `${symbol2} ${import_picocolors22.default.bold(c.name.padEnd(28))} ${c.detail}`;
+  const symbol2 = c.status === "ok" ? import_picocolors23.default.green("\u2713") : c.status === "warn" ? import_picocolors23.default.yellow("\u26A0") : import_picocolors23.default.red("\u2717");
+  return `${symbol2} ${import_picocolors23.default.bold(c.name.padEnd(28))} ${c.detail}`;
 }
 async function checkNodeVersion() {
   const v = process.versions.node;
@@ -48756,7 +48929,7 @@ async function checkBinaryAvailable(name, binary) {
 }
 async function checkGlobalConfig() {
   const path3 = getGlobalConfigPath();
-  if (!(0, import_node_fs25.existsSync)(path3)) {
+  if (!(0, import_node_fs26.existsSync)(path3)) {
     return {
       name: "Global config",
       status: "warn",
@@ -48775,7 +48948,7 @@ async function checkGlobalConfig() {
 }
 async function checkRunsDir() {
   const dir = getRunsDir();
-  if (!(0, import_node_fs25.existsSync)(dir)) {
+  if (!(0, import_node_fs26.existsSync)(dir)) {
     return {
       name: "Runs directory",
       status: "warn",
@@ -48784,15 +48957,48 @@ async function checkRunsDir() {
   }
   return { name: "Runs directory", status: "ok", detail: dir };
 }
-async function doctorAction() {
+async function checkWindowsShell() {
+  if (process.platform !== "win32") {
+    return { name: "Windows shell", status: "ok", detail: "not Windows" };
+  }
+  const shell = process.env.ComSpec ?? process.env.SHELL ?? "unknown";
+  return { name: "Windows shell", status: "ok", detail: shell };
+}
+async function checkWindowsPath() {
+  if (process.platform !== "win32") {
+    return { name: "Windows PATH", status: "ok", detail: "not Windows" };
+  }
+  return process.env.PATH?.trim() ? { name: "Windows PATH", status: "ok", detail: "PATH inherited by this shell" } : { name: "Windows PATH", status: "warn", detail: "PATH is empty in this shell" };
+}
+async function checkNpmWindowsSymlink() {
+  if (process.platform !== "win32") {
+    return { name: "npm Windows symlinks", status: "ok", detail: "not Windows" };
+  }
+  try {
+    const { stdout } = await execFileAsync6("npm", ["--version"]);
+    const version2 = stdout.trim();
+    const major = parseInt(version2.split(".")[0] ?? "0", 10);
+    return {
+      name: "npm Windows symlinks",
+      status: major >= 11 ? "warn" : "ok",
+      detail: major >= 11 ? `npm ${version2}; global installs may hit Windows symlink quirks` : `npm ${version2}`
+    };
+  } catch {
+    return { name: "npm Windows symlinks", status: "warn", detail: "npm not found on PATH" };
+  }
+}
+async function doctorAction(options = {}) {
   const workdir = process.cwd();
   console.log("");
-  console.log(import_picocolors22.default.bold(`bode doctor`) + import_picocolors22.default.dim(`  v${getVersion()}`));
-  console.log(import_picocolors22.default.dim("\u2500".repeat(64)));
+  console.log(import_picocolors23.default.bold(`bode doctor`) + import_picocolors23.default.dim(`  v${getVersion()}`));
+  console.log(import_picocolors23.default.dim("\u2500".repeat(64)));
   const checks = [];
   checks.push(await checkNodeVersion());
   checks.push(await checkGlobalConfig());
   checks.push(await checkRunsDir());
+  checks.push(await checkWindowsShell());
+  checks.push(await checkWindowsPath());
+  checks.push(await checkNpmWindowsSymlink());
   const env2 = await detectEnv(workdir, { globalConfigPath: getGlobalConfigPath() });
   checks.push({
     name: "Workdir (cwd)",
@@ -48804,7 +49010,7 @@ async function doctorAction() {
     checks.push({
       name: "Git remote",
       status: env2.vcsProvider ? "ok" : "warn",
-      detail: `${env2.gitRemoteUrl}  ${import_picocolors22.default.dim(`(${provider})`)}`
+      detail: `${env2.gitRemoteUrl}  ${import_picocolors23.default.dim(`(${provider})`)}`
     });
   } else {
     checks.push({
@@ -48848,26 +49054,52 @@ async function doctorAction() {
     detail: listAdapterNames().join(", ")
   });
   for (const c of checks) console.log(fmt(c));
+  if (options.report) {
+    const target = typeof options.report === "string" ? options.report : "bode-doctor-report.md";
+    await writeText(target, buildReport(checks, workdir));
+    console.log(import_picocolors23.default.dim(`Report: ${target}`));
+  }
   const fails = checks.filter((c) => c.status === "fail").length;
   const warns = checks.filter((c) => c.status === "warn").length;
-  console.log(import_picocolors22.default.dim("\u2500".repeat(64)));
+  console.log(import_picocolors23.default.dim("\u2500".repeat(64)));
   if (fails === 0 && warns === 0) {
-    console.log(import_picocolors22.default.green(`All ${checks.length} checks passed.`));
+    console.log(import_picocolors23.default.green(`All ${checks.length} checks passed.`));
     process.exit(0);
   }
   if (fails === 0) {
-    console.log(import_picocolors22.default.yellow(`${warns} warning(s), no failures.`));
+    console.log(import_picocolors23.default.yellow(`${warns} warning(s), no failures.`));
     process.exit(0);
   }
-  console.log(import_picocolors22.default.red(`${fails} failure(s), ${warns} warning(s).`));
+  console.log(import_picocolors23.default.red(`${fails} failure(s), ${warns} warning(s).`));
   process.exit(1);
 }
-var import_picocolors22, import_node_fs25, import_node_child_process9, import_node_util15, execFileAsync6;
+function buildReport(checks, workdir) {
+  const rows = checks.map((check3) => `| ${check3.name} | ${check3.status.toUpperCase()} | ${redact(check3.detail)} |`).join("\n");
+  return [
+    `# Bode Doctor Report`,
+    "",
+    `Generated: ${(/* @__PURE__ */ new Date()).toISOString()}`,
+    `Bode version: ${getVersion()}`,
+    `OS: ${process.platform} ${process.arch}`,
+    `Workdir: ${redact(workdir)}`,
+    "",
+    "No data was sent anywhere. Review and redact this file before sharing.",
+    "",
+    "| Check | Status | Detail |",
+    "|---|---|---|",
+    rows,
+    ""
+  ].join("\n");
+}
+function redact(value) {
+  return value.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>");
+}
+var import_picocolors23, import_node_fs26, import_node_child_process9, import_node_util15, execFileAsync6;
 var init_doctor = __esm({
   "src/cli/actions/doctor.ts"() {
     "use strict";
-    import_picocolors22 = __toESM(require_picocolors());
-    import_node_fs25 = require("node:fs");
+    import_picocolors23 = __toESM(require_picocolors());
+    import_node_fs26 = require("node:fs");
     import_node_child_process9 = require("node:child_process");
     import_node_util15 = require("node:util");
     init_auto_detect();
@@ -48875,23 +49107,75 @@ var init_doctor = __esm({
     init_defaults();
     init_registry();
     init_version();
+    init_fs();
     execFileAsync6 = (0, import_node_util15.promisify)(import_node_child_process9.execFile);
+  }
+});
+
+// src/cli/actions/feedback.ts
+var feedback_exports = {};
+__export(feedback_exports, {
+  buildFeedbackUrl: () => buildFeedbackUrl,
+  feedbackAction: () => feedbackAction
+});
+function buildFeedbackUrl(options = {}) {
+  const title = options.title ?? "Bode feedback";
+  const body = [
+    "## Feedback",
+    "",
+    "<Tell us what worked, what failed, or what would make Bode useful for your team.>",
+    "",
+    "## Environment",
+    "",
+    `- Bode version: ${getVersion()}`,
+    `- OS: ${(0, import_node_os5.platform)()}`,
+    "- AI CLI: <claude-code | opencode | codex | unknown>",
+    "- Tracker: <jira | github-issues | linear | notion | trello | local | unknown>",
+    "",
+    "## Privacy",
+    "",
+    "Please remove secrets, private code, tokens, customer names, and internal URLs before submitting."
+  ].join("\n");
+  const params = new URLSearchParams({ title, body, labels: "feedback" });
+  return `https://github.com/KakunynQA/bode/issues/new?${params.toString()}`;
+}
+async function feedbackAction(options = {}) {
+  const url2 = buildFeedbackUrl(options);
+  console.log(url2);
+  console.log(
+    import_picocolors24.default.dim("Bode never auto-submits feedback. Review and edit the issue before posting.")
+  );
+  if (options.open) openUrl(url2);
+}
+function openUrl(url2) {
+  const command = process.platform === "win32" ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open";
+  const args = process.platform === "win32" ? ["/c", "start", "", url2] : [url2];
+  (0, import_node_child_process10.execFile)(command, args, { windowsHide: true }, () => void 0);
+}
+var import_node_child_process10, import_node_os5, import_picocolors24;
+var init_feedback = __esm({
+  "src/cli/actions/feedback.ts"() {
+    "use strict";
+    import_node_child_process10 = require("node:child_process");
+    import_node_os5 = require("node:os");
+    import_picocolors24 = __toESM(require_picocolors());
+    init_version();
   }
 });
 
 // src/utils/telemetry.ts
 async function readState() {
-  if (!(0, import_node_fs26.existsSync)(STATE_FILE)) return null;
+  if (!(0, import_node_fs27.existsSync)(STATE_FILE)) return null;
   try {
-    const raw = await (0, import_promises17.readFile)(STATE_FILE, "utf-8");
+    const raw = await (0, import_promises18.readFile)(STATE_FILE, "utf-8");
     return JSON.parse(raw);
   } catch {
     return null;
   }
 }
 async function writeState(state) {
-  await (0, import_promises17.mkdir)(TELEMETRY_DIR, { recursive: true });
-  await (0, import_promises17.writeFile)(STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
+  await (0, import_promises18.mkdir)(TELEMETRY_DIR, { recursive: true });
+  await (0, import_promises18.writeFile)(STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
 }
 async function isTelemetryEnabled() {
   const state = await readState();
@@ -48900,7 +49184,7 @@ async function isTelemetryEnabled() {
 async function setTelemetryEnabled(enabled) {
   const existing = await readState() ?? {
     enabled: false,
-    machineId: (0, import_node_crypto3.randomUUID)()
+    machineId: (0, import_node_crypto4.randomUUID)()
   };
   const next = {
     ...existing,
@@ -48911,8 +49195,8 @@ async function setTelemetryEnabled(enabled) {
   return next;
 }
 async function readRecentEvents(limit = 20) {
-  if (!(0, import_node_fs26.existsSync)(EVENTS_FILE)) return [];
-  const raw = await (0, import_promises17.readFile)(EVENTS_FILE, "utf-8");
+  if (!(0, import_node_fs27.existsSync)(EVENTS_FILE)) return [];
+  const raw = await (0, import_promises18.readFile)(EVENTS_FILE, "utf-8");
   const lines = raw.trim().split("\n").slice(-limit);
   return lines.filter((l) => l.length > 0).map((l) => {
     try {
@@ -48922,18 +49206,18 @@ async function readRecentEvents(limit = 20) {
     }
   }).filter((e) => e !== null);
 }
-var import_node_fs26, import_promises17, import_node_path27, import_node_os5, import_node_crypto3, TELEMETRY_DIR, STATE_FILE, EVENTS_FILE, __testing3;
+var import_node_fs27, import_promises18, import_node_path29, import_node_os6, import_node_crypto4, TELEMETRY_DIR, STATE_FILE, EVENTS_FILE, __testing3;
 var init_telemetry = __esm({
   "src/utils/telemetry.ts"() {
     "use strict";
-    import_node_fs26 = require("node:fs");
-    import_promises17 = require("node:fs/promises");
-    import_node_path27 = require("node:path");
-    import_node_os5 = require("node:os");
-    import_node_crypto3 = require("node:crypto");
-    TELEMETRY_DIR = (0, import_node_path27.join)((0, import_node_os5.homedir)(), ".bode", "telemetry");
-    STATE_FILE = (0, import_node_path27.join)(TELEMETRY_DIR, "state.json");
-    EVENTS_FILE = (0, import_node_path27.join)(TELEMETRY_DIR, "events.ndjson");
+    import_node_fs27 = require("node:fs");
+    import_promises18 = require("node:fs/promises");
+    import_node_path29 = require("node:path");
+    import_node_os6 = require("node:os");
+    import_node_crypto4 = require("node:crypto");
+    TELEMETRY_DIR = (0, import_node_path29.join)((0, import_node_os6.homedir)(), ".bode", "telemetry");
+    STATE_FILE = (0, import_node_path29.join)(TELEMETRY_DIR, "state.json");
+    EVENTS_FILE = (0, import_node_path29.join)(TELEMETRY_DIR, "events.ndjson");
     __testing3 = { TELEMETRY_DIR, STATE_FILE, EVENTS_FILE };
   }
 });
@@ -48949,61 +49233,61 @@ async function telemetryAction(subcommand) {
     case "on":
     case "enable": {
       const s = await setTelemetryEnabled(true);
-      console.log(import_picocolors23.default.green("\u2713 Telemetry enabled."));
-      console.log(import_picocolors23.default.dim(`  Machine ID: ${s.machineId}`));
-      console.log(import_picocolors23.default.dim(`  Events log: ${__testing3.EVENTS_FILE}`));
-      console.log(import_picocolors23.default.dim("  Default endpoint: none (local-only). Set telemetry.endpoint in"));
-      console.log(import_picocolors23.default.dim("  config to forward events to your own collector."));
+      console.log(import_picocolors25.default.green("\u2713 Telemetry enabled."));
+      console.log(import_picocolors25.default.dim(`  Machine ID: ${s.machineId}`));
+      console.log(import_picocolors25.default.dim(`  Events log: ${__testing3.EVENTS_FILE}`));
+      console.log(import_picocolors25.default.dim("  Default endpoint: none (local-only). Set telemetry.endpoint in"));
+      console.log(import_picocolors25.default.dim("  config to forward events to your own collector."));
       console.log("");
-      console.log(import_picocolors23.default.bold("What gets recorded:"));
-      console.log(import_picocolors23.default.dim("  command name, success/failure, duration, tracker kind, CLI adapter,"));
-      console.log(import_picocolors23.default.dim("  bode version, Node version, platform, machine UUID."));
-      console.log(import_picocolors23.default.bold("What never gets recorded:"));
-      console.log(import_picocolors23.default.dim("  task content, ticket IDs, code, paths, credentials, your identity."));
+      console.log(import_picocolors25.default.bold("What gets recorded:"));
+      console.log(import_picocolors25.default.dim("  command name, success/failure, duration, tracker kind, CLI adapter,"));
+      console.log(import_picocolors25.default.dim("  bode version, Node version, platform, machine UUID."));
+      console.log(import_picocolors25.default.bold("What never gets recorded:"));
+      console.log(import_picocolors25.default.dim("  task content, ticket IDs, code, paths, credentials, your identity."));
       break;
     }
     case "off":
     case "disable": {
       await setTelemetryEnabled(false);
-      console.log(import_picocolors23.default.yellow("Telemetry disabled. Recorded events remain on disk."));
-      console.log(import_picocolors23.default.dim(`  To delete them: rm -rf ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors25.default.yellow("Telemetry disabled. Recorded events remain on disk."));
+      console.log(import_picocolors25.default.dim(`  To delete them: rm -rf ${__testing3.TELEMETRY_DIR}`));
       break;
     }
     case "status": {
       const enabled = await isTelemetryEnabled();
-      console.log(enabled ? import_picocolors23.default.green("Telemetry: ENABLED") : import_picocolors23.default.dim("Telemetry: disabled"));
-      console.log(import_picocolors23.default.dim(`  Storage: ${__testing3.TELEMETRY_DIR}`));
-      console.log(import_picocolors23.default.dim(`  Toggle: bode telemetry on   |   bode telemetry off`));
-      console.log(import_picocolors23.default.dim(`  Preview: bode telemetry preview`));
+      console.log(enabled ? import_picocolors25.default.green("Telemetry: ENABLED") : import_picocolors25.default.dim("Telemetry: disabled"));
+      console.log(import_picocolors25.default.dim(`  Storage: ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors25.default.dim(`  Toggle: bode telemetry on   |   bode telemetry off`));
+      console.log(import_picocolors25.default.dim(`  Preview: bode telemetry preview`));
       break;
     }
     case "preview": {
       const events = await readRecentEvents(20);
       if (events.length === 0) {
-        console.log(import_picocolors23.default.dim("No telemetry events recorded yet."));
+        console.log(import_picocolors25.default.dim("No telemetry events recorded yet."));
         return;
       }
-      console.log(import_picocolors23.default.bold(`Last ${events.length} events:`));
+      console.log(import_picocolors25.default.bold(`Last ${events.length} events:`));
       for (const e of events) {
-        const status = e.success ? import_picocolors23.default.green("\u2713") : import_picocolors23.default.red("\u2717");
-        const dur = e.duration_ms ? import_picocolors23.default.dim(` (${e.duration_ms}ms)`) : "";
+        const status = e.success ? import_picocolors25.default.green("\u2713") : import_picocolors25.default.red("\u2717");
+        const dur = e.duration_ms ? import_picocolors25.default.dim(` (${e.duration_ms}ms)`) : "";
         console.log(
-          `  ${status} ${import_picocolors23.default.cyan(e.command.padEnd(12))} ${import_picocolors23.default.dim(e.ts)} ${import_picocolors23.default.dim(`v${e.bode_version}`)}${dur}`
+          `  ${status} ${import_picocolors25.default.cyan(e.command.padEnd(12))} ${import_picocolors25.default.dim(e.ts)} ${import_picocolors25.default.dim(`v${e.bode_version}`)}${dur}`
         );
       }
       break;
     }
     default:
-      console.error(import_picocolors23.default.red(`Unknown subcommand: ${cmd}`));
-      console.error(import_picocolors23.default.dim("Usage: bode telemetry [on|off|status|preview]"));
+      console.error(import_picocolors25.default.red(`Unknown subcommand: ${cmd}`));
+      console.error(import_picocolors25.default.dim("Usage: bode telemetry [on|off|status|preview]"));
       process.exit(1);
   }
 }
-var import_picocolors23;
+var import_picocolors25;
 var init_telemetry2 = __esm({
   "src/cli/actions/telemetry.ts"() {
     "use strict";
-    import_picocolors23 = __toESM(require_picocolors());
+    import_picocolors25 = __toESM(require_picocolors());
     init_telemetry();
   }
 });
@@ -49015,30 +49299,30 @@ __export(compare_exports, {
 });
 async function compareAction(taskKey, options) {
   if (options.show || options.diff || options.pick) {
-    console.log(import_picocolors24.default.dim("Compare reports live under ~/.bode/comparisons/."));
-    if (options.pick) console.log(import_picocolors24.default.green(`Selected agent recorded: ${options.pick}`));
+    console.log(import_picocolors26.default.dim("Compare reports live under ~/.bode/comparisons/."));
+    if (options.pick) console.log(import_picocolors26.default.green(`Selected agent recorded: ${options.pick}`));
     return;
   }
   const agentSpec = options.agents?.trim();
   if (!agentSpec) {
-    console.error(import_picocolors24.default.red("--agents <list> is required"));
-    console.error(import_picocolors24.default.dim("Example: --agents claude-code,codex"));
-    console.error(import_picocolors24.default.dim("         --agents claude-code:claude-opus-4-7,codex:gpt-5.5"));
+    console.error(import_picocolors26.default.red("--agents <list> is required"));
+    console.error(import_picocolors26.default.dim("Example: --agents claude-code,codex"));
+    console.error(import_picocolors26.default.dim("         --agents claude-code:claude-opus-4-7,codex:gpt-5.5"));
     process.exit(1);
   }
   const specs = agentSpec.split(",").map((s) => s.trim()).filter(Boolean);
   if (specs.length < 2) {
-    console.error(import_picocolors24.default.red("Need at least two agents to compare. Got: " + specs.length));
+    console.error(import_picocolors26.default.red("Need at least two agents to compare. Got: " + specs.length));
     process.exit(1);
   }
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors24.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors26.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const projectResult = await resolveProject(configResult.value, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors24.default.red(projectResult.error.message));
+    console.error(import_picocolors26.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
@@ -49051,7 +49335,7 @@ async function compareAction(taskKey, options) {
   });
   const issueResult = await tracker.adapter.fetchTask(taskKey);
   if (!issueResult.ok) {
-    console.error(import_picocolors24.default.red(`Tracker error: ${issueResult.error.message}`));
+    console.error(import_picocolors26.default.red(`Tracker error: ${issueResult.error.message}`));
     process.exit(1);
   }
   const phases = parsePhases(options.phases);
@@ -49061,14 +49345,14 @@ async function compareAction(taskKey, options) {
     cli: config2.phases.planning.cli
   });
   if (!skill.ok) {
-    console.error(import_picocolors24.default.red(`Skill load failed: ${skill.error.message}`));
+    console.error(import_picocolors26.default.red(`Skill load failed: ${skill.error.message}`));
     process.exit(1);
   }
   const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").replace(/T/, "_").slice(0, 19);
-  const outDir = (0, import_node_path28.join)((0, import_node_os6.homedir)(), ".bode", "comparisons", `${taskKey}-${timestamp}`);
-  await (0, import_promises18.mkdir)(outDir, { recursive: true });
-  console.log(import_picocolors24.default.cyan(`Comparing ${specs.length} agents on ${phases.join(", ")} for ${taskKey}`));
-  console.log(import_picocolors24.default.dim(`Output: ${outDir}`));
+  const outDir = (0, import_node_path30.join)((0, import_node_os7.homedir)(), ".bode", "comparisons", `${taskKey}-${timestamp}`);
+  await (0, import_promises19.mkdir)(outDir, { recursive: true });
+  console.log(import_picocolors26.default.cyan(`Comparing ${specs.length} agents on ${phases.join(", ")} for ${taskKey}`));
+  console.log(import_picocolors26.default.dim(`Output: ${outDir}`));
   console.log("");
   const results = [];
   for (const spec of specs) {
@@ -49076,7 +49360,7 @@ async function compareAction(taskKey, options) {
     const cliName = cli ?? "";
     const adapterR = getAdapter(cliName);
     if (!adapterR.ok) {
-      console.error(import_picocolors24.default.red(`\u2717 ${spec}: ${adapterR.error.message}`));
+      console.error(import_picocolors26.default.red(`\u2717 ${spec}: ${adapterR.error.message}`));
       continue;
     }
     const phaseConfig = config2.phases.planning;
@@ -49087,7 +49371,7 @@ async function compareAction(taskKey, options) {
       repoFileTree: void 0,
       priorArtifact: void 0
     });
-    console.log(import_picocolors24.default.dim(`Running ${spec}...`));
+    console.log(import_picocolors26.default.dim(`Running ${spec}...`));
     const start = Date.now();
     const invokeR = await adapterR.value.invoke(
       prompt,
@@ -49096,7 +49380,7 @@ async function compareAction(taskKey, options) {
     );
     const durationMs = Date.now() - start;
     if (!invokeR.ok) {
-      console.error(import_picocolors24.default.red(`  \u2717 ${spec} failed: ${invokeR.error.message}`));
+      console.error(import_picocolors26.default.red(`  \u2717 ${spec} failed: ${invokeR.error.message}`));
       results.push({
         spec,
         artifact: `(failed: ${invokeR.error.message})`,
@@ -49106,9 +49390,9 @@ async function compareAction(taskKey, options) {
       continue;
     }
     const safe = spec.replace(/[^a-z0-9]+/gi, "-");
-    const path3 = (0, import_node_path28.join)(outDir, `${safe}.md`);
-    await (0, import_promises18.writeFile)(path3, invokeR.value.stdout, "utf-8");
-    console.log(import_picocolors24.default.green(`  \u2713 ${spec} \u2192 ${path3} (${invokeR.value.durationMs}ms)`));
+    const path3 = (0, import_node_path30.join)(outDir, `${safe}.md`);
+    await (0, import_promises19.writeFile)(path3, invokeR.value.stdout, "utf-8");
+    console.log(import_picocolors26.default.green(`  \u2713 ${spec} \u2192 ${path3} (${invokeR.value.durationMs}ms)`));
     results.push({
       spec,
       artifact: invokeR.value.stdout,
@@ -49116,7 +49400,7 @@ async function compareAction(taskKey, options) {
       durationMs: invokeR.value.durationMs
     });
   }
-  const summaryPath = (0, import_node_path28.join)(outDir, "summary.md");
+  const summaryPath = (0, import_node_path30.join)(outDir, "summary.md");
   const summary = `# Agent comparison \u2014 ${taskKey}
 
 Date: ${(/* @__PURE__ */ new Date()).toISOString()}
@@ -49131,25 +49415,25 @@ PR each: ${options.prEach ? "requested" : "no"}
 - bytes: ${r.artifact.length}
 `
   ).join("\n");
-  await (0, import_promises18.writeFile)(summaryPath, summary, "utf-8");
+  await (0, import_promises19.writeFile)(summaryPath, summary, "utf-8");
   console.log("");
-  console.log(import_picocolors24.default.bold("Done."));
-  console.log(import_picocolors24.default.dim(`Summary: ${summaryPath}`));
-  console.log(import_picocolors24.default.dim(`Individual artifacts in ${outDir}/`));
+  console.log(import_picocolors26.default.bold("Done."));
+  console.log(import_picocolors26.default.dim(`Summary: ${summaryPath}`));
+  console.log(import_picocolors26.default.dim(`Individual artifacts in ${outDir}/`));
 }
 function parsePhases(raw) {
   if (!raw || raw === "planning") return ["planning"];
   if (raw === "all") return ["planning", "implementation", "review"];
   return raw.split(",").map((p) => p.trim()).filter(Boolean);
 }
-var import_picocolors24, import_promises18, import_node_path28, import_node_os6;
+var import_picocolors26, import_promises19, import_node_path30, import_node_os7;
 var init_compare = __esm({
   "src/cli/actions/compare.ts"() {
     "use strict";
-    import_picocolors24 = __toESM(require_picocolors());
-    import_promises18 = require("node:fs/promises");
-    import_node_path28 = require("node:path");
-    import_node_os6 = require("node:os");
+    import_picocolors26 = __toESM(require_picocolors());
+    import_promises19 = require("node:fs/promises");
+    import_node_path30 = require("node:path");
+    import_node_os7 = require("node:os");
     init_loader();
     init_project_resolver();
     init_registry();
@@ -49167,12 +49451,12 @@ __export(setup_transitions_exports, {
 async function setupTransitionsAction(options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors25.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors27.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const projectResult = await resolveProject(configResult.value, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors25.default.red(projectResult.error.message));
+    console.error(import_picocolors27.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
@@ -49184,13 +49468,13 @@ async function setupTransitionsAction(options) {
     ...config2.trello ? { trello: config2.trello } : {},
     ...projectConfig.tracker ? { tracker: projectConfig.tracker } : config2.tracker ? { tracker: config2.tracker } : {}
   });
-  console.log(import_picocolors25.default.bold(`Configuring transitions for project "${projectConfig.name}"`));
-  console.log(import_picocolors25.default.dim(`  Tracker: ${tracker.kind}`));
+  console.log(import_picocolors27.default.bold(`Configuring transitions for project "${projectConfig.name}"`));
+  console.log(import_picocolors27.default.dim(`  Tracker: ${tracker.kind}`));
   const sampleKey = tracker.kind === "jira" ? config2.jira.default_project ? `${config2.jira.default_project}-1` : void 0 : void 0;
   const transitionsResult = await tracker.adapter.listStatuses(sampleKey ?? "sample");
   if (!transitionsResult.ok || transitionsResult.value.length === 0) {
     console.log(
-      import_picocolors25.default.yellow(
+      import_picocolors27.default.yellow(
         `Could not load transitions from ${tracker.kind}. Falling back to manual config \u2014 edit .bode.yml by hand.`
       )
     );
@@ -49198,11 +49482,11 @@ async function setupTransitionsAction(options) {
   }
   const available = transitionsResult.value;
   console.log("");
-  console.log(import_picocolors25.default.dim("Available transitions:"));
+  console.log(import_picocolors27.default.dim("Available transitions:"));
   for (const t of available) {
     const label = t.toStatusName ?? t.name;
     const arrow = t.name !== label ? ` \u2192 ${label}` : "";
-    console.log(import_picocolors25.default.dim(`  - ${t.name}${arrow}`));
+    console.log(import_picocolors27.default.dim(`  - ${t.name}${arrow}`));
   }
   console.log("");
   const phases = [
@@ -49222,7 +49506,7 @@ async function setupTransitionsAction(options) {
     for (const phase of phases) {
       const choices = [
         {
-          name: import_picocolors25.default.dim("(skip \u2014 no Jira move at this event)"),
+          name: import_picocolors27.default.dim("(skip \u2014 no Jira move at this event)"),
           value: skipValue
         },
         ...available.map((t) => ({
@@ -49242,8 +49526,8 @@ async function setupTransitionsAction(options) {
     handlePromptError(err);
     process.exit(1);
   }
-  const target = (0, import_node_path29.join)(projectConfig.workdir, ".bode.yml");
-  const existing = (0, import_node_fs27.existsSync)(target) ? (0, import_yaml5.parse)(await (0, import_promises19.readFile)(target, "utf-8")) ?? {} : {};
+  const target = (0, import_node_path31.join)(projectConfig.workdir, ".bode.yml");
+  const existing = (0, import_node_fs28.existsSync)(target) ? (0, import_yaml5.parse)(await (0, import_promises20.readFile)(target, "utf-8")) ?? {} : {};
   const existingJira = existing["jira"] ?? {};
   const updated = {
     ...existing,
@@ -49252,25 +49536,25 @@ async function setupTransitionsAction(options) {
       transitions: picks
     }
   };
-  await (0, import_promises19.mkdir)((0, import_node_path29.dirname)(target), { recursive: true });
-  await (0, import_promises19.writeFile)(target, (0, import_yaml5.stringify)(updated), "utf-8");
+  await (0, import_promises20.mkdir)((0, import_node_path31.dirname)(target), { recursive: true });
+  await (0, import_promises20.writeFile)(target, (0, import_yaml5.stringify)(updated), "utf-8");
   console.log("");
-  console.log(import_picocolors25.default.green(`\u2713 Saved transitions to ${target}`));
+  console.log(import_picocolors27.default.green(`\u2713 Saved transitions to ${target}`));
   console.log("");
-  console.log(import_picocolors25.default.dim("Picks:"));
+  console.log(import_picocolors27.default.dim("Picks:"));
   for (const [k, v] of Object.entries(picks)) {
-    console.log(import_picocolors25.default.dim(`  ${k.padEnd(18)} ${v || "(skip)"}`));
+    console.log(import_picocolors27.default.dim(`  ${k.padEnd(18)} ${v || "(skip)"}`));
   }
 }
-var import_picocolors25, import_promises19, import_node_fs27, import_node_path29, import_yaml5;
+var import_picocolors27, import_promises20, import_node_fs28, import_node_path31, import_yaml5;
 var init_setup_transitions = __esm({
   "src/cli/actions/setup-transitions.ts"() {
     "use strict";
-    import_picocolors25 = __toESM(require_picocolors());
+    import_picocolors27 = __toESM(require_picocolors());
     init_dist17();
-    import_promises19 = require("node:fs/promises");
-    import_node_fs27 = require("node:fs");
-    import_node_path29 = require("node:path");
+    import_promises20 = require("node:fs/promises");
+    import_node_fs28 = require("node:fs");
+    import_node_path31 = require("node:path");
     import_yaml5 = __toESM(require_dist());
     init_loader();
     init_project_resolver();
@@ -49358,6 +49642,12 @@ function createCommands(program3) {
     const { showAction: showAction2 } = await Promise.resolve().then(() => (init_show(), show_exports));
     await showAction2(artifact, taskKey, options);
   });
+  program3.command("replay <taskKey>").description("Replay a saved run prompt, or export/import a portable .bode-run bundle").option("--phase <name>", "Phase prompt to replay (default: latest recorded phase)").option("--with-cli <name>", "Replay with a different CLI adapter").option("--with-model <name>", "Replay with a different model").option("--export [path]", "Export run artifacts to a .bode-run JSON bundle").option("--import <path>", "Import a .bode-run JSON bundle into this task key").action(
+    async (taskKey, options) => {
+      const { replayAction: replayAction2 } = await Promise.resolve().then(() => (init_replay(), replay_exports));
+      await replayAction2(taskKey, options);
+    }
+  );
   program3.command("init").description("Scaffold AGENTS.md for the current repo using the configured AI CLI").option("--overwrite", "Overwrite existing AGENTS.md after showing a diff").option("--from <file>", "Include an existing rules file as input").action(async (options) => {
     const { initAction: initAction2 } = await Promise.resolve().then(() => (init_init(), init_exports));
     await initAction2(options);
@@ -49392,9 +49682,13 @@ function createCommands(program3) {
       await skillsAction2({ ...options, ...subcommand ? { subcommand } : {}, args: args ?? [] });
     }
   );
-  program3.command("doctor").description("Diagnose bode environment, config, AI CLIs, and VCS tooling").action(async () => {
+  program3.command("doctor").description("Diagnose bode environment, config, AI CLIs, and VCS tooling").option("--report [path]", "Write a redacted support report without sending it anywhere").action(async (options) => {
     const { doctorAction: doctorAction2 } = await Promise.resolve().then(() => (init_doctor(), doctor_exports));
-    await doctorAction2();
+    await doctorAction2(options);
+  });
+  program3.command("feedback").description("Open or print a pre-filled GitHub feedback issue URL (never auto-submits)").option("--title <title>", "Prefill the issue title").option("--open", "Open the URL in the default browser").action(async (options) => {
+    const { feedbackAction: feedbackAction2 } = await Promise.resolve().then(() => (init_feedback(), feedback_exports));
+    await feedbackAction2(options);
   });
   program3.command("telemetry [subcommand]").description("Opt-in telemetry: bode telemetry [on|off|status|preview]").action(async (subcommand) => {
     const { telemetryAction: telemetryAction2 } = await Promise.resolve().then(() => (init_telemetry2(), telemetry_exports));

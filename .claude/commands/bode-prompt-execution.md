@@ -34,7 +34,8 @@ Before writing the final prompt, ask only the missing questions from this list. 
 3. Should the agent push?
 4. Should the agent open a PR?
 5. Should the agent reinstall the built CLI globally (`npm run build && npm pack && npm i -g bode-*.tgz`) and smoke-test it (`bode --version`)?
-6. Memory log mode (opt-in, default off): should each phase write a Dynamic-MD memory log to `.local/docs/implementing/<task-slug>-phase-<n>-memory.md`? Recommended for tasks > 4 phases or > 4h estimated.
+6. Memory log mode. Default is `auto`: mandatory for multi-repo work, HIGH-risk phases, tasks with delegation, tasks with more than 4 phases, work estimated above 4 hours, or watchdog intervention; otherwise optional.
+7. Process watchdog timeout for long-running commands. Default: 30 minutes.
 
 Group all unanswered questions in a single message.
 
@@ -57,6 +58,9 @@ The generated prompt must instruct the target agent to:
 - Run targeted tests first (the spec file for the module touched), then the full chain (`npm run check; npm run lint; npm run format:check; npm test; npm run build`).
 - Clearly document any tests that cannot be run and why.
 - Apply the user's choices for branch creation, committing, pushing, PR creation, and rebuild-and-smoke-test.
+- Apply a process watchdog to every long-running command. Default timeout: 30 minutes. If a command exceeds the threshold, inspect process state, logs, CPU/memory activity, and recent output before deciding whether to continue, terminate, or ask the user. Follow `/bode-process-watchdog`.
+- Use `/bode-prompt-delegate-research` for current external documentation, compatibility, migration, API behavior, or practice questions that would pollute the main implementation context.
+- Use `/bode-prompt-delegate-debug` after 3 failed debugging attempts, or immediately for systemic, CI-only, environment-specific, or unclear failures. Do not make a fourth local fix attempt.
 - Move the implementation plan document through `.local/docs` workflow folders.
 - If rebuild-and-smoke-test is requested, run `npm run build && npm pack && npm i -g bode-*.tgz`, then `bode --version` and assert it prints the bumped version.
 - Provide final status: changed files, validation results, version + CHANGELOG entry, PR link if created.
@@ -81,7 +85,8 @@ User delivery preferences
 - Push after completion: <yes/no>
 - Open PR after completion: <yes/no>
 - Rebuild + global reinstall + smoke test: <yes/no>
-- Memory log mode: <yes/no>
+- Memory log mode: <auto | forced-on | optional>
+- Process watchdog timeout: <minutes>
 
 Implementation requirements
 <what to build/change, consuming YAML frontmatter as source of truth>
@@ -154,11 +159,21 @@ Examples (from real bode history):
 - `fix(ci): drop Node 18 — @inquirer/core needs util.styleText`
 - `refactor(tracker): provider-neutral method names`
 
-## Memory Log Mode (opt-in)
+## Memory Log Mode
 
-Borrowed from APM's `Memory_Log_Guide.md` (Dynamic-MD strategy). When the user enabled memory logs (question 6) **or** the phase YAML frontmatter has a `reporting.memory_log` path, the execution agent MUST write a memory log per phase, not a single end-of-task log.
+Borrowed from APM's `Memory_Log_Guide.md` (Dynamic-MD strategy). When memory log mode is `auto`, the execution agent MUST write one memory log per phase when any mandatory trigger applies.
 
-Default: off. Use it when the task spans many hours or many phases — single-phase bugfixes do not need it.
+Mandatory triggers:
+
+- The task touches more than one repository.
+- Any phase has `risk.level: HIGH`.
+- The task has more than 4 phases.
+- The work is estimated above 4 hours.
+- Research or debug delegation is used.
+- A watchdog terminates a process or marks a phase blocked.
+- The phase YAML frontmatter has a `reporting.memory_log` path.
+
+For small, single-repo, low-risk work with no delegation and no watchdog intervention, memory logs remain optional unless the user explicitly enables them.
 
 **One file per phase**, at the path declared in the phase YAML (default: `.local/docs/implementing/<task-slug>-phase-<n>-memory.md`).
 
@@ -199,6 +214,36 @@ agent: <model name / session id if available>
 ## Next Steps
 <exactly what the next phase must do given the state this phase left behind>
 ```
+
+Rules:
+
+- One memory log per phase. Never aggregate into a single end-of-task log.
+- Write it as the phase progresses, not retroactively. Status transitions: `in-progress` -> `completed` or `blocked`.
+- Record research/debug delegations and process watchdog decisions in the relevant phase log.
+- Memory logs stay under `.local/docs/implementing/` until the whole task is done, then move with the plan to `.local/docs/done/`. Never commit.
+- A fresh agent resuming the task must be able to read the plan markdown + all per-phase memory logs and pick up the next phase without re-asking the user.
+
+## Process Watchdog
+
+Every command expected to run for a long time must have a watchdog threshold. Default: 30 minutes.
+
+When a command exceeds the threshold:
+
+1. Inspect before killing: process tree, elapsed time, CPU/memory, recent output, logs, and whether files are still changing.
+2. Continue if there is credible progress or the command is an expected long-running process.
+3. Terminate only if the command is stuck, safe to restart, and blocking the workflow.
+4. Ask the user before terminating migrations, deploys, seed scripts, FTP/SFTP uploads, Docker volume operations, remote-state mutations, or any user-owned process.
+5. After termination, record the decision and rerun the narrowest diagnostic command.
+
+Use `/bode-process-watchdog` for the inspection/report format.
+
+## Delegation Protocol
+
+Use scoped delegation to preserve context and avoid local retry loops:
+
+- Research: generate a prompt with `/bode-prompt-delegate-research` when current external facts are needed.
+- Debug: generate a prompt with `/bode-prompt-delegate-debug` after 3 failed local attempts or immediately for systemic/unclear failures.
+- Integrate returned findings into the active plan notes and phase memory log.
 
 Rules:
 

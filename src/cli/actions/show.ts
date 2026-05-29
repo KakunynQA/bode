@@ -1,6 +1,7 @@
 import { getRunDir } from '~/config/defaults.ts';
 import { readText } from '~/utils/fs.ts';
 import { renderArtifactHtml } from '~/orchestrator/html-renderer.ts';
+import { getTaskCost } from '~/orchestrator/budget-tracker.ts';
 import { writeText } from '~/utils/fs.ts';
 import pc from 'picocolors';
 
@@ -48,5 +49,8 @@ export async function showAction(
 		return;
 	}
 
+	const cost = await getTaskCost(taskKey);
+	console.log(pc.dim(`${taskKey.toUpperCase()} ${normalized} | cost so far ~$${cost.toFixed(2)}`));
+	console.log('');
 	console.log(content);
 }

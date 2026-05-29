@@ -139,6 +139,30 @@ export function createCommands(program: Command): void {
 		});
 
 	program
+		.command('replay <taskKey>')
+		.description('Replay a saved run prompt, or export/import a portable .bode-run bundle')
+		.option('--phase <name>', 'Phase prompt to replay (default: latest recorded phase)')
+		.option('--with-cli <name>', 'Replay with a different CLI adapter')
+		.option('--with-model <name>', 'Replay with a different model')
+		.option('--export [path]', 'Export run artifacts to a .bode-run JSON bundle')
+		.option('--import <path>', 'Import a .bode-run JSON bundle into this task key')
+		.action(
+			async (
+				taskKey: string,
+				options: {
+					phase?: string;
+					withCli?: string;
+					withModel?: string;
+					export?: string | boolean;
+					import?: string;
+				}
+			) => {
+				const { replayAction } = await import('./actions/replay.ts');
+				await replayAction(taskKey, options);
+			}
+		);
+
+	program
 		.command('init')
 		.description('Scaffold AGENTS.md for the current repo using the configured AI CLI')
 		.option('--overwrite', 'Overwrite existing AGENTS.md after showing a diff')
@@ -216,9 +240,20 @@ export function createCommands(program: Command): void {
 	program
 		.command('doctor')
 		.description('Diagnose bode environment, config, AI CLIs, and VCS tooling')
-		.action(async () => {
+		.option('--report [path]', 'Write a redacted support report without sending it anywhere')
+		.action(async (options: { report?: string | boolean }) => {
 			const { doctorAction } = await import('./actions/doctor.ts');
-			await doctorAction();
+			await doctorAction(options);
+		});
+
+	program
+		.command('feedback')
+		.description('Open or print a pre-filled GitHub feedback issue URL (never auto-submits)')
+		.option('--title <title>', 'Prefill the issue title')
+		.option('--open', 'Open the URL in the default browser')
+		.action(async (options: { title?: string; open?: boolean }) => {
+			const { feedbackAction } = await import('./actions/feedback.ts');
+			await feedbackAction(options);
 		});
 
 	program

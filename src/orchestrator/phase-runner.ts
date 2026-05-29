@@ -13,6 +13,7 @@ import { writeText, readText } from '~/utils/fs.ts';
 import { gatherContext } from '~/config/context.ts';
 import { preflightProjectPaths } from './preflight.ts';
 import { assertBudgetAvailable, recordPhaseCost } from './budget-tracker.ts';
+import { recordManifestPhase } from './run-manifest.ts';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -126,6 +127,16 @@ export async function runPhase(
 			? { branchTool: options.projectConfig.branch_tool }
 			: {}),
 		...(options.projectRoot ? { mainWorkdir: options.projectRoot } : {}),
+	});
+	await writeText(join(runDir, `${phaseName}.prompt.md`), prompt);
+	await recordManifestPhase({
+		taskKey,
+		phase: phaseName,
+		prompt,
+		skillContent: skillResult.value,
+		cli: phaseConfig.cli,
+		model: phaseConfig.model,
+		flags: options.dangerousBypass ? ['dangerousBypass'] : [],
 	});
 
 	const cliConfig: CliAdapterConfig = {

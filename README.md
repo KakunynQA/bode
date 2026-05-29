@@ -103,7 +103,7 @@ bode --version
 bode doctor
 ```
 
-`bode doctor` checks your environment (Node, git, AI CLIs, VCS CLIs, tracker auth) and prints what's missing.
+`bode doctor` checks your environment (Node, git, AI CLIs, VCS CLIs, tracker auth) and prints what's missing. Use `bode doctor --report` to write a redacted local report for GitHub issues or Discord; Bode never sends it automatically.
 
 ### Requirements
 
@@ -219,13 +219,15 @@ All trackers implement the same `IssueTrackerStrategy` interface — same comman
 | `bode start <KEY>` | Start a task. Creates branch, runs planning phase. |
 | `bode continue <KEY>` | Advance to next phase. Creates PR at awaiting-merge. |
 | `bode status <KEY>` | Show current phase, branch, PR link, conflict status. |
-| `bode show <artifact> <KEY>` | Print artifact (`plan`, `implementation`, `review`) to stdout. |
+| `bode show <artifact> <KEY>` | Print artifact (`plan`, `implementation`, `review`) with a cost-so-far header. |
+| `bode replay <KEY>` | Replay a saved phase prompt, or export/import a `.bode-run` bundle. |
 | `bode log <KEY>` | Show the log of the current or last phase. |
 | `bode list` | List all tracked tasks. |
 | `bode abort <KEY>` | Cancel execution, clean up branch, reset tracker state. |
 | `bode done <KEY>` | Mark done. Switch to base. Optionally merge PR. |
 | `bode skills` | Show resolved skill paths and prompts. |
-| `bode doctor` | Diagnose env, config, AI CLIs, VCS tooling. |
+| `bode doctor [--report]` | Diagnose env, config, AI CLIs, VCS tooling, Windows gotchas. |
+| `bode feedback [--open]` | Create a pre-filled GitHub feedback issue URL; never auto-submits. |
 | `bode telemetry [on\|off\|status\|preview]` | Opt-in anonymous telemetry. |
 | `bode compare <KEY> --agents <list>` | Run planning across multiple agents and compare. |
 

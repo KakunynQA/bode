@@ -39,6 +39,7 @@ Before writing the final prompt, ask only the missing questions from this list. 
 4. Should the agent open a PR?
 5. After completion, should the agent reinstall the built CLI globally (`npm run build && npm pack && npm i -g bode-*.tgz`) and smoke-test it (`bode --version`)?
 6. Should the agent also generate an HTML visualization of the plan in `.local/docs`?
+7. Process watchdog timeout for long-running commands. Default: 30 minutes.
 
 Group all unanswered questions in a single message.
 
@@ -58,6 +59,7 @@ The generated prompt must instruct the target agent to:
    - Rebuild and commit `dist/index.js`.
    - Verify with `bode --version`.
 - Identify migration risk (config schema changes, run-meta format, lockfile format under `~/.bode/runs/<KEY>/`).
+- Identify expected long-running commands and assign a process watchdog timeout. Default: 30 minutes unless the user supplied a different threshold.
 - Include branch, commit, push, PR, and rebuild-and-smoke-test preferences from the user's answers.
 - Produce a clear plan with phases, files likely touched, validation steps, and risks.
 - **Open every phase with a YAML frontmatter block.** See §Task YAML Frontmatter below — every phase MUST start with that block before its prose. This is non-negotiable and is enforced by `/bode-prompt-review-plan`.
@@ -193,6 +195,11 @@ parallelization:
     - <step C>
   anti_parallel:
     - <reason — e.g., version bump → build → commit>
+watchdog:
+  timeout_minutes: 30
+  expected_long_running:
+    - <command or none>
+  termination_policy: <inspect-first | ask-before-kill | safe-to-kill-after-timeout>
 validation:
   - <npm run check>
   - <npm run lint>
@@ -222,7 +229,8 @@ Rules:
 - The YAML block is **mandatory** for every phase, including small ones. If a field doesn't apply, set it to `none` or omit it — but `objective`, `files`, `validation`, `expected_output`, `release`, and `risk` are required.
 - `depends_on` is what makes wave parallelization safe — leaving it empty when a real dependency exists is a BLOCK finding in plan review.
 - `release.bump` is required because every user-facing change in bode must ship as a release (see AGENTS.md §Release Discipline). Set to `none` only for pure-internal refactors with no user-visible effect.
-- `reporting.memory_log` is optional and only present when the user enabled memory logs at `/bode-ship` time. Default: omit.
+- `watchdog.timeout_minutes` defaults to 30. Use a higher value only when the command normally runs longer; use `ask-before-kill` for migrations, deploys, seed scripts, FTP/SFTP, Docker volume changes, and any remote mutation.
+- `reporting.memory_log` is optional for small low-risk work, but mandatory when memory-log auto mode is triggered by multi-repo work, HIGH risk, delegation, more than 4 phases, estimated work above 4 hours, or watchdog intervention.
 - The YAML must be valid (no trailing commas, no smart quotes). If the planner needs free-form text, use the prose block under the YAML, not inside it.
 
 ## Forbidden Actions to Surface in the Plan

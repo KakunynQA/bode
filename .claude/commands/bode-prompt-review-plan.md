@@ -61,6 +61,7 @@ Score each item PASS / FAIL / N-A and write a one-line note per FAIL.
 - [ ] Every phase has explicit `objective`, `expected_output`, `validation`, `release`, and `risk` entries.
 - [ ] Cross-phase dependencies are listed under `depends_on` and resolve to a real prior-phase output.
 - [ ] No phase mixes unrelated scope (one cohesive change per phase).
+- [ ] Long-running commands have a `watchdog` policy with timeout and termination policy.
 
 **Parallelization**
 - [ ] Wave layout present per phase (`Wave 1 parallel:` / `Gate` / `Wave 2 sequential:`).
@@ -90,6 +91,7 @@ Score each item PASS / FAIL / N-A and write a one-line note per FAIL.
 - [ ] Every risk has a severity (LOW / MED / HIGH).
 - [ ] Every HIGH risk has a mitigation or rollback plan.
 - [ ] Migration / backwards-compat impact listed where it applies (config schema, run-meta, lockfile format, skill resolution order).
+- [ ] `reporting.memory_log` is present when auto-mode triggers apply: multi-repo, HIGH risk, delegation, more than 4 phases, estimated work above 4 hours, or watchdog intervention.
 
 **Delivery**
 - [ ] Branch strategy stated and matches the allowed prefixes (`feat/`, `fix/`, `refactor/`, `chore/`, `docs/`, `test/`, `perf/`).

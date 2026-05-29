@@ -34,8 +34,9 @@ Before writing the final prompt, ask only the missing questions from this list. 
 3. Should the agent run the global-install smoke test (`npm pack && npm i -g bode-*.tgz && bode --version`) after build?
 4. Should the agent open a PR when all gates pass?
 5. Should the agent generate an HTML visualization of the plan in `.local/docs`?
-6. Memory log mode (opt-in, default off): one Dynamic-MD memory log per phase under `.local/docs/implementing/`?
-7. Plan-review strictness: `strict` (default for config schema / run-meta / adapter / CLI surface changes) or `pragmatic` (default for single-file fixes and docs-only)?
+6. Process watchdog timeout for long-running commands. Default: 30 minutes.
+7. Memory log mode. Default is `auto`: mandatory for multi-repo work, HIGH-risk phases, delegation, more than 4 phases, estimated work above 4 hours, or watchdog intervention.
+8. Plan-review strictness: `strict` (default for config schema / run-meta / adapter / CLI surface changes) or `pragmatic` (default for single-file fixes and docs-only)?
 
 Group all unanswered questions in a single message.
 
@@ -50,7 +51,7 @@ The generated prompt must instruct the target agent to execute these phases in s
 1. Read `AGENTS.md`, `CLAUDE.md`, `CONVENTIONS.md`, `SPEC.md`, `TESTING.md`, `README.md`.
 2. Inspect relevant code before proposing anything (`glob` + `grep`; do not load whole repo).
 3. Identify affected files, tests, docs, Release Discipline impact, and risk.
-4. Write the plan to `.local/docs/planning/<task-slug>-plan.md`. **Every phase MUST open with a YAML frontmatter block** per `/bode-prompt-planning` §Task YAML Frontmatter (objective, depends_on, files, validation, expected_output, release, risk, optional reporting.memory_log).
+4. Write the plan to `.local/docs/planning/<task-slug>-plan.md`. **Every phase MUST open with a YAML frontmatter block** per `/bode-prompt-planning` §Task YAML Frontmatter (objective, depends_on, files, watchdog, validation, expected_output, release, risk, optional reporting.memory_log).
 5. Move the completed plan to `.local/docs/to-implement/<task-slug>-plan.md`.
 6. If HTML visualization was requested, also write `.local/docs/to-implement/<task-slug>-plan.html`.
 7. **Checkpoint:** summarize the plan and continue automatically — do not wait for user approval unless a HIGH risk is found.
@@ -77,7 +78,9 @@ The generated prompt must instruct the target agent to execute these phases in s
 6. Run targeted tests as you go.
 7. Run `npm run build` to rebuild `dist/index.js` so the committed bundle matches the new version.
 8. Update the plan Markdown with implementation notes and any deviations.
-9. **If memory log mode is on:** write one Dynamic-MD memory log per phase at `.local/docs/implementing/<task-slug>-phase-<n>-memory.md` following `/bode-prompt-execution` §Memory Log Mode.
+9. Apply `/bode-process-watchdog` to long-running commands that exceed the configured timeout.
+10. Use `/bode-prompt-delegate-research` for current external facts and `/bode-prompt-delegate-debug` after 3 failed local debugging attempts, or immediately for systemic/unclear failures.
+11. **Memory logs:** in `auto` mode, write one Dynamic-MD memory log per phase when mandatory triggers apply, following `/bode-prompt-execution` §Memory Log Mode.
 
 ---
 
@@ -145,7 +148,8 @@ User delivery preferences
 - Run global-install smoke test: <yes/no>
 - Open PR when gates pass: <yes/no>
 - Generate HTML plan: <yes/no>
-- Memory log mode: <yes/no>
+- Process watchdog timeout: <minutes>
+- Memory log mode: <auto | forced-on | optional>
 - Plan-review strictness: <strict/pragmatic>
 
 Phase 1 — Plan
@@ -155,7 +159,7 @@ Phase 1.5 — Plan Review
 <invoke /bode-prompt-review-plan, block on CHANGES REQUESTED>
 
 Phase 2 — Execute
-<what to implement, consume phase YAML, Release Discipline, docs, optional memory logs>
+<what to implement, consume phase YAML, Release Discipline, docs, watchdog, delegation, memory logs>
 
 Phase 3 — Review
 <validation chain + Release Discipline + optional smoke test, stop condition>
