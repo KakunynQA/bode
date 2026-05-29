@@ -80914,9 +80914,17 @@ var InterceptedExitError = class extends Error {
 };
 async function runActionGuarded(invoke) {
   const originalExit = process.exit.bind(process);
+  const originalEmit = process.emit.bind(process);
+  const originalReallyExit = process.reallyExit;
   process.exit = ((code) => {
     const n = typeof code === "number" ? code : code == null ? 0 : Number(code);
     throw new InterceptedExitError(Number.isFinite(n) ? n : 0);
+  });
+  process.emit = ((event, ...args2) => {
+    if (event === "exit") return false;
+    return originalEmit(event, ...args2);
+  });
+  process.reallyExit = (() => {
   });
   try {
     const code = await invoke();
@@ -80929,6 +80937,10 @@ async function runActionGuarded(invoke) {
     return { kind: "error", exitCode: 1, error: error52 };
   } finally {
     process.exit = originalExit;
+    process.emit = originalEmit;
+    if (originalReallyExit) {
+      process.reallyExit = originalReallyExit;
+    }
   }
 }
 var TICKET_KEY_RE2 = /^[A-Z][A-Z0-9_]*-\d+$/;
