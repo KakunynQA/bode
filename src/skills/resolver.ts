@@ -1,8 +1,18 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { getSkillsDir } from '~/config/defaults.ts';
 import type { Result } from '~/types/result.ts';
+
+function moduleDir(): string | null {
+	if (typeof __dirname !== 'undefined') return __dirname;
+	try {
+		return dirname(fileURLToPath(import.meta.url));
+	} catch {
+		return null;
+	}
+}
 
 declare const __SKILL_PLANNING__: string;
 declare const __SKILL_IMPLEMENTATION__: string;
@@ -39,23 +49,24 @@ function getEmbeddedSkill(phase: string): string | null {
 }
 
 function getDevBundledPath(phase: string, flavor: SkillFlavor): string | null {
-	if (typeof __dirname === 'undefined') return null;
+	const base = moduleDir();
+	if (!base) return null;
 	const preferred = flavor === 'neutral' ? `${phase}.neutral.md` : `${phase}.${flavor}.md`;
-	// Candidates cover: tsx dev (__dirname = src/skills), built CJS (__dirname = dist/),
+	// Candidates cover: tsx dev (base = src/skills), built bundle (base = dist/),
 	// and globally-installed package (src/skills/defaults shipped via "files" in package.json).
 	const candidates = [
-		join(__dirname, 'defaults', preferred),
-		join(__dirname, 'defaults', `${phase}.md`),
-		join(__dirname, '..', 'src', 'skills', 'defaults', preferred),
-		join(__dirname, '..', 'src', 'skills', 'defaults', `${phase}.md`),
-		join(__dirname, '..', 'skills', 'defaults', preferred),
-		join(__dirname, '..', 'skills', 'defaults', `${phase}.md`),
-		join(__dirname, 'skills', 'defaults', preferred),
-		join(__dirname, 'skills', 'defaults', `${phase}.md`),
-		join(__dirname, 'defaults', `${phase}.neutral.md`),
-		join(__dirname, '..', 'src', 'skills', 'defaults', `${phase}.neutral.md`),
-		join(__dirname, '..', 'skills', 'defaults', `${phase}.neutral.md`),
-		join(__dirname, 'skills', 'defaults', `${phase}.neutral.md`),
+		join(base, 'defaults', preferred),
+		join(base, 'defaults', `${phase}.md`),
+		join(base, '..', 'src', 'skills', 'defaults', preferred),
+		join(base, '..', 'src', 'skills', 'defaults', `${phase}.md`),
+		join(base, '..', 'skills', 'defaults', preferred),
+		join(base, '..', 'skills', 'defaults', `${phase}.md`),
+		join(base, 'skills', 'defaults', preferred),
+		join(base, 'skills', 'defaults', `${phase}.md`),
+		join(base, 'defaults', `${phase}.neutral.md`),
+		join(base, '..', 'src', 'skills', 'defaults', `${phase}.neutral.md`),
+		join(base, '..', 'skills', 'defaults', `${phase}.neutral.md`),
+		join(base, 'skills', 'defaults', `${phase}.neutral.md`),
 	];
 	for (const c of candidates) {
 		if (existsSync(c)) return c;

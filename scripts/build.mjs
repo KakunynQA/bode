@@ -27,10 +27,14 @@ await build({
 	bundle: true,
 	platform: 'node',
 	target: 'node20',
-	format: 'cjs',
+	format: 'esm',
 	outdir: 'dist',
 	banner: {
-		js: '#!/usr/bin/env node',
+		js: [
+			'#!/usr/bin/env node',
+			"import { createRequire as __bode_createRequire } from 'node:module';",
+			'const require = __bode_createRequire(import.meta.url);',
+		].join('\n'),
 	},
 	define: {
 		__GOAT_ART__: JSON.stringify(goatArt),
@@ -42,7 +46,7 @@ await build({
 		__SKILL_LEARN__: JSON.stringify(skillLearn),
 		__SKILL_INIT_AGENTS__: JSON.stringify(skillInitAgents),
 	},
-	external: [],
+	external: ['react-devtools-core'],
 	minify: false,
 	sourcemap: false,
 	packages: 'bundle',
