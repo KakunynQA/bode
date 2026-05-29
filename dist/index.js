@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("1.3.0") {
-    return "1.3.0";
+  if ("2.0.0") {
+    return "2.0.0";
   }
   const base = moduleDir();
   if (base) {
@@ -81142,9 +81142,7 @@ async function renderShellOnce(state, lastExitCode) {
       instance.unmount();
       resolve(value);
     };
-    const instance = render_default(
-      (0, import_react24.createElement)(App2, { state, lastExitCode, onSubmit: handleSubmit })
-    );
+    const instance = render_default((0, import_react24.createElement)(App2, { state, lastExitCode, onSubmit: handleSubmit }));
   });
 }
 async function runShell2() {
@@ -81186,9 +81184,7 @@ if (args.includes("--help") || args.includes("-h")) {
 if (!process.stdin.isTTY) {
   console.error(import_picocolors33.default.red("bode requires an interactive terminal (TTY)."));
   console.error(
-    import_picocolors33.default.dim(
-      "Headless invocation was removed in v2.0.0. Use --version or --help for headless info."
-    )
+    import_picocolors33.default.dim("Headless invocation was removed in v2.0.0. Use --version or --help for headless info.")
   );
   process.exit(2);
 }

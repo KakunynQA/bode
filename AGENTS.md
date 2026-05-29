@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v1.2.0) that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v1.2.0 adds Wave 7 adoption primitives: feedback issue URLs, replay/audit manifests, doctor reports with Windows diagnostics, security/data-flow docs, and cost visibility refinements. **Waves 0-6 are functionally closed except external launch actions.** See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local interactive TUI shell (v2.0.0) that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v2.0.0 replaces the one-shot commander CLI with an Ink-powered persistent shell: running `bode` opens a screen with a header, prompt, and footer, and every subcommand (`setup`, `start KD-1`, etc.) is typed inside without the `bode ` prefix. `bode --version` and `bode --help` remain as headless escape hatches; nothing else runs without a TTY. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 
@@ -12,21 +12,22 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 # Install
 npm install
 
-# Dev (runs CLI from source via tsx)
-npm run dev -- setup
-npm run dev -- start KD-312
+# Dev (launches the TUI shell from source via tsx)
+npm run dev                    # → type `setup`, `start KD-312`, etc. at the prompt
 
 # Validation (run before any commit)
 npm run check                  # TypeScript typecheck
 npm run lint                   # ESLint
 npm run format:check           # Prettier check
-npm run build                  # Compile to dist/ via esbuild
+npm run build                  # Bundle to dist/index.js (ESM) via esbuild
 
 # Global install from source
 npm run build && npm pack && npm i -g bode-*.tgz
 
-# Global install from GitHub (note: may not work on Windows/npm 11 due to symlink bugs)
-npm i -g KakunynQA/bode
+# Verify install
+bode --version                 # headless: prints the version
+bode --help                    # headless: prints command list
+bode                           # launches the TUI shell (needs a TTY)
 ```
 
 ## Architecture Summary

@@ -44,12 +44,13 @@ If a request conflicts with `AGENTS.md`, `CONVENTIONS.md`, or `SPEC.md`, say so.
 
 ## Quick Reference
 
-- Stack: TypeScript strict, Node.js + esbuild, no DB (filesystem `~/.bode/`), MCP Atlassian for Jira, child_process for AI CLIs, branch management via GitAdapter, VCS adapters for GitHub/GitLab
-- Runtime: Node.js >=20, CJS bundle via esbuild
-- Run dev: `npm run dev -- <subcommand>`
+- Stack: TypeScript strict, Node.js + esbuild, no DB (filesystem `~/.bode/`), MCP Atlassian for Jira, child_process for AI CLIs, branch management via GitAdapter, VCS adapters for GitHub/GitLab. v2.0.0 added Ink for the interactive TUI shell.
+- Runtime: Node.js >=20, ESM bundle via esbuild (`"type": "module"`, single `dist/index.js`).
+- Run dev: `npm run dev` (launches the TUI; `--version` / `--help` remain headless escape hatches).
 - Validate: `npm run check; npm run lint; npm run format:check; npm test; npm run build`
 - Install globally: `npm run build && npm pack && npm i -g bode-*.tgz`
-- Never: `any`, direct Jira REST, direct gh/glab CLI outside `adapters/vcs/`, direct git CLI from anywhere in `src/` (v0.18.0 removed git shellouts — the AI handles git via its own tool calls)
-- ASCII art: `src/assets/bode.art` → embedded via esbuild `define` as `__GOAT_ART__`
+- Never: `any`, direct Jira REST, direct gh/glab CLI outside `adapters/vcs/`, direct git CLI from anywhere in `src/` (v0.18.0 removed git shellouts — the AI handles git via its own tool calls), commit `src/cli/program.ts` or `src/cli/commands.ts` back (removed in v2.0.0)
+- ASCII art: `src/assets/bode.art` → embedded via esbuild `define` as `__GOAT_ART__`; printed once as the shell banner.
+- TUI entry: `src/index.ts` → `src/tui/shell.ts`. Dispatcher in `src/tui/dispatcher.ts` routes typed lines to existing action functions; built-ins (`help`, `clear`, `exit`) live in `src/tui/builtins.ts`.
 - Models registry: `src/adapters/cli/models.ts` — update when new models launch
 - Adapter registry: `src/adapters/cli/registry.ts` — update when adding new CLI

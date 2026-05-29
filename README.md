@@ -36,9 +36,13 @@
 
 ---
 
+> **v2.0.0 — Interactive TUI shell.** Running `bode` now launches a persistent shell with a header (version + project + tracker), a prompt in the middle, and a footer (active run + last exit code). Every command is typed inside the shell **without** the `bode ` prefix: `setup`, `start KD-1 --auto`, `"fix the dashboard bug"`. Only `bode --version` and `bode --help` remain headless. The one-shot CLI form (`bode setup`, `bode start KD-1`, …) is gone. See the [v2.0.0 CHANGELOG](CHANGELOG.md#200--2026-05-29) for full details.
+
+---
+
 ## Why Bode
 
-**Bode** is a local CLI that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs and syncing progress to whichever issue tracker your team already uses — so AI work has shared visibility without leaving your existing workflow.
+**Bode** is a local interactive TUI shell that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs and syncing progress to whichever issue tracker your team already uses — so AI work has shared visibility without leaving your existing workflow.
 
 It is a strong fit for:
 
@@ -99,11 +103,13 @@ Formula templates ship in `packaging/homebrew/bode.rb` and `packaging/scoop/bode
 ### Verify
 
 ```bash
-bode --version
-bode doctor
+bode --version        # headless; prints "2.0.0" and exits
+bode --help           # headless; prints the command list
+bode                  # launches the TUI shell
+> doctor              # inside the shell — same as `bode doctor` was in v1.x
 ```
 
-`bode doctor` checks your environment (Node, git, AI CLIs, VCS CLIs, tracker auth) and prints what's missing. Use `bode doctor --report` to write a redacted local report for GitHub issues or Discord; Bode never sends it automatically.
+`doctor` checks your environment (Node, git, AI CLIs, VCS CLIs, tracker auth) and prints what's missing. Type `doctor --report` to write a redacted local report for GitHub issues or Discord; Bode never sends it automatically.
 
 ### Requirements
 
@@ -120,16 +126,17 @@ bode doctor
 ### First time in a repo
 
 ```bash
-bode init
-bode learn
-bode "fix the dashboard bug" --strict
+bode
+> init
+> learn
+> "fix the dashboard bug" --strict
 ```
 
-`bode init` creates a human-curated `AGENTS.md`. `bode learn` creates an AI-consumable `.bode/context.md` snapshot that is layered into future prompts before the file tree.
+`init` creates a human-curated `AGENTS.md`. `learn` creates an AI-consumable `.bode/context.md` snapshot that is layered into future prompts before the file tree.
 
 ### Strict mode
 
-Use `--strict` on `bode start` or the fast path to enable Wave 6 gates: plan-review, YAML artifact contract validation, configured `validation:` commands, configured `release:` checks, and HTML rendering via `bode show plan <KEY> --html`.
+Use `--strict` on the `start` line or the fast path to enable Wave 6 gates: plan-review, YAML artifact contract validation, configured `validation:` commands, configured `release:` checks, and HTML rendering via `show plan <KEY> --html`.
 
 ### Daily-driver depth
 
@@ -147,43 +154,44 @@ Wave 8 adds local power-user surfaces:
 In any git repo:
 
 ```bash
-bode "fix the dashboard ID/name bug"
+bode
+> "fix the dashboard ID/name bug"
 ```
 
-bode auto-detects your installed AI CLI, creates a local task at `<repo>/.bode/tasks/<key>.md`, and opens an interactive AI session with the prompt as context. When the session exits, the planning artifact lands at `~/.bode/runs/<key>/planning.md`.
+bode auto-detects your installed AI CLI, creates a local task at `<repo>/.bode/tasks/<key>.md`, and opens an interactive AI session with the prompt as context (the shell unmounts while the AI owns the terminal, then re-renders). The planning artifact lands at `~/.bode/runs/<key>/planning.md`.
 
-To advance:
+To advance (still inside the shell):
 
-```bash
-bode continue <key>      # implementation
-bode continue <key>      # review
-bode continue <key>      # PR
-bode done <key>          # mark done, switch to base branch
+```text
+> continue <key>      # implementation
+> continue <key>      # review
+> continue <key>      # PR
+> done <key>          # mark done, switch to base branch
 ```
 
-`bode` with no arguments prints help. (Auto-resume of the latest run is planned — see [ROADMAP.md](ROADMAP.md) §6.2.)
+Type `help` for the full menu, `exit` to leave.
 
 ### From a tracker ticket
 
-```bash
-bode KD-312       # Jira
-bode 123          # GitHub Issues (current repo)
-bode ENG-42       # Linear
-bode ABC12345     # Trello (card shortlink)
+```text
+> KD-312       # Jira
+> 123          # GitHub Issues (current repo)
+> ENG-42       # Linear
+> ABC12345     # Trello (card shortlink)
 ```
 
 bode fetches the ticket, creates the branch (`feat/`, `fix/`, `chore/`, or `refactor/` based on issue type), and runs the planning phase. See [Trackers](#trackers).
 
 ### With explicit setup (recommended for teams)
 
-```bash
-bode setup           # global wizard: tracker, AI CLIs, VCS provider
-bode setup-project   # per-project: workdir, default branch, context files,
-                     # optional AI-driven project context investigation.
-                     # Flags: --shared-in-repo  (write PROJECT_CONTEXT.md to the
-                     #                          workdir instead of ~/.bode/)
-                     #        --refresh-context (re-run only investigation)
-bode setup-transitions   # map your tracker's workflow states to bode phases
+```text
+> setup                  # global wizard: tracker, AI CLIs, VCS provider
+> setup-project          # per-project: workdir, default branch, context files,
+                         # optional AI-driven project context investigation.
+                         # Flags: --shared-in-repo  (write PROJECT_CONTEXT.md to the
+                         #                          workdir instead of ~/.bode/)
+                         #        --refresh-context (re-run only investigation)
+> setup-transitions      # map your tracker's workflow states to bode phases
 ```
 
 ---
@@ -212,30 +220,32 @@ All trackers implement the same `IssueTrackerStrategy` interface — same comman
 
 ## Commands
 
-| Command | Description |
-|---|---|
-| `bode <prompt-or-key>` | Fast path. Ticket key (e.g. `KD-312`) or freeform prompt. |
-| `bode` *(no args)* | Print help. |
-| `bode new <summary>` | Create a local task without invoking the AI. |
-| `bode setup` | Interactive wizard. Tracker, AI CLIs, VCS provider. |
-| `bode setup-project` | Per-project config (workdir, context files, AI-driven project context investigation, overrides). Supports `--shared-in-repo` and `--refresh-context`. |
-| `bode setup-transitions` | Map bode phases to your tracker's workflow states. |
-| `bode start <KEY>` | Start a task. Creates branch, runs planning phase. |
-| `bode continue <KEY>` | Advance to next phase. Creates PR at awaiting-merge. |
-| `bode status <KEY>` | Show current phase, branch, PR link, conflict status. |
-| `bode show <artifact> <KEY>` | Print artifact (`plan`, `implementation`, `review`) with a cost-so-far header. |
-| `bode replay <KEY>` | Replay a saved phase prompt, or export/import a `.bode-run` bundle. |
-| `bode log <KEY>` | Show the log of the current or last phase. |
-| `bode list` | List all tracked tasks. |
-| `bode abort <KEY>` | Cancel execution, clean up branch, reset tracker state. |
-| `bode done <KEY>` | Mark done. Switch to base. Optionally merge PR. |
-| `bode skills` | Show resolved skill paths and prompts. |
-| `bode doctor [--report]` | Diagnose env, config, AI CLIs, VCS tooling, Windows gotchas. |
-| `bode feedback [--open]` | Create a pre-filled GitHub feedback issue URL; never auto-submits. |
-| `bode telemetry [on\|off\|status\|preview]` | Opt-in anonymous telemetry. |
-| `bode compare <KEY> --agents <list>` | Run planning across multiple agents and compare. |
+All commands are typed **inside the shell** without the `bode ` prefix. The only forms that run headless are `bode --version` and `bode --help`.
 
-All commands support `--help`.
+| Command (inside shell) | Description |
+|---|---|
+| `<prompt-or-key>` | Fast path. Ticket key (e.g. `KD-312`) or freeform prompt. |
+| `help` / `?` | Print the command menu. |
+| `clear` | Clear the scrollback. |
+| `exit` / `quit` / `:q` | Exit the shell. |
+| `new <summary>` | Create a local task without invoking the AI. |
+| `setup` | Interactive wizard. Tracker, AI CLIs, VCS provider. |
+| `setup-project` | Per-project config (workdir, context files, AI-driven project context investigation, overrides). Supports `--shared-in-repo` and `--refresh-context`. |
+| `setup-transitions` | Map bode phases to your tracker's workflow states. |
+| `start <KEY>` | Start a task. Creates branch, runs planning phase. |
+| `continue <KEY>` | Advance to next phase. Creates PR at awaiting-merge. |
+| `status <KEY>` | Show current phase, branch, PR link, conflict status. |
+| `show <artifact> <KEY>` | Print artifact (`plan`, `implementation`, `review`) with a cost-so-far header. |
+| `replay <KEY>` | Replay a saved phase prompt, or export/import a `.bode-run` bundle. |
+| `log <KEY>` | Show the log of the current or last phase. |
+| `list` | List all tracked tasks. |
+| `abort <KEY>` | Cancel execution, clean up branch, reset tracker state. |
+| `done <KEY>` | Mark done. Switch to base. Optionally merge PR. |
+| `skills` | Show resolved skill paths and prompts. |
+| `doctor [--report]` | Diagnose env, config, AI CLIs, VCS tooling, Windows gotchas. |
+| `feedback [--open]` | Create a pre-filled GitHub feedback issue URL; never auto-submits. |
+| `telemetry [on\|off\|status\|preview]` | Opt-in anonymous telemetry. |
+| `compare <KEY> --agents <list>` | Run planning across multiple agents and compare. |
 
 ### Key flags
 
@@ -254,15 +264,15 @@ All commands support `--help`.
 
 ## Auto mode
 
-```bash
-bode start KD-312 --auto
+```text
+> start KD-312 --auto
 # planning → implementation → review → PR creation in one command
 ```
 
 Stops after creating the PR so you can review it manually.
 
-```bash
-bode start KD-312 --dangerously-auto-merge
+```text
+> start KD-312 --dangerously-auto-merge
 ```
 
 Runs all phases **and** auto-merges the PR. Shows a warning first. Use only on well-tested workflows.
@@ -436,18 +446,19 @@ First match wins. Copy a bundled skill to `~/.bode/skills/` and edit it.
 ```bash
 npm install
 
-# Run from source via tsx
-npm run dev -- setup
-npm run dev -- start KD-312
+# Run from source via tsx — launches the TUI shell
+npm run dev
+# > setup
+# > start KD-312
 
 # Validation
 npm run check          # TypeScript
 npm run lint           # ESLint
 npm run format:check   # Prettier
 npm test               # node --test via tsx
-npm run build          # esbuild → dist/index.js
+npm run build          # esbuild → dist/index.js (ESM bundle)
 
-# Build SEA binary for current platform
+# Build SEA binary for current platform (may need a follow-up for ESM dist)
 node scripts/build-sea.mjs
 ```
 
@@ -467,6 +478,16 @@ If a task already has a run, bode asks:
 ### `bode` command not found
 
 You haven't installed globally. See [Installation](#installation).
+
+### `bode requires an interactive terminal (TTY)`
+
+You ran `bode` from a piped or backgrounded stdin (e.g. `bode < script.txt`,
+`bode | tee log`, a non-interactive CI job). v2.0.0 removed headless
+invocation; only `bode --version` and `bode --help` work without a TTY.
+
+If your terminal claims to be interactive but you still see this, switch to
+Windows Terminal or the VS Code terminal — the legacy `cmd.exe` host
+sometimes mis-reports `isTTY`.
 
 ### Windows npm install from GitHub fails
 

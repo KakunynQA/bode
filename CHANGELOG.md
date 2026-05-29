@@ -4,6 +4,69 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] — 2026-05-29
+
+Breaking release. Bode is now an interactive TUI shell. Running `bode`
+launches a persistent screen with a header (version + project + tracker),
+an input prompt in the middle, and a footer (active run + last exit code +
+keybinding hint). Every command is typed inside the shell without the
+`bode ` prefix.
+
+### Breaking
+
+- `bode <subcommand>` (`bode setup`, `bode start KD-1`, `bode "fix the
+  bug"`, etc.) no longer runs as a one-shot CLI. Launch the shell with
+  `bode`, then type `setup`, `start KD-1`, or `"fix the bug"` at the
+  prompt.
+- `--auto`, `--strict`, `--dangerously-auto-merge`, `--dangerously-approve-all`,
+  and every other flag are typed inside the shell: `start KD-1 --auto`.
+- `npm run dev -- setup` becomes `npm run dev`, then type `setup` inside
+  the shell.
+- The internal commander program (`src/cli/program.ts`, `src/cli/commands.ts`)
+  has been removed. The dispatcher (`src/tui/dispatcher.ts`) routes typed
+  lines directly to the existing action functions.
+- Distribution format is now ESM. `package.json` has `"type": "module"` and
+  `scripts/build.mjs` emits an ESM bundle with a `createRequire` shim. The
+  Node SEA toolchain may need a follow-up for the new format.
+- CI workflows or scripts that invoked `bode <subcommand>` headlessly will
+  break. Headless invocation will return in a future minor release behind
+  an explicit `--exec` flag.
+
+### Added
+
+- Interactive TUI shell powered by Ink (`src/tui/`): persistent header,
+  prompt, footer, fresh state load before every render.
+- Built-in shell commands: `help` / `?`, `clear`, `exit` / `quit` / `:q`.
+- `bode --version` and `bode --help` remain as headless escape hatches.
+- TTY guard: a non-TTY stdin (piped, background) exits 2 with a friendly
+  error pointing at `--version` / `--help`.
+- `ink`, `ink-text-input`, `react`, `react-devtools-core` as runtime deps
+  (the last is stubbed at bundle time via `src/tui/stubs/`).
+
+### Changed
+
+- Entry point (`src/index.ts`) detects `--version` / `--help` and otherwise
+  launches `runShell()` from `src/tui/shell.ts`.
+- `src/skills/resolver.ts` and `src/utils/version.ts` now derive their
+  module directory via `import.meta.url` under ESM, with the CJS
+  `__dirname` fallback preserved.
+
+### Removed
+
+- `src/cli/program.ts` and `src/cli/commands.ts` (commander program).
+- The temporary `src/tui/__smoke.tsx` introduced during the build-config
+  bring-up.
+
+### Known limitations
+
+- Fatal errors inside action functions (those that call `process.exit`)
+  terminate the shell process; the user has to re-launch `bode`. A
+  follow-up will refactor the actions to throw and let the dispatcher
+  recover.
+- The `cmd.exe` legacy host on Windows may glitch around raw mode. Use
+  Windows Terminal or the VS Code terminal.
+- Bundle grows from ~2.1 MB to ~3.4 MB because Ink and React are inlined.
+
 ## [1.3.0] — 2026-05-29
 
 Setup wizard overhaul. Single context-files question with `@` file picker and auto-detected defaults, optional AI-driven project context investigation written to `PROJECT_CONTEXT.md`, and uniform ESC=back / Ctrl+C=cancel keybindings across every prompt.

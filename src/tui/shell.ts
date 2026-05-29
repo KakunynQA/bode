@@ -22,9 +22,7 @@ async function renderShellOnce(state: ShellState, lastExitCode: number | null): 
 			instance.unmount();
 			resolve(value);
 		};
-		const instance = render(
-			createElement(App, { state, lastExitCode, onSubmit: handleSubmit })
-		);
+		const instance = render(createElement(App, { state, lastExitCode, onSubmit: handleSubmit }));
 	});
 }
 
