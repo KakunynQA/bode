@@ -3,10 +3,9 @@ import { render } from 'ink';
 import pc from 'picocolors';
 import { App } from './components/app.tsx';
 import { loadInitialState, type ShellState } from './state.ts';
+import { dispatch } from './dispatcher.ts';
 
 declare const __GOAT_ART__: string;
-
-const EXIT_WORDS = new Set(['exit', 'quit', ':q']);
 
 function printBanner(state: ShellState): void {
 	if (typeof __GOAT_ART__ !== 'undefined' && __GOAT_ART__) {
@@ -29,12 +28,6 @@ async function renderShellOnce(state: ShellState, lastExitCode: number | null): 
 	});
 }
 
-// Phase-2 stub. Phase 3 replaces this with the real dispatcher.
-async function stubDispatch(line: string): Promise<number> {
-	console.log(pc.dim(`[stub dispatched] ${line}`));
-	return 0;
-}
-
 export async function runShell(): Promise<void> {
 	let lastExitCode: number | null = null;
 	let first = true;
@@ -46,7 +39,11 @@ export async function runShell(): Promise<void> {
 		}
 		const line = (await renderShellOnce(state, lastExitCode)).trim();
 		if (!line) continue;
-		if (EXIT_WORDS.has(line.toLowerCase())) return;
-		lastExitCode = await stubDispatch(line);
+		const result = await dispatch(line);
+		if (result.kind === 'exit') return;
+		if (result.kind === 'error' && result.error) {
+			console.error(pc.red(`error: ${result.error.message}`));
+		}
+		lastExitCode = result.exitCode;
 	}
 }

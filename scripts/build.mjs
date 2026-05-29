@@ -46,12 +46,13 @@ await build({
 		__SKILL_LEARN__: JSON.stringify(skillLearn),
 		__SKILL_INIT_AGENTS__: JSON.stringify(skillInitAgents),
 	},
-	external: ['react-devtools-core'],
+	external: [],
 	minify: false,
 	sourcemap: false,
 	packages: 'bundle',
 	alias: {
 		'~': './src',
+		'react-devtools-core': './src/tui/stubs/react-devtools-core.js',
 	},
 	logLevel: 'info',
 });
