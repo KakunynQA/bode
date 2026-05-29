@@ -81183,6 +81183,15 @@ if (args.includes("--help") || args.includes("-h")) {
   console.log(renderHelp());
   process.exit(0);
 }
+if (!process.stdin.isTTY) {
+  console.error(import_picocolors33.default.red("bode requires an interactive terminal (TTY)."));
+  console.error(
+    import_picocolors33.default.dim(
+      "Headless invocation was removed in v2.0.0. Use --version or --help for headless info."
+    )
+  );
+  process.exit(2);
+}
 await runShell2();
 /*! Bundled license information:
 

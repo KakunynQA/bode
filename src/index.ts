@@ -21,4 +21,14 @@ if (args.includes('--help') || args.includes('-h')) {
 	process.exit(0);
 }
 
+if (!process.stdin.isTTY) {
+	console.error(pc.red('bode requires an interactive terminal (TTY).'));
+	console.error(
+		pc.dim(
+			'Headless invocation was removed in v2.0.0. Use --version or --help for headless info.'
+		)
+	);
+	process.exit(2);
+}
+
 await runShell();
