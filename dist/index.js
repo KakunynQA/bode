@@ -66075,6 +66075,147 @@ var init_dist17 = __esm({
   }
 });
 
+// src/utils/prompt.ts
+function createBackSignal(options = {}) {
+  const ac = new AbortController();
+  let escTimer = null;
+  function onData(chunk) {
+    if (options.atTrigger && chunk.length === 1 && chunk[0] === 64) {
+      ac.abort(new AtTriggerError());
+      cleanup();
+      return;
+    }
+    if (chunk.length === 1 && chunk[0] === 27) {
+      if (escTimer) clearTimeout(escTimer);
+      escTimer = setTimeout(() => {
+        escTimer = null;
+        ac.abort(new BackError());
+        cleanup();
+      }, 60);
+    } else if (escTimer) {
+      clearTimeout(escTimer);
+      escTimer = null;
+    }
+  }
+  process.stdin.on("data", onData);
+  function cleanup() {
+    process.stdin.removeListener("data", onData);
+    if (escTimer) {
+      clearTimeout(escTimer);
+      escTimer = null;
+    }
+  }
+  return { signal: ac.signal, cleanup };
+}
+function printFooterHint(firstStep) {
+  if (!firstStep) console.log(FOOTER_HINT);
+}
+async function runWithBackSignal(fn, opts) {
+  while (true) {
+    const { signal, cleanup } = createBackSignal(opts.atTrigger ? { atTrigger: true } : {});
+    try {
+      return await fn(signal);
+    } catch (err) {
+      cleanup();
+      if (isBackAbort(err)) {
+        if (opts.firstStep) {
+          console.log(FIRST_STEP_NO_BACK);
+          continue;
+        }
+        return BACK;
+      }
+      if (isAtTriggerAbort(err)) return AT_TRIGGER;
+      throw err;
+    } finally {
+      cleanup();
+    }
+  }
+}
+function isAtTriggerAbort(err) {
+  if (err instanceof AtTriggerError) return true;
+  if (err instanceof AbortPromptError) {
+    const cause = err.cause;
+    if (cause instanceof AtTriggerError) return true;
+    return err.message.includes("__AT_TRIGGER__");
+  }
+  return false;
+}
+function isBackAbort(err) {
+  if (err instanceof BackError) return true;
+  if (err instanceof AbortPromptError) {
+    const cause = err.cause;
+    if (cause instanceof BackError) return true;
+    return err.message.includes("__BACK__");
+  }
+  return false;
+}
+async function askInput(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  return runWithBackSignal((signal) => dist_default10(opts, { signal }), {
+    ...wrap,
+    atTrigger: false
+  });
+}
+async function askInputWithAtTrigger(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  return runWithBackSignal((signal) => dist_default10(opts, { signal }), { ...wrap, atTrigger: true });
+}
+async function askSelect(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  return runWithBackSignal((signal) => dist_default16(opts, { signal }), wrap);
+}
+async function askPassword(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  return runWithBackSignal((signal) => dist_default14(opts, { signal }), wrap);
+}
+async function askSearch(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  return runWithBackSignal((signal) => dist_default15(opts, { signal }), wrap);
+}
+function handlePromptError(err, cleanup) {
+  cleanup?.();
+  if (err instanceof ExitPromptError) {
+    console.log(import_picocolors2.default.dim("\nCancelled.\n"));
+    throw new CancelledError();
+  }
+  if (err instanceof AbortPromptError && !isBackAbort(err)) {
+    console.log(import_picocolors2.default.dim("\nCancelled.\n"));
+    throw new CancelledError();
+  }
+  throw err;
+}
+var import_picocolors2, BACK, AT_TRIGGER, BackError, AtTriggerError, FOOTER_HINT, FIRST_STEP_NO_BACK, CancelledError;
+var init_prompt = __esm({
+  "src/utils/prompt.ts"() {
+    "use strict";
+    init_dist5();
+    init_dist17();
+    import_picocolors2 = __toESM(require_picocolors(), 1);
+    BACK = Symbol("__BACK__");
+    AT_TRIGGER = Symbol("__AT_TRIGGER__");
+    BackError = class extends Error {
+      constructor() {
+        super("__BACK__");
+        this.name = "BackError";
+      }
+    };
+    AtTriggerError = class extends Error {
+      constructor() {
+        super("__AT_TRIGGER__");
+        this.name = "AtTriggerError";
+      }
+    };
+    FOOTER_HINT = import_picocolors2.default.dim("  (esc to go back \xB7 ctrl+c to cancel)");
+    FIRST_STEP_NO_BACK = import_picocolors2.default.dim("  (nothing to go back to)");
+    CancelledError = class extends Error {
+      constructor() {
+        super("__CANCELLED__");
+        this.name = "CancelledError";
+      }
+    };
+  }
+});
+
 // src/utils/fs.ts
 var fs_exports = {};
 __export(fs_exports, {
@@ -67836,10 +67977,10 @@ async function printPhaseArtifacts(taskKey, phaseName) {
   const artifactPath = join19(runDir, `${phaseName}.md`);
   const lines = [];
   if (existsSync18(artifactPath)) {
-    lines.push(`  Artifact: ${import_picocolors2.default.cyan(artifactPath)}`);
+    lines.push(`  Artifact: ${import_picocolors3.default.cyan(artifactPath)}`);
   }
   if (existsSync18(logPath)) {
-    lines.push(`  Log:      ${import_picocolors2.default.dim(logPath)}`);
+    lines.push(`  Log:      ${import_picocolors3.default.dim(logPath)}`);
   }
   if (lines.length > 0) {
     console.log(lines.join("\n"));
@@ -67851,8 +67992,8 @@ function printTaskSummary(meta3) {
   const endMs = meta3.updatedAt;
   const durationStr = formatDuration(endMs - startMs);
   console.log("");
-  console.log(import_picocolors2.default.bold(import_picocolors2.default.green(`\u2713 Task ${meta3.taskKey} complete`)) + import_picocolors2.default.dim(`  (${durationStr})`));
-  console.log(import_picocolors2.default.dim("\u2500".repeat(60)));
+  console.log(import_picocolors3.default.bold(import_picocolors3.default.green(`\u2713 Task ${meta3.taskKey} complete`)) + import_picocolors3.default.dim(`  (${durationStr})`));
+  console.log(import_picocolors3.default.dim("\u2500".repeat(60)));
   const rows = [
     ["Summary", meta3.trackerSummary],
     ["Status", meta3.status]
@@ -67870,7 +68011,7 @@ function printTaskSummary(meta3) {
     console.log(`  ${k.padEnd(pad)}  ${v}`);
   }
   console.log("");
-  console.log(import_picocolors2.default.bold("  Artifacts"));
+  console.log(import_picocolors3.default.bold("  Artifacts"));
   let any2 = false;
   for (const phase of PHASE_FILES) {
     const md = join19(runDir, `${phase}.md`);
@@ -67879,15 +68020,15 @@ function printTaskSummary(meta3) {
     const hasLog = existsSync18(log);
     if (!hasMd && !hasLog) continue;
     any2 = true;
-    console.log(`    ${import_picocolors2.default.cyan(phase)}`);
+    console.log(`    ${import_picocolors3.default.cyan(phase)}`);
     if (hasMd) console.log(`      artifact: ${md}`);
-    if (hasLog) console.log(`      log:      ${import_picocolors2.default.dim(log)}`);
+    if (hasLog) console.log(`      log:      ${import_picocolors3.default.dim(log)}`);
   }
   if (!any2) {
-    console.log(import_picocolors2.default.dim(`    (no artifacts found in ${runDir})`));
+    console.log(import_picocolors3.default.dim(`    (no artifacts found in ${runDir})`));
   }
   console.log("");
-  console.log(import_picocolors2.default.dim(`  Run directory: ${runDir}`));
+  console.log(import_picocolors3.default.dim(`  Run directory: ${runDir}`));
   console.log("");
 }
 function formatDuration(ms) {
@@ -67900,11 +68041,11 @@ function formatDuration(ms) {
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m`;
 }
-var import_picocolors2, PHASE_FILES;
+var import_picocolors3, PHASE_FILES;
 var init_summary = __esm({
   "src/cli/summary.ts"() {
     "use strict";
-    import_picocolors2 = __toESM(require_picocolors(), 1);
+    import_picocolors3 = __toESM(require_picocolors(), 1);
     init_defaults();
     PHASE_FILES = ["planning", "implementation", "review"];
   }
@@ -67921,7 +68062,7 @@ function resolveHooks(point, config2, projectConfig) {
 async function runHook(point, context, config2, projectConfig) {
   const hooks = resolveHooks(point, config2, projectConfig);
   if (hooks.length === 0) return { ok: true };
-  console.log(import_picocolors3.default.dim(`[hook ${point}] running ${hooks.length} command(s)...`));
+  console.log(import_picocolors4.default.dim(`[hook ${point}] running ${hooks.length} command(s)...`));
   for (const entry of hooks) {
     const cmd = typeof entry === "string" ? entry : entry.run;
     const nonBlocking = typeof entry === "object" && entry.non_blocking === true;
@@ -67936,24 +68077,24 @@ async function runHook(point, context, config2, projectConfig) {
           BODE_WORKDIR: context.workdir
         }
       });
-      console.log(import_picocolors3.default.dim(`  \u2713 ${cmd}`));
+      console.log(import_picocolors4.default.dim(`  \u2713 ${cmd}`));
     } catch (err) {
       const error52 = err instanceof Error ? err : new Error(String(err));
       if (nonBlocking) {
-        console.warn(import_picocolors3.default.yellow(`  \u26A0 ${cmd}  (non-blocking, continuing)`));
+        console.warn(import_picocolors4.default.yellow(`  \u26A0 ${cmd}  (non-blocking, continuing)`));
         continue;
       }
-      console.error(import_picocolors3.default.red(`  \u2717 ${cmd}`));
+      console.error(import_picocolors4.default.red(`  \u2717 ${cmd}`));
       return { ok: false, failedCommand: cmd, error: error52 };
     }
   }
   return { ok: true };
 }
-var import_picocolors3, execFileAsync3;
+var import_picocolors4, execFileAsync3;
 var init_hooks = __esm({
   "src/orchestrator/hooks.ts"() {
     "use strict";
-    import_picocolors3 = __toESM(require_picocolors(), 1);
+    import_picocolors4 = __toESM(require_picocolors(), 1);
     execFileAsync3 = promisify3(execFile3);
   }
 });
@@ -70843,9 +70984,9 @@ async function advancePhase(taskKey, config2, tracker, options) {
     options.projectConfig
   );
   if (!transitionResult.ok) {
-    console.warn(import_picocolors4.default.yellow(`[bode] Tracker transition skipped: ${transitionResult.error.message}`));
+    console.warn(import_picocolors5.default.yellow(`[bode] Tracker transition skipped: ${transitionResult.error.message}`));
     console.warn(
-      import_picocolors4.default.dim(
+      import_picocolors5.default.dim(
         "  Configure tracker transitions in your project YAML (or global config) to match your workflow."
       )
     );
@@ -70901,7 +71042,7 @@ ${phaseResult.error.message}`
       );
       if (!postHook.ok) {
         console.warn(
-          import_picocolors4.default.yellow(`[hook ${postPoint}] failed: ${postHook.failedCommand} \u2014 continuing.`)
+          import_picocolors5.default.yellow(`[hook ${postPoint}] failed: ${postHook.failedCommand} \u2014 continuing.`)
         );
       }
     }
@@ -70953,7 +71094,7 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, tracker, options)
       )
     };
   }
-  console.log(import_picocolors4.default.dim("Handing off to AI to open the pull request (with conflict check)..."));
+  console.log(import_picocolors5.default.dim("Handing off to AI to open the pull request (with conflict check)..."));
   const issueResult = await tracker.fetchTask(taskKey, options.signal);
   const summary = issueResult.ok ? issueResult.value.summary : meta3.trackerSummary;
   const { createPullRequestViaAI: createPullRequestViaAI2 } = await Promise.resolve().then(() => (init_pr_creator(), pr_creator_exports));
@@ -70971,7 +71112,7 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, tracker, options)
     dangerousBypass: options.dangerousBypass ?? false
   });
   if (!prResult.ok) {
-    console.error(import_picocolors4.default.red(`PR creation failed: ${prResult.error.message}`));
+    console.error(import_picocolors5.default.red(`PR creation failed: ${prResult.error.message}`));
     return prResult;
   }
   const updatedMeta = {
@@ -70987,10 +71128,10 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, tracker, options)
     const mergeTransResult = await tracker.setStatus(taskKey, mergeTransition);
     if (!mergeTransResult.ok) {
       console.warn(
-        import_picocolors4.default.yellow(`[bode] Tracker transition skipped: ${mergeTransResult.error.message}`)
+        import_picocolors5.default.yellow(`[bode] Tracker transition skipped: ${mergeTransResult.error.message}`)
       );
       console.warn(
-        import_picocolors4.default.dim(
+        import_picocolors5.default.dim(
           "  Configure tracker transitions (awaiting_merge) in your project YAML to match your workflow."
         )
       );
@@ -71002,7 +71143,7 @@ async function advanceToAwaitingMerge(taskKey, meta3, config2, tracker, options)
     `**[Bode PR]** Created: ${prResult.value.url}
 Branch: \`${branch}\` \u2192 \`${baseBranch}\``
   );
-  console.log(import_picocolors4.default.green(`PR created: ${prResult.value.url}`));
+  console.log(import_picocolors5.default.green(`PR created: ${prResult.value.url}`));
   return { ok: true, value: { kind: "pr-created", meta: updatedMeta, prUrl: prResult.value.url } };
 }
 async function transitionForPhase(taskKey, status, tracker, config2, projectConfig) {
@@ -71085,7 +71226,7 @@ function formatDuration2(ms) {
   const remainingSeconds = seconds % 60;
   return `${minutes}m ${remainingSeconds}s`;
 }
-var import_picocolors4;
+var import_picocolors5;
 var init_engine = __esm({
   "src/orchestrator/engine.ts"() {
     "use strict";
@@ -71100,7 +71241,7 @@ var init_engine = __esm({
     init_summary();
     init_phase();
     init_hooks();
-    import_picocolors4 = __toESM(require_picocolors(), 1);
+    import_picocolors5 = __toESM(require_picocolors(), 1);
     init_ora();
   }
 });
@@ -71316,172 +71457,37 @@ async function abortRun(taskKey) {
 }
 async function abortAction(taskKey, options) {
   if (!options.yes) {
-    console.log(import_picocolors5.default.yellow(`Are you sure you want to abort ${taskKey}? Use --yes to confirm.`));
+    console.log(import_picocolors6.default.yellow(`Are you sure you want to abort ${taskKey}? Use --yes to confirm.`));
     return;
   }
   const result = await abortRun(taskKey);
   if (!result.ok) {
-    console.error(import_picocolors5.default.red(result.error.message));
+    console.error(import_picocolors6.default.red(result.error.message));
     process.exit(1);
   }
   const metaR = await loadRunMeta(taskKey);
   const meta3 = metaR.ok ? metaR.value : null;
-  console.log(import_picocolors5.default.green(`Task ${taskKey} aborted.`));
-  console.log(import_picocolors5.default.dim(`Run data preserved at ${getRunDir(taskKey)}`));
+  console.log(import_picocolors6.default.green(`Task ${taskKey} aborted.`));
+  console.log(import_picocolors6.default.dim(`Run data preserved at ${getRunDir(taskKey)}`));
   if (meta3?.branch) {
     console.log("");
     console.log(
-      import_picocolors5.default.yellow(
-        `Branch ${import_picocolors5.default.bold(meta3.branch)} may still exist locally and/or on origin. Clean up with:`
+      import_picocolors6.default.yellow(
+        `Branch ${import_picocolors6.default.bold(meta3.branch)} may still exist locally and/or on origin. Clean up with:`
       )
     );
-    console.log(import_picocolors5.default.dim(`  git checkout ${meta3.baseBranch ?? "main"}`));
-    console.log(import_picocolors5.default.dim(`  git branch -D ${meta3.branch}`));
-    console.log(import_picocolors5.default.dim(`  git push origin --delete ${meta3.branch}`));
+    console.log(import_picocolors6.default.dim(`  git checkout ${meta3.baseBranch ?? "main"}`));
+    console.log(import_picocolors6.default.dim(`  git branch -D ${meta3.branch}`));
+    console.log(import_picocolors6.default.dim(`  git push origin --delete ${meta3.branch}`));
   }
 }
-var import_picocolors5;
+var import_picocolors6;
 var init_abort = __esm({
   "src/cli/actions/abort.ts"() {
     "use strict";
     init_run_meta();
     init_defaults();
-    import_picocolors5 = __toESM(require_picocolors(), 1);
-  }
-});
-
-// src/utils/prompt.ts
-function createBackSignal(options = {}) {
-  const ac = new AbortController();
-  let escTimer = null;
-  function onData(chunk) {
-    if (options.atTrigger && chunk.length === 1 && chunk[0] === 64) {
-      ac.abort(new AtTriggerError());
-      cleanup();
-      return;
-    }
-    if (chunk.length === 1 && chunk[0] === 27) {
-      if (escTimer) clearTimeout(escTimer);
-      escTimer = setTimeout(() => {
-        escTimer = null;
-        ac.abort(new BackError());
-        cleanup();
-      }, 60);
-    } else if (escTimer) {
-      clearTimeout(escTimer);
-      escTimer = null;
-    }
-  }
-  process.stdin.on("data", onData);
-  function cleanup() {
-    process.stdin.removeListener("data", onData);
-    if (escTimer) {
-      clearTimeout(escTimer);
-      escTimer = null;
-    }
-  }
-  return { signal: ac.signal, cleanup };
-}
-function printFooterHint(firstStep) {
-  if (!firstStep) console.log(FOOTER_HINT);
-}
-async function runWithBackSignal(fn, opts) {
-  while (true) {
-    const { signal, cleanup } = createBackSignal(opts.atTrigger ? { atTrigger: true } : {});
-    try {
-      return await fn(signal);
-    } catch (err) {
-      cleanup();
-      if (isBackAbort(err)) {
-        if (opts.firstStep) {
-          console.log(FIRST_STEP_NO_BACK);
-          continue;
-        }
-        return BACK;
-      }
-      if (isAtTriggerAbort(err)) return AT_TRIGGER;
-      throw err;
-    } finally {
-      cleanup();
-    }
-  }
-}
-function isAtTriggerAbort(err) {
-  if (err instanceof AtTriggerError) return true;
-  if (err instanceof AbortPromptError) {
-    const cause = err.cause;
-    if (cause instanceof AtTriggerError) return true;
-    return err.message.includes("__AT_TRIGGER__");
-  }
-  return false;
-}
-function isBackAbort(err) {
-  if (err instanceof BackError) return true;
-  if (err instanceof AbortPromptError) {
-    const cause = err.cause;
-    if (cause instanceof BackError) return true;
-    return err.message.includes("__BACK__");
-  }
-  return false;
-}
-async function askInput(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
-  return runWithBackSignal((signal) => dist_default10(opts, { signal }), {
-    ...wrap,
-    atTrigger: false
-  });
-}
-async function askInputWithAtTrigger(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
-  return runWithBackSignal((signal) => dist_default10(opts, { signal }), { ...wrap, atTrigger: true });
-}
-async function askSelect(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
-  return runWithBackSignal((signal) => dist_default16(opts, { signal }), wrap);
-}
-async function askPassword(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
-  return runWithBackSignal((signal) => dist_default14(opts, { signal }), wrap);
-}
-async function askSearch(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
-  return runWithBackSignal((signal) => dist_default15(opts, { signal }), wrap);
-}
-function handlePromptError(err, cleanup) {
-  cleanup?.();
-  if (err instanceof ExitPromptError) {
-    console.log(import_picocolors6.default.dim("\nCancelled.\n"));
-    process.exit(0);
-  }
-  if (err instanceof AbortPromptError && !isBackAbort(err)) {
-    console.log(import_picocolors6.default.dim("\nCancelled.\n"));
-    process.exit(0);
-  }
-  throw err;
-}
-var import_picocolors6, BACK, AT_TRIGGER, BackError, AtTriggerError, FOOTER_HINT, FIRST_STEP_NO_BACK;
-var init_prompt = __esm({
-  "src/utils/prompt.ts"() {
-    "use strict";
-    init_dist5();
-    init_dist17();
     import_picocolors6 = __toESM(require_picocolors(), 1);
-    BACK = Symbol("__BACK__");
-    AT_TRIGGER = Symbol("__AT_TRIGGER__");
-    BackError = class extends Error {
-      constructor() {
-        super("__BACK__");
-        this.name = "BackError";
-      }
-    };
-    AtTriggerError = class extends Error {
-      constructor() {
-        super("__AT_TRIGGER__");
-        this.name = "AtTriggerError";
-      }
-    };
-    FOOTER_HINT = import_picocolors6.default.dim("  (esc to go back \xB7 ctrl+c to cancel)");
-    FIRST_STEP_NO_BACK = import_picocolors6.default.dim("  (nothing to go back to)");
   }
 });
 
@@ -80898,6 +80904,33 @@ async function loadInitialState(options = {}) {
 
 // src/tui/dispatcher.ts
 var import_picocolors31 = __toESM(require_picocolors(), 1);
+init_prompt();
+var InterceptedExitError = class extends Error {
+  constructor(code) {
+    super(`process.exit(${code}) intercepted`);
+    this.code = code;
+    this.name = "InterceptedExitError";
+  }
+};
+async function runActionGuarded(invoke) {
+  const originalExit = process.exit.bind(process);
+  process.exit = ((code) => {
+    const n = typeof code === "number" ? code : code == null ? 0 : Number(code);
+    throw new InterceptedExitError(Number.isFinite(n) ? n : 0);
+  });
+  try {
+    const code = await invoke();
+    return { kind: code === 0 ? "ok" : "error", exitCode: code };
+  } catch (error52) {
+    if (error52 instanceof InterceptedExitError) {
+      return { kind: error52.code === 0 ? "ok" : "error", exitCode: error52.code };
+    }
+    if (error52 instanceof CancelledError) return { kind: "ok", exitCode: 0 };
+    return { kind: "error", exitCode: 1, error: error52 };
+  } finally {
+    process.exit = originalExit;
+  }
+}
 var TICKET_KEY_RE2 = /^[A-Z][A-Z0-9_]*-\d+$/;
 function tokenize3(line) {
   const tokens = [];
@@ -81202,22 +81235,14 @@ async function dispatch(line) {
       else clearScreen();
       return { kind: "ok", exitCode: 0 };
     case "subcommand":
-      try {
-        const code = await runRoute(decision.name, {
+      return runActionGuarded(
+        () => runRoute(decision.name, {
           tokens: [decision.name, ...decision.parsed.tokens],
           options: decision.parsed.options
-        });
-        return { kind: code === 0 ? "ok" : "error", exitCode: code };
-      } catch (error52) {
-        return { kind: "error", exitCode: 1, error: error52 };
-      }
+        })
+      );
     case "fast":
-      try {
-        const code = await fallbackToFast(decision.line, decision.options);
-        return { kind: "ok", exitCode: code };
-      } catch (error52) {
-        return { kind: "error", exitCode: 1, error: error52 };
-      }
+      return runActionGuarded(() => fallbackToFast(decision.line, decision.options));
   }
 }
 

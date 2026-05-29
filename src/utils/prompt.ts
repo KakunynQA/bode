@@ -197,18 +197,33 @@ export async function askSearch<T>(
 }
 
 /**
+ * Thrown by `handlePromptError` when a Ctrl+C or non-back AbortPromptError
+ * escapes a wrapper helper. The TUI dispatcher catches this and keeps the
+ * shell alive instead of exiting the whole process.
+ */
+export class CancelledError extends Error {
+	constructor() {
+		super('__CANCELLED__');
+		this.name = 'CancelledError';
+	}
+}
+
+/**
  * Handles errors that escape the wrapper helpers — primarily Ctrl+C
- * (`ExitPromptError`). On Ctrl+C we print "Cancelled." and exit cleanly.
+ * (`ExitPromptError`). On Ctrl+C we print "Cancelled." and throw a
+ * CancelledError so the TUI shell can recover. In one-shot use the
+ * top-level catch in src/index.ts (or the caller's own error handling)
+ * decides what to do with it.
  */
 export function handlePromptError(err: unknown, cleanup?: () => void): void {
 	cleanup?.();
 	if (err instanceof ExitPromptError) {
 		console.log(pc.dim('\nCancelled.\n'));
-		process.exit(0);
+		throw new CancelledError();
 	}
 	if (err instanceof AbortPromptError && !isBackAbort(err)) {
 		console.log(pc.dim('\nCancelled.\n'));
-		process.exit(0);
+		throw new CancelledError();
 	}
 	throw err;
 }

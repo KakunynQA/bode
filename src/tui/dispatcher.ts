@@ -1,5 +1,40 @@
 import pc from 'picocolors';
+import { CancelledError } from '~/utils/prompt.ts';
 import { ALL_SUBCOMMANDS, KEY_REQUIRED_SUBCOMMANDS, clearScreen, renderHelp } from './builtins.ts';
+
+/**
+ * Thrown by the monkey-patched `process.exit` during action execution so the
+ * dispatcher can return the would-be exit code without actually killing the
+ * shell. Lets us survive the 70+ `process.exit(1)` calls scattered across the
+ * existing action files without touching them one by one.
+ */
+class InterceptedExitError extends Error {
+	constructor(public code: number) {
+		super(`process.exit(${code}) intercepted`);
+		this.name = 'InterceptedExitError';
+	}
+}
+
+async function runActionGuarded(invoke: () => Promise<number>): Promise<DispatchResult> {
+	const originalExit = process.exit.bind(process);
+	type ExitFn = typeof process.exit;
+	process.exit = ((code?: number | string | null) => {
+		const n = typeof code === 'number' ? code : code == null ? 0 : Number(code);
+		throw new InterceptedExitError(Number.isFinite(n) ? n : 0);
+	}) as ExitFn;
+	try {
+		const code = await invoke();
+		return { kind: code === 0 ? 'ok' : 'error', exitCode: code };
+	} catch (error) {
+		if (error instanceof InterceptedExitError) {
+			return { kind: error.code === 0 ? 'ok' : 'error', exitCode: error.code };
+		}
+		if (error instanceof CancelledError) return { kind: 'ok', exitCode: 0 };
+		return { kind: 'error', exitCode: 1, error: error as Error };
+	} finally {
+		process.exit = originalExit;
+	}
+}
 
 const TICKET_KEY_RE = /^[A-Z][A-Z0-9_]*-\d+$/;
 
@@ -348,21 +383,13 @@ export async function dispatch(line: string): Promise<DispatchResult> {
 			else clearScreen();
 			return { kind: 'ok', exitCode: 0 };
 		case 'subcommand':
-			try {
-				const code = await runRoute(decision.name, {
+			return runActionGuarded(() =>
+				runRoute(decision.name, {
 					tokens: [decision.name, ...decision.parsed.tokens],
 					options: decision.parsed.options,
-				});
-				return { kind: code === 0 ? 'ok' : 'error', exitCode: code };
-			} catch (error) {
-				return { kind: 'error', exitCode: 1, error: error as Error };
-			}
+				})
+			);
 		case 'fast':
-			try {
-				const code = await fallbackToFast(decision.line, decision.options);
-				return { kind: 'ok', exitCode: code };
-			} catch (error) {
-				return { kind: 'error', exitCode: 1, error: error as Error };
-			}
+			return runActionGuarded(() => fallbackToFast(decision.line, decision.options));
 	}
 }
