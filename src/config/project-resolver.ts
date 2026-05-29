@@ -168,18 +168,19 @@ function projectConfigToYaml(p: ProjectConfig): string {
 		if (p.jira.default_project) lines.push(`  default_project: ${p.jira.default_project}`);
 	}
 
-	if (p.context_paths?.length) {
-		lines.push('context_paths:');
-		for (const cp of p.context_paths) {
-			lines.push(`  - ${cp}`);
-		}
-	}
-
 	if (p.context_files?.length) {
 		lines.push('context_files:');
 		for (const cf of p.context_files) {
 			lines.push(`  - ${cf}`);
 		}
+	}
+
+	if (p.project_context_path) {
+		lines.push(`project_context_path: ${p.project_context_path}`);
+	}
+
+	if (p.context_investigated_at) {
+		lines.push(`context_investigated_at: ${p.context_investigated_at}`);
 	}
 
 	if (p.phases) {

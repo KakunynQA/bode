@@ -47,15 +47,28 @@ export async function gatherContext(
 ): Promise<{ agentsMd: string | undefined; fileTree: string | undefined }> {
 	const workdir = projectConfig.workdir;
 
+	const projectContext = await readProjectContextFile(projectConfig.project_context_path);
 	const agentsMd = await readAgentsMd(workdir, projectConfig.context_files);
 	const learnedContext = await readLearnedContext(workdir);
 	const memory = projectConfig.memory?.enabled ? await readProjectMemory(workdir) : undefined;
-	const fileTree = await generateFileTree(workdir, projectConfig.context_paths);
+	const fileTree = await generateFileTree(workdir);
 
 	return {
-		agentsMd: [learnedContext, memory, agentsMd].filter(Boolean).join('\n\n') || undefined,
+		agentsMd:
+			[projectContext, learnedContext, memory, agentsMd].filter(Boolean).join('\n\n') || undefined,
 		fileTree,
 	};
+}
+
+async function readProjectContextFile(path: string | undefined): Promise<string | undefined> {
+	if (!path) return undefined;
+	if (!existsSync(path)) return undefined;
+	try {
+		const content = await readFile(path, 'utf-8');
+		return content.trim() ? `### PROJECT_CONTEXT.md\n\n${content.trim()}` : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 async function readLearnedContext(workdir: string): Promise<string | undefined> {
@@ -93,24 +106,10 @@ async function readAgentsMd(
 	return parts.length > 0 ? parts.join('\n\n') : undefined;
 }
 
-async function generateFileTree(
-	workdir: string,
-	contextPaths: string[] | undefined
-): Promise<string | undefined> {
-	const paths = contextPaths ?? ['.'];
+async function generateFileTree(workdir: string): Promise<string | undefined> {
 	const lines: string[] = [];
-	let count = 0;
-
-	for (const basePath of paths) {
-		const fullBase = join(workdir, basePath);
-		if (!existsSync(fullBase)) continue;
-
-		await walkDir(fullBase, workdir, lines, 0, (ref) => {
-			count = ref;
-		});
-		if (count >= FILE_TREE_MAX_ENTRIES) break;
-	}
-
+	if (!existsSync(workdir)) return undefined;
+	await walkDir(workdir, workdir, lines, 0, () => undefined);
 	return lines.length > 0 ? lines.join('\n') : undefined;
 }
 

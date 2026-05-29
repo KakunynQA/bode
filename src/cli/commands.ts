@@ -65,9 +65,17 @@ export function createCommands(program: Command): void {
 	program
 		.command('setup-project')
 		.description('Create or edit a project config (workdir, context, VCS, Jira overrides)')
-		.action(async () => {
+		.option(
+			'--shared-in-repo',
+			'Write PROJECT_CONTEXT.md into the workdir (committable, team-shared) instead of ~/.bode/projects/<name>/'
+		)
+		.option(
+			'--refresh-context',
+			'Re-run only the project context investigation step on an existing project'
+		)
+		.action(async (options: { sharedInRepo?: boolean; refreshContext?: boolean }) => {
 			const { setupAction } = await import('./actions/setup.ts');
-			await setupAction('project');
+			await setupAction('project', options);
 		});
 
 	program

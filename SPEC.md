@@ -289,13 +289,16 @@ jira:
 
 vcs_provider: github
 
-context_paths:
-  - .
-  - ../grid-ui/src
-
 context_files:
   - AGENTS.md
   - CLAUDE.md
+
+# Absolute path to the generated PROJECT_CONTEXT.md. Set by
+# `bode setup-project` when investigation is opted into. Either lives at
+# ~/.bode/projects/<name>/PROJECT_CONTEXT.md (default) or in the workdir
+# when --shared-in-repo was passed.
+project_context_path: /home/user/.bode/projects/grid/PROJECT_CONTEXT.md
+context_investigated_at: 2026-05-29T12:34:56.000Z
 
 phases:
   implementation:
@@ -369,7 +372,7 @@ hooks:
 
 Each phase follows the same pattern (in `src/orchestrator/phase-runner.ts`):
 
-1. **Preflight** (`src/orchestrator/preflight.ts`): verify `workdir`, every `context_paths[]`, and every `repos[].workdir` is readable. Abort with structured error if not.
+1. **Preflight** (`src/orchestrator/preflight.ts`): verify `workdir` and every `repos[].workdir` is readable. Abort with structured error if not. (`context_paths` is no longer a preflight target — the field is deprecated since v1.3.0.)
 2. **Pre-hooks**: run `pre_<phase>` shell commands in order. Non-zero exit aborts unless `non_blocking: true`.
 3. **Tracker transition**: `setStatus` → configured state (see `src/config/transitions.ts`).
 4. **Tracker comment**: posts "Phase started" message.
@@ -386,11 +389,12 @@ Each phase follows the same pattern (in `src/orchestrator/phase-runner.ts`):
 
 `src/config/context.ts` builds the context block injected into the prompt:
 
-1. Reads `<repo>/.bode/context.md` when present (`bode learn` output).
-2. Reads every `context_files` entry relative to `workdir`.
-3. Generates a file tree for each `context_paths[]` (excludes `node_modules/`, `.git/`, `dist/`).
-4. Includes prior phase artifacts (planning.md → plan-review → implementation → review).
-5. Wraps untrusted tracker content in `<untrusted>` markers.
+1. Reads `project_context_path` when set and the file exists (`PROJECT_CONTEXT.md` from `bode setup-project` investigation).
+2. Reads `<repo>/.bode/context.md` when present (`bode learn` output).
+3. Reads every `context_files` entry relative to `workdir`.
+4. Generates a file tree of the workdir (excludes `node_modules/`, `.git/`, `dist/`, `.local/`, `.bode/`).
+5. Includes prior phase artifacts (planning.md → plan-review → implementation → review).
+6. Wraps untrusted tracker content in `<untrusted>` markers.
 
 ### CLI invocation matrix
 
@@ -596,7 +600,7 @@ If two devs run `bode start` on the same task simultaneously, second one detects
 | Network drop mid-phase | Local log preserved. User can `bode continue` to retry or `bode abort` to cancel. |
 | Conflicting labels | Exit with diagnostic. User runs `bode abort` to reset. |
 | Branch conflict with base | Stop before PR creation. Warn user to resolve manually. |
-| Workdir / context_paths / repos[] unreadable | Preflight aborts the phase with structured error listing every offender (v0.12.0). |
+| Workdir / repos[] unreadable | Preflight aborts the phase with structured error listing every offender (v0.12.0; `context_paths` deprecated in v1.3.0). |
 | AI session exits without writing the artifact | Bode shows a yellow warning and asks `[retry \| continue \| abort]` (v0.13.0). |
 | Hook command exits non-zero | Phase aborts unless hook has `non_blocking: true`. |
 | Two concurrent runs on same task | Second invocation refuses on the lockfile (v0.19.0). |

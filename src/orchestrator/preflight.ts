@@ -1,13 +1,13 @@
 import { access } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { existsSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { join } from 'node:path';
 import type { ProjectConfig } from '~/config/schema.ts';
 import type { Result } from '~/types/result.ts';
 
 export type PreflightIssue = {
 	path: string;
-	source: 'workdir' | 'context_paths' | 'repos';
+	source: 'workdir' | 'repos';
 	reason: 'missing' | 'no-read';
 };
 
@@ -15,10 +15,6 @@ export type PreflightError = {
 	message: string;
 	issues: PreflightIssue[];
 };
-
-function resolveTarget(workdir: string, candidate: string): string {
-	return isAbsolute(candidate) ? candidate : join(workdir, candidate);
-}
 
 async function checkReadable(path: string): Promise<'ok' | 'missing' | 'no-read'> {
 	try {
@@ -39,9 +35,6 @@ export async function preflightProjectPaths(
 	type Target = { path: string; source: PreflightIssue['source'] };
 	const targets: Target[] = [{ path: projectConfig.workdir, source: 'workdir' }];
 
-	for (const p of projectConfig.context_paths ?? []) {
-		targets.push({ path: resolveTarget(projectConfig.workdir, p), source: 'context_paths' });
-	}
 	for (const r of projectConfig.repos ?? []) {
 		targets.push({ path: r.workdir, source: 'repos' });
 	}
