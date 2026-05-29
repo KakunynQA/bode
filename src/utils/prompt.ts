@@ -7,6 +7,7 @@ import pc from 'picocolors';
  * `runWizard` decrements its cursor and re-runs the previous step.
  */
 export const BACK = Symbol('__BACK__');
+export const AT_TRIGGER = Symbol('__AT_TRIGGER__');
 
 /**
  * Thrown by wizard prompts when the user presses single ESC. Caught by the
@@ -20,6 +21,13 @@ export class BackError extends Error {
 	}
 }
 
+export class AtTriggerError extends Error {
+	constructor() {
+		super('__AT_TRIGGER__');
+		this.name = 'AtTriggerError';
+	}
+}
+
 const FOOTER_HINT = pc.dim('  (esc to go back · ctrl+c to cancel)');
 const FIRST_STEP_NO_BACK = pc.dim('  (nothing to go back to)');
 
@@ -30,6 +38,7 @@ type WrapOptions = {
 	 * also suppressed (no "esc to go back" since back is unavailable).
 	 */
 	firstStep?: boolean;
+	atTrigger?: boolean;
 };
 
 /**
@@ -40,11 +49,19 @@ type WrapOptions = {
  * Ctrl+C is handled by inquirer itself (ExitPromptError) — we don't intercept
  * it here. The terminal's SIGINT also propagates normally.
  */
-function createBackSignal(): { signal: AbortSignal; cleanup: () => void } {
+function createBackSignal(options: { atTrigger?: boolean } = {}): {
+	signal: AbortSignal;
+	cleanup: () => void;
+} {
 	const ac = new AbortController();
 	let escTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function onData(chunk: Buffer): void {
+		if (options.atTrigger && chunk.length === 1 && chunk[0] === 0x40) {
+			ac.abort(new AtTriggerError());
+			cleanup();
+			return;
+		}
 		if (chunk.length === 1 && chunk[0] === 0x1b) {
 			// Possible bare ESC. Wait 60ms — if no follow-up bytes arrive,
 			// it's a real ESC press, not the start of an arrow-key sequence
@@ -87,9 +104,9 @@ function printFooterHint(firstStep: boolean): void {
 async function runWithBackSignal<T>(
 	fn: (signal: AbortSignal) => Promise<T>,
 	opts: WrapOptions
-): Promise<T | typeof BACK> {
+): Promise<T | typeof BACK | typeof AT_TRIGGER> {
 	while (true) {
-		const { signal, cleanup } = createBackSignal();
+		const { signal, cleanup } = createBackSignal(opts.atTrigger ? { atTrigger: true } : {});
 		try {
 			return await fn(signal);
 		} catch (err) {
@@ -101,11 +118,22 @@ async function runWithBackSignal<T>(
 				}
 				return BACK;
 			}
+			if (isAtTriggerAbort(err)) return AT_TRIGGER;
 			throw err;
 		} finally {
 			cleanup();
 		}
 	}
+}
+
+function isAtTriggerAbort(err: unknown): boolean {
+	if (err instanceof AtTriggerError) return true;
+	if (err instanceof AbortPromptError) {
+		const cause = (err as AbortPromptError & { cause?: unknown }).cause;
+		if (cause instanceof AtTriggerError) return true;
+		return err.message.includes('__AT_TRIGGER__');
+	}
+	return false;
 }
 
 function isBackAbort(err: unknown): boolean {
@@ -128,7 +156,18 @@ export async function askInput(
 	wrap: WrapOptions = {}
 ): Promise<string | typeof BACK> {
 	printFooterHint(wrap.firstStep ?? false);
-	return runWithBackSignal((signal) => input(opts, { signal }), wrap);
+	return runWithBackSignal((signal) => input(opts, { signal }), {
+		...wrap,
+		atTrigger: false,
+	}) as Promise<string | typeof BACK>;
+}
+
+export async function askInputWithAtTrigger(
+	opts: InputOptions,
+	wrap: WrapOptions = {}
+): Promise<string | typeof BACK | typeof AT_TRIGGER> {
+	printFooterHint(wrap.firstStep ?? false);
+	return runWithBackSignal((signal) => input(opts, { signal }), { ...wrap, atTrigger: true });
 }
 
 export async function askSelect<T>(
@@ -136,7 +175,7 @@ export async function askSelect<T>(
 	wrap: WrapOptions = {}
 ): Promise<T | typeof BACK> {
 	printFooterHint(wrap.firstStep ?? false);
-	return runWithBackSignal((signal) => select(opts, { signal }), wrap);
+	return runWithBackSignal((signal) => select(opts, { signal }), wrap) as Promise<T | typeof BACK>;
 }
 
 export async function askPassword(
@@ -144,7 +183,9 @@ export async function askPassword(
 	wrap: WrapOptions = {}
 ): Promise<string | typeof BACK> {
 	printFooterHint(wrap.firstStep ?? false);
-	return runWithBackSignal((signal) => password(opts, { signal }), wrap);
+	return runWithBackSignal((signal) => password(opts, { signal }), wrap) as Promise<
+		string | typeof BACK
+	>;
 }
 
 export async function askSearch<T>(
@@ -152,7 +193,7 @@ export async function askSearch<T>(
 	wrap: WrapOptions = {}
 ): Promise<T | typeof BACK> {
 	printFooterHint(wrap.firstStep ?? false);
-	return runWithBackSignal((signal) => search(opts, { signal }), wrap);
+	return runWithBackSignal((signal) => search(opts, { signal }), wrap) as Promise<T | typeof BACK>;
 }
 
 /**

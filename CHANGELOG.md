@@ -67,6 +67,12 @@ keybinding hint). Every command is typed inside the shell without the
   Windows Terminal or the VS Code terminal.
 - Bundle grows from ~2.1 MB to ~3.4 MB because Ink and React are inlined.
 
+## [1.3.1] — 2026-05-29
+
+### Fixed
+
+- `setup-project` context file input now opens the fuzzy file picker immediately when `@` is typed, instead of requiring Enter after `@`.
+
 ## [1.3.0] — 2026-05-29
 
 Setup wizard overhaul. Single context-files question with `@` file picker and auto-detected defaults, optional AI-driven project context investigation written to `PROJECT_CONTEXT.md`, and uniform ESC=back / Ctrl+C=cancel keybindings across every prompt.
