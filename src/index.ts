@@ -29,4 +29,15 @@ if (!process.stdin.isTTY) {
 	process.exit(2);
 }
 
-await runShell();
+// Wrapped in a self-executing async function to dodge Node 22+'s spurious
+// "unsettled top-level await" diagnostic, which can fire mid-prompt when
+// the shell hands stdin to inquirer (the original top-level await stays
+// pending for the whole session, which Node's heuristic flags as a leak).
+void (async () => {
+	try {
+		await runShell();
+	} catch (error) {
+		console.error(pc.red((error as Error).message ?? String(error)));
+		process.exit(1);
+	}
+})();

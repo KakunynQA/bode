@@ -81282,7 +81282,14 @@ if (!process.stdin.isTTY) {
   );
   process.exit(2);
 }
-await runShell2();
+void (async () => {
+  try {
+    await runShell2();
+  } catch (error52) {
+    console.error(import_picocolors33.default.red(error52.message ?? String(error52)));
+    process.exit(1);
+  }
+})();
 /*! Bundled license information:
 
 react/cjs/react.production.min.js:
