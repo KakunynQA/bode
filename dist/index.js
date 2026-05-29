@@ -81256,13 +81256,20 @@ function printBanner(state) {
   console.log("");
 }
 async function renderShellOnce(state, lastExitCode) {
-  return new Promise((resolve) => {
-    const handleSubmit = (value) => {
-      instance.unmount();
-      resolve(value);
-    };
-    const instance = render_default((0, import_react24.createElement)(App2, { state, lastExitCode, onSubmit: handleSubmit }));
-  });
+  let submitted = "";
+  const instance = render_default(
+    (0, import_react24.createElement)(App2, {
+      state,
+      lastExitCode,
+      onSubmit: (value) => {
+        submitted = value;
+        instance.unmount();
+      }
+    })
+  );
+  await instance.waitUntilExit();
+  await new Promise((r) => setImmediate(r));
+  return submitted;
 }
 async function runShell2() {
   let lastExitCode = null;

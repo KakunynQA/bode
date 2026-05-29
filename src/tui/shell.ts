@@ -17,13 +17,26 @@ function printBanner(state: ShellState): void {
 }
 
 async function renderShellOnce(state: ShellState, lastExitCode: number | null): Promise<string> {
-	return new Promise((resolve) => {
-		const handleSubmit = (value: string): void => {
-			instance.unmount();
-			resolve(value);
-		};
-		const instance = render(createElement(App, { state, lastExitCode, onSubmit: handleSubmit }));
-	});
+	let submitted = '';
+	const instance = render(
+		createElement(App, {
+			state,
+			lastExitCode,
+			onSubmit: (value: string) => {
+				submitted = value;
+				instance.unmount();
+			},
+		})
+	);
+	// Wait for Ink to finish unmounting (raw-mode toggle, listener removal,
+	// stdin pause) before handing the terminal to the dispatcher / inquirer.
+	// Skipping this step left residual bytes / handlers around that inquirer
+	// interpreted as a Ctrl+C, instantly cancelling the first prompt.
+	await instance.waitUntilExit();
+	// Give Node one more tick so any pending stdin 'data' callbacks fire and
+	// drain before inquirer attaches its own listeners. Cheap insurance.
+	await new Promise((r) => setImmediate(r));
+	return submitted;
 }
 
 export async function runShell(): Promise<void> {
