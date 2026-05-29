@@ -1,8 +1,10 @@
 import { existsSync, statSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { parse as parseYaml } from 'yaml';
 import { loadConfig } from '~/config/loader.ts';
-import { resolveProject } from '~/config/project-resolver.ts';
+import { listProjects, loadProjectConfig } from '~/config/projects.ts';
+import { projectConfigSchema, type ProjectConfig } from '~/config/schema.ts';
 import { selectTracker, type TrackerKind } from '~/adapters/tracker/factory.ts';
 import { getRunsDir } from '~/config/defaults.ts';
 import type { RunMeta } from '~/storage/run-meta.ts';
@@ -25,6 +27,33 @@ export type ShellState = {
 	activeRun: ActiveRunSummary | null;
 };
 
+// Non-interactive lookup for the header. Never enters the inquirer
+// "Which project?" picker — when ambiguous, returns null and the header
+// shows "no project configured" instead of blocking the shell.
+async function readRepoLocalProject(cwd: string): Promise<ProjectConfig | null> {
+	let dir = cwd;
+	while (true) {
+		const candidate = join(dir, '.bode.yml');
+		if (existsSync(candidate)) {
+			try {
+				const raw = await readFile(candidate, 'utf-8');
+				const parsed = parseYaml(raw);
+				if (parsed && typeof parsed === 'object') {
+					const withDefaults = { workdir: dir, name: 'repo-local', ...parsed };
+					const result = projectConfigSchema.safeParse(withDefaults);
+					if (result.success) return result.data;
+				}
+			} catch {
+				// fall through
+			}
+			return null;
+		}
+		const parent = join(dir, '..');
+		if (parent === dir) return null;
+		dir = parent;
+	}
+}
+
 export async function resolveCurrentProject(
 	cwd: string = process.cwd()
 ): Promise<ResolvedProjectSummary | null> {
@@ -32,9 +61,28 @@ export async function resolveCurrentProject(
 		const configResult = await loadConfig(cwd);
 		if (!configResult.ok) return null;
 		const config = configResult.value;
-		const projectResult = await resolveProject(config, { cwd });
-		if (!projectResult.ok) return null;
-		const { projectConfig } = projectResult.value;
+
+		let projectConfig: ProjectConfig | null = await readRepoLocalProject(cwd);
+
+		if (!projectConfig) {
+			const named = config.defaults?.project;
+			if (named) {
+				const loaded = await loadProjectConfig(named);
+				if (loaded.ok && loaded.value) projectConfig = loaded.value;
+			}
+		}
+
+		if (!projectConfig) {
+			const projects = await listProjects();
+			if (projects.ok && projects.value.length === 1) {
+				const only = projects.value[0]!;
+				const loaded = await loadProjectConfig(only.name);
+				if (loaded.ok && loaded.value) projectConfig = loaded.value;
+			}
+		}
+
+		if (!projectConfig) return null;
+
 		const tracker = selectTracker({
 			workdir: projectConfig.workdir,
 			tracker: config.tracker,

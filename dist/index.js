@@ -51904,6 +51904,1522 @@ var init_loader = __esm({
   }
 });
 
+// src/config/projects.ts
+import { readdir } from "node:fs/promises";
+import { existsSync as existsSync5 } from "node:fs";
+import { join as join5 } from "node:path";
+import { readFile as readFile2 } from "node:fs/promises";
+async function listProjects() {
+  const dir = getProjectsDir();
+  if (!existsSync5(dir)) return { ok: true, value: [] };
+  try {
+    const files = await readdir(dir);
+    const projects = [];
+    for (const file2 of files) {
+      if (!file2.endsWith(".yml") && !file2.endsWith(".yaml")) continue;
+      const raw = await readFile2(join5(dir, file2), "utf-8");
+      const parsed = (0, import_yaml2.parse)(raw);
+      const validated = projectConfigSchema.safeParse(parsed);
+      if (validated.success) {
+        projects.push(validated.data);
+      }
+    }
+    return { ok: true, value: projects };
+  } catch (error52) {
+    return { ok: false, error: error52 };
+  }
+}
+async function loadProjectConfig(name) {
+  const dir = getProjectsDir();
+  for (const ext of [".yml", ".yaml"]) {
+    const path3 = join5(dir, `${name}${ext}`);
+    if (!existsSync5(path3)) continue;
+    try {
+      const raw = await readFile2(path3, "utf-8");
+      const parsed = (0, import_yaml2.parse)(raw);
+      const validated = projectConfigSchema.safeParse(parsed);
+      if (!validated.success) {
+        const errors = validated.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+        return { ok: false, error: new Error(`Invalid project config "${name}": ${errors}`) };
+      }
+      return { ok: true, value: validated.data };
+    } catch (error52) {
+      return { ok: false, error: error52 };
+    }
+  }
+  return { ok: true, value: null };
+}
+var import_yaml2;
+var init_projects = __esm({
+  "src/config/projects.ts"() {
+    "use strict";
+    import_yaml2 = __toESM(require_dist(), 1);
+    init_schema();
+    init_defaults();
+  }
+});
+
+// src/adapters/tracker/local.ts
+import { existsSync as existsSync6 } from "node:fs";
+import { mkdir, readFile as readFile3, writeFile } from "node:fs/promises";
+import { join as join6 } from "node:path";
+function parseLocalTask(raw) {
+  const match = raw.match(FRONTMATTER_RE);
+  if (!match || !match[1] || match[2] === void 0) {
+    return { ok: true, value: { frontmatter: {}, body: raw } };
+  }
+  try {
+    const fm = (0, import_yaml3.parse)(match[1]);
+    if (!fm || typeof fm !== "object") {
+      return { ok: true, value: { frontmatter: {}, body: match[2] } };
+    }
+    return { ok: true, value: { frontmatter: fm, body: match[2] } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
+  }
+}
+function serializeLocalTask(frontmatter, body) {
+  const fmYaml = (0, import_yaml3.stringify)(frontmatter).trimEnd();
+  const trimmedBody = body.trimStart();
+  return `---
+${fmYaml}
+---
+
+${trimmedBody}`;
+}
+var import_yaml3, LocalTrackerAdapter, FRONTMATTER_RE;
+var init_local = __esm({
+  "src/adapters/tracker/local.ts"() {
+    "use strict";
+    import_yaml3 = __toESM(require_dist(), 1);
+    LocalTrackerAdapter = class {
+      tasksDir;
+      constructor(workdir) {
+        this.tasksDir = join6(workdir, ".bode", "tasks");
+      }
+      taskPath(key) {
+        return join6(this.tasksDir, `${key}.md`);
+      }
+      async readTask(key) {
+        const path3 = this.taskPath(key);
+        if (!existsSync6(path3)) {
+          return {
+            ok: false,
+            error: new Error(
+              `Local task "${key}" not found at ${path3}. Create it manually or use \`bode new "<summary>"\` (coming in a future release).`
+            )
+          };
+        }
+        try {
+          const raw = await readFile3(path3, "utf-8");
+          const parsed = parseLocalTask(raw);
+          if (!parsed.ok) return parsed;
+          return { ok: true, value: parsed.value };
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
+        }
+      }
+      async writeTask(key, frontmatter, body) {
+        try {
+          await mkdir(this.tasksDir, { recursive: true });
+          const content = serializeLocalTask(frontmatter, body);
+          await writeFile(this.taskPath(key), content, "utf-8");
+          return { ok: true, value: void 0 };
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
+        }
+      }
+      async getIssue(key) {
+        const result = await this.readTask(key);
+        if (!result.ok) return result;
+        const { frontmatter, body } = result.value;
+        return {
+          ok: true,
+          value: {
+            key,
+            summary: frontmatter.summary ?? key,
+            description: body.trim(),
+            status: frontmatter.status ?? "pending",
+            issueType: frontmatter.type ?? "Task",
+            assignee: frontmatter.assignee ?? null,
+            labels: frontmatter.labels ?? [],
+            url: `file://${this.taskPath(key)}`
+          }
+        };
+      }
+      async addComment(key, body) {
+        const result = await this.readTask(key);
+        if (!result.ok) return result;
+        const { frontmatter, body: existingBody } = result.value;
+        const created = (/* @__PURE__ */ new Date()).toISOString();
+        const newBody = `${existingBody.trimEnd()}
+
+## Comment \u2014 ${created}
+
+${body.trim()}
+`;
+        frontmatter.updated = created;
+        const wr = await this.writeTask(key, frontmatter, newBody);
+        if (!wr.ok) return wr;
+        return {
+          ok: true,
+          value: { id: `local-${Date.now()}`, body, created }
+        };
+      }
+      async transitionStatus(key, transitionName) {
+        const result = await this.readTask(key);
+        if (!result.ok) return result;
+        const { frontmatter, body } = result.value;
+        frontmatter.status = transitionName;
+        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
+        return this.writeTask(key, frontmatter, body);
+      }
+      async addLabel(key, label) {
+        const result = await this.readTask(key);
+        if (!result.ok) return result;
+        const { frontmatter, body } = result.value;
+        const labels = new Set(frontmatter.labels ?? []);
+        labels.add(label);
+        frontmatter.labels = [...labels];
+        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
+        return this.writeTask(key, frontmatter, body);
+      }
+      async removeLabel(key, label) {
+        const result = await this.readTask(key);
+        if (!result.ok) return result;
+        const { frontmatter, body } = result.value;
+        frontmatter.labels = (frontmatter.labels ?? []).filter((l) => l !== label);
+        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
+        return this.writeTask(key, frontmatter, body);
+      }
+      async attachFile(_key, _filename, _content) {
+        return { ok: true, value: void 0 };
+      }
+      async getTransitions(_key) {
+        return {
+          ok: true,
+          value: [
+            { id: "pending", name: "Pending", toStatusName: "pending" },
+            { id: "planning", name: "In Progress", toStatusName: "planning" },
+            { id: "implementing", name: "In Progress", toStatusName: "implementing" },
+            { id: "reviewing", name: "In Progress", toStatusName: "reviewing" },
+            { id: "awaiting-merge", name: "Code Review", toStatusName: "awaiting-merge" },
+            { id: "done", name: "Done", toStatusName: "done" }
+          ]
+        };
+      }
+      /**
+       * Convenience for callers that want to create a brand-new local task
+       * (used by the upcoming `bode new` / `bode <prompt>` fast path).
+       */
+      async createTask(key, summary, options = {}) {
+        const now = (/* @__PURE__ */ new Date()).toISOString();
+        const frontmatter = {
+          summary,
+          status: "pending",
+          type: options.type ?? "Task",
+          labels: options.labels ?? [],
+          created: now,
+          updated: now
+        };
+        const body = options.description ?? `# ${summary}
+`;
+        const wr = await this.writeTask(key, frontmatter, body);
+        if (!wr.ok) return wr;
+        return this.getIssue(key);
+      }
+      // ─── v0.25.0 provider-neutral aliases ────────────────────────────────
+      async fetchTask(key) {
+        return this.getIssue(key);
+      }
+      async postComment(key, body) {
+        return this.addComment(key, body);
+      }
+      async setStatus(key, statusName) {
+        return this.transitionStatus(key, statusName);
+      }
+      async addTag(key, tag) {
+        return this.addLabel(key, tag);
+      }
+      async removeTag(key, tag) {
+        return this.removeLabel(key, tag);
+      }
+      async listStatuses(key) {
+        return this.getTransitions(key);
+      }
+    };
+    FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
+  }
+});
+
+// src/adapters/tracker/github-issues.ts
+import { execFile as execFile2 } from "node:child_process";
+import { promisify as promisify2 } from "node:util";
+function inferIssueType(labels) {
+  const lower = labels.map((l) => l.toLowerCase());
+  if (lower.includes("bug")) return "Bug";
+  if (lower.some((l) => l.includes("enhancement") || l.includes("feature"))) return "Story";
+  if (lower.some((l) => l.includes("chore") || l.includes("refactor"))) return "Task";
+  return "Task";
+}
+var execFileAsync2, GitHubIssuesAdapter;
+var init_github_issues = __esm({
+  "src/adapters/tracker/github-issues.ts"() {
+    "use strict";
+    execFileAsync2 = promisify2(execFile2);
+    GitHubIssuesAdapter = class {
+      workdir;
+      constructor(options) {
+        this.workdir = options.workdir;
+      }
+      /** Strips a leading `#` or trailing fragment, returns the numeric id. */
+      parseKey(key) {
+        const slugMatch = key.match(/^([^/\s]+\/[^/\s#]+)#(\d+)$/);
+        if (slugMatch?.[1] && slugMatch[2]) {
+          return { num: slugMatch[2], repoFlag: ["--repo", slugMatch[1]] };
+        }
+        const hashMatch = key.match(/^#?(\d+)$/);
+        if (hashMatch?.[1]) {
+          return { num: hashMatch[1], repoFlag: [] };
+        }
+        return { num: key, repoFlag: [] };
+      }
+      async runGh(args2, options = {}) {
+        try {
+          const { stdout } = await execFileAsync2("gh", args2, { cwd: this.workdir });
+          if (options.parseJson) {
+            return { ok: true, value: JSON.parse(stdout) };
+          }
+          return { ok: true, value: stdout };
+        } catch (e) {
+          const err = e;
+          return {
+            ok: false,
+            error: new Error(
+              `gh failed: ${err.stderr?.trim() ?? err.message ?? "unknown error"}
+  Command: gh ${args2.join(" ")}`
+            )
+          };
+        }
+      }
+      async getIssue(key) {
+        const { num, repoFlag } = this.parseKey(key);
+        const result = await this.runGh(
+          ["issue", "view", num, ...repoFlag, "--json", "number,title,body,state,labels,assignees,url"],
+          { parseJson: true }
+        );
+        if (!result.ok) return result;
+        const data = result.value;
+        const labels = data.labels.map((l) => l.name);
+        const bodeStatusLabel = labels.find((l) => l.startsWith("bode:"));
+        const status = data.state === "CLOSED" ? "done" : bodeStatusLabel ? bodeStatusLabel.slice("bode:".length) : "pending";
+        return {
+          ok: true,
+          value: {
+            key,
+            summary: data.title,
+            description: data.body ?? "",
+            status,
+            issueType: inferIssueType(labels),
+            assignee: data.assignees[0]?.login ?? null,
+            labels,
+            url: data.url
+          }
+        };
+      }
+      async addComment(key, body) {
+        const { num, repoFlag } = this.parseKey(key);
+        const result = await this.runGh(["issue", "comment", num, ...repoFlag, "--body", body]);
+        if (!result.ok) return result;
+        return {
+          ok: true,
+          value: {
+            id: `gh-${Date.now()}`,
+            body,
+            created: (/* @__PURE__ */ new Date()).toISOString()
+          }
+        };
+      }
+      async transitionStatus(key, transitionName) {
+        const { num, repoFlag } = this.parseKey(key);
+        const target = transitionName.toLowerCase();
+        if (target === "done" || target === "closed" || target === "close") {
+          const result = await this.runGh(["issue", "close", num, ...repoFlag]);
+          if (!result.ok) return result;
+          return { ok: true, value: void 0 };
+        }
+        return { ok: true, value: void 0 };
+      }
+      async addLabel(key, label) {
+        const { num, repoFlag } = this.parseKey(key);
+        const result = await this.runGh(["issue", "edit", num, ...repoFlag, "--add-label", label]);
+        if (!result.ok) return result;
+        return { ok: true, value: void 0 };
+      }
+      async removeLabel(key, label) {
+        const { num, repoFlag } = this.parseKey(key);
+        const result = await this.runGh(["issue", "edit", num, ...repoFlag, "--remove-label", label]);
+        if (!result.ok) return result;
+        return { ok: true, value: void 0 };
+      }
+      async attachFile(_key, _filename, _content) {
+        return { ok: true, value: void 0 };
+      }
+      async getTransitions(_key) {
+        return {
+          ok: true,
+          value: [
+            { id: "planning", name: "Planning", toStatusName: "planning" },
+            { id: "implementing", name: "In Progress", toStatusName: "implementing" },
+            { id: "reviewing", name: "Reviewing", toStatusName: "reviewing" },
+            { id: "awaiting-merge", name: "Awaiting Merge", toStatusName: "awaiting-merge" },
+            { id: "done", name: "Done", toStatusName: "done" }
+          ]
+        };
+      }
+      // ─── v0.25.0 provider-neutral aliases ────────────────────────────────
+      async fetchTask(key) {
+        return this.getIssue(key);
+      }
+      async postComment(key, body) {
+        return this.addComment(key, body);
+      }
+      async setStatus(key, statusName) {
+        return this.transitionStatus(key, statusName);
+      }
+      async addTag(key, tag) {
+        return this.addLabel(key, tag);
+      }
+      async removeTag(key, tag) {
+        return this.removeLabel(key, tag);
+      }
+      async listStatuses(key) {
+        return this.getTransitions(key);
+      }
+    };
+  }
+});
+
+// src/adapters/tracker/linear.ts
+var LINEAR_ENDPOINT, DEFAULT_TIMEOUT_MS, LinearAdapter;
+var init_linear = __esm({
+  "src/adapters/tracker/linear.ts"() {
+    "use strict";
+    LINEAR_ENDPOINT = "https://api.linear.app/graphql";
+    DEFAULT_TIMEOUT_MS = 3e4;
+    LinearAdapter = class {
+      apiKey;
+      timeoutMs;
+      constructor(options) {
+        this.apiKey = options.apiKey;
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+      }
+      async gql(query, variables, signal) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+        const composedSignal = signal ?? controller.signal;
+        try {
+          const response = await fetch(LINEAR_ENDPOINT, {
+            method: "POST",
+            headers: {
+              Authorization: this.apiKey,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ query, variables }),
+            signal: composedSignal
+          });
+          if (!response.ok) {
+            const body = await response.text().catch(() => "");
+            return {
+              ok: false,
+              error: new Error(`Linear API ${response.status}: ${body || response.statusText}`)
+            };
+          }
+          const json2 = await response.json();
+          if (json2.errors?.length) {
+            return {
+              ok: false,
+              error: new Error(
+                `Linear GraphQL errors: ${json2.errors.map((e) => e.message).join("; ")}`
+              )
+            };
+          }
+          return { ok: true, value: json2.data };
+        } catch (err) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err : new Error(String(err))
+          };
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      async fetchTask(key, signal) {
+        const query = `
+			query Issue($id: String!) {
+				issue(id: $id) {
+					id
+					identifier
+					title
+					description
+					state { name type }
+					labels { nodes { name } }
+					assignee { name }
+					url
+				}
+			}
+		`;
+        const r = await this.gql(query, { id: key }, signal);
+        if (!r.ok) return r;
+        if (!r.value.issue) {
+          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
+        }
+        const issue2 = r.value.issue;
+        return {
+          ok: true,
+          value: {
+            key: issue2.identifier,
+            summary: issue2.title,
+            description: issue2.description ?? "",
+            status: issue2.state.name,
+            issueType: issue2.state.type,
+            assignee: issue2.assignee?.name ?? null,
+            labels: issue2.labels.nodes.map((l) => l.name),
+            url: issue2.url
+          }
+        };
+      }
+      async postComment(key, body, signal) {
+        const issueR = await this.gql(
+          `query Issue($id: String!) { issue(id: $id) { id } }`,
+          { id: key },
+          signal
+        );
+        if (!issueR.ok) return issueR;
+        if (!issueR.value.issue) {
+          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
+        }
+        const id = issueR.value.issue.id;
+        const mutation = `
+			mutation Comment($issueId: String!, $body: String!) {
+				commentCreate(input: { issueId: $issueId, body: $body }) {
+					success
+					comment { id body createdAt }
+				}
+			}
+		`;
+        const r = await this.gql(mutation, { issueId: id, body }, signal);
+        if (!r.ok) return r;
+        if (!r.value.commentCreate.success) {
+          return { ok: false, error: new Error("Linear commentCreate returned success=false") };
+        }
+        return {
+          ok: true,
+          value: {
+            id: r.value.commentCreate.comment.id,
+            body: r.value.commentCreate.comment.body,
+            created: r.value.commentCreate.comment.createdAt
+          }
+        };
+      }
+      async setStatus(key, statusName, signal) {
+        if (statusName.trim() === "") return { ok: true, value: void 0 };
+        const issueR = await this.gql(
+          `query Issue($id: String!) {
+				issue(id: $id) {
+					id
+					team {
+						id
+						states { nodes { id name } }
+					}
+				}
+			}`,
+          { id: key },
+          signal
+        );
+        if (!issueR.ok) return issueR;
+        if (!issueR.value.issue) {
+          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
+        }
+        const states = issueR.value.issue.team.states.nodes;
+        const target = states.find((s) => s.name.toLowerCase() === statusName.toLowerCase());
+        if (!target) {
+          return {
+            ok: false,
+            error: new Error(
+              `Linear state "${statusName}" not found. Available: ${states.map((s) => s.name).join(", ")}`
+            )
+          };
+        }
+        const r = await this.gql(
+          `mutation U($id: String!, $stateId: String!) {
+				issueUpdate(id: $id, input: { stateId: $stateId }) { success }
+			}`,
+          { id: issueR.value.issue.id, stateId: target.id },
+          signal
+        );
+        if (!r.ok) return r;
+        if (!r.value.issueUpdate.success) {
+          return { ok: false, error: new Error("Linear issueUpdate returned success=false") };
+        }
+        return { ok: true, value: void 0 };
+      }
+      async addTag(key, tag, signal) {
+        return this.toggleLabel(key, tag, "add", signal);
+      }
+      async removeTag(key, tag, signal) {
+        return this.toggleLabel(key, tag, "remove", signal);
+      }
+      async toggleLabel(key, tag, mode, signal) {
+        const issueR = await this.gql(
+          `query Issue($id: String!) {
+				issue(id: $id) {
+					id
+					team {
+						id
+						labels { nodes { id name } }
+					}
+					labels { nodes { id name } }
+				}
+			}`,
+          { id: key },
+          signal
+        );
+        if (!issueR.ok) return issueR;
+        if (!issueR.value.issue) {
+          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
+        }
+        const currentIds = issueR.value.issue.labels.nodes.map((l) => l.id);
+        const teamLabel = issueR.value.issue.team.labels.nodes.find(
+          (l) => l.name.toLowerCase() === tag.toLowerCase()
+        );
+        if (!teamLabel && mode === "add") {
+          return {
+            ok: false,
+            error: new Error(
+              `Linear label "${tag}" does not exist on the team. Create it in Linear first.`
+            )
+          };
+        }
+        if (!teamLabel && mode === "remove") {
+          return { ok: true, value: void 0 };
+        }
+        const nextIds = mode === "add" ? Array.from(/* @__PURE__ */ new Set([...currentIds, teamLabel.id])) : currentIds.filter((id) => id !== teamLabel.id);
+        const r = await this.gql(
+          `mutation U($id: String!, $ids: [String!]!) {
+				issueUpdate(id: $id, input: { labelIds: $ids }) { success }
+			}`,
+          { id: issueR.value.issue.id, ids: nextIds },
+          signal
+        );
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async attachFile() {
+        return { ok: true, value: void 0 };
+      }
+      async listStatuses(key, signal) {
+        const r = await this.gql(
+          `query Issue($id: String!) {
+				issue(id: $id) { team { states { nodes { id name } } } }
+			}`,
+          { id: key },
+          signal
+        );
+        if (!r.ok) return r;
+        if (!r.value.issue) return { ok: true, value: [] };
+        return {
+          ok: true,
+          value: r.value.issue.team.states.nodes.map((s) => ({
+            id: s.id,
+            name: s.name,
+            toStatusName: s.name
+          }))
+        };
+      }
+      // ─── v0.25.0 deprecated aliases ──────────────────────────────────────
+      async getIssue(key, signal) {
+        return this.fetchTask(key, signal);
+      }
+      async addComment(key, body, signal) {
+        return this.postComment(key, body, signal);
+      }
+      async transitionStatus(key, name, signal) {
+        return this.setStatus(key, name, signal);
+      }
+      async addLabel(key, label, signal) {
+        return this.addTag(key, label, signal);
+      }
+      async removeLabel(key, label, signal) {
+        return this.removeTag(key, label, signal);
+      }
+      async getTransitions(key, signal) {
+        return this.listStatuses(key, signal);
+      }
+    };
+  }
+});
+
+// src/adapters/tracker/notion.ts
+function extractTitle(prop) {
+  if (!prop || prop.type !== "title") return null;
+  const p = prop;
+  return p.title.map((t) => t.plain_text).join("") || null;
+}
+function extractStatus(prop) {
+  if (!prop) return null;
+  if (prop.type === "status") {
+    return prop.status?.name ?? null;
+  }
+  if (prop.type === "select") {
+    return prop.select?.name ?? null;
+  }
+  return null;
+}
+function extractTags(prop) {
+  if (!prop || prop.type !== "multi_select") return [];
+  return prop.multi_select.map(
+    (t) => t.name
+  );
+}
+var NOTION_BASE, NOTION_VERSION, DEFAULT_TIMEOUT_MS2, NotionAdapter;
+var init_notion = __esm({
+  "src/adapters/tracker/notion.ts"() {
+    "use strict";
+    NOTION_BASE = "https://api.notion.com/v1";
+    NOTION_VERSION = "2022-06-28";
+    DEFAULT_TIMEOUT_MS2 = 3e4;
+    NotionAdapter = class {
+      token;
+      databaseId;
+      titleProp;
+      statusProp;
+      tagsProp;
+      timeoutMs;
+      constructor(options) {
+        this.token = options.apiToken;
+        this.databaseId = options.databaseId;
+        this.titleProp = options.properties?.title ?? "Name";
+        this.statusProp = options.properties?.status ?? "Status";
+        this.tagsProp = options.properties?.tags ?? "Tags";
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS2;
+      }
+      async request(method, path3, body, signal) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+        const composedSignal = signal ?? controller.signal;
+        try {
+          const init = {
+            method,
+            headers: {
+              Authorization: `Bearer ${this.token}`,
+              "Notion-Version": NOTION_VERSION,
+              "Content-Type": "application/json"
+            },
+            signal: composedSignal
+          };
+          if (body !== void 0) init.body = JSON.stringify(body);
+          const response = await fetch(`${NOTION_BASE}${path3}`, init);
+          if (!response.ok) {
+            const text = await response.text().catch(() => "");
+            return {
+              ok: false,
+              error: new Error(`Notion API ${response.status}: ${text || response.statusText}`)
+            };
+          }
+          const data = await response.json();
+          return { ok: true, value: data };
+        } catch (err) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err : new Error(String(err))
+          };
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      async fetchTask(key, signal) {
+        const r = await this.request("GET", `/pages/${key}`, void 0, signal);
+        if (!r.ok) return r;
+        const props = r.value.properties;
+        const titleProp = props[this.titleProp];
+        const statusProp = props[this.statusProp];
+        const tagsProp = props[this.tagsProp];
+        return {
+          ok: true,
+          value: {
+            key: r.value.id,
+            summary: extractTitle(titleProp) ?? "(no title)",
+            description: "",
+            status: extractStatus(statusProp) ?? "pending",
+            issueType: "Task",
+            assignee: null,
+            labels: extractTags(tagsProp),
+            url: r.value.url
+          }
+        };
+      }
+      async postComment(key, body, signal) {
+        const r = await this.request(
+          "POST",
+          `/comments`,
+          {
+            parent: { page_id: key },
+            rich_text: [{ type: "text", text: { content: body } }]
+          },
+          signal
+        );
+        if (!r.ok) return r;
+        return {
+          ok: true,
+          value: { id: r.value.id, body, created: r.value.created_time }
+        };
+      }
+      async setStatus(key, statusName, signal) {
+        if (statusName.trim() === "") return { ok: true, value: void 0 };
+        const r = await this.request(
+          "PATCH",
+          `/pages/${key}`,
+          {
+            properties: {
+              [this.statusProp]: { status: { name: statusName } }
+            }
+          },
+          signal
+        );
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async addTag(key, tag, signal) {
+        return this.modifyTags(key, tag, "add", signal);
+      }
+      async removeTag(key, tag, signal) {
+        return this.modifyTags(key, tag, "remove", signal);
+      }
+      async modifyTags(key, tag, mode, signal) {
+        const issue2 = await this.fetchTask(key, signal);
+        if (!issue2.ok) return issue2;
+        const next = mode === "add" ? Array.from(/* @__PURE__ */ new Set([...issue2.value.labels, tag])) : issue2.value.labels.filter((t) => t !== tag);
+        const r = await this.request(
+          "PATCH",
+          `/pages/${key}`,
+          {
+            properties: {
+              [this.tagsProp]: { multi_select: next.map((name) => ({ name })) }
+            }
+          },
+          signal
+        );
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async attachFile() {
+        return { ok: true, value: void 0 };
+      }
+      async listStatuses(_key, signal) {
+        const r = await this.request("GET", `/databases/${this.databaseId}`, void 0, signal);
+        if (!r.ok) return r;
+        const prop = r.value.properties[this.statusProp];
+        const options = prop?.status?.options ?? prop?.select?.options ?? [];
+        return {
+          ok: true,
+          value: options.map((o) => ({ id: o.id, name: o.name, toStatusName: o.name }))
+        };
+      }
+      // ─── v0.25.0 deprecated aliases ──────────────────────────────────────
+      async getIssue(key, signal) {
+        return this.fetchTask(key, signal);
+      }
+      async addComment(key, body, signal) {
+        return this.postComment(key, body, signal);
+      }
+      async transitionStatus(key, name, signal) {
+        return this.setStatus(key, name, signal);
+      }
+      async addLabel(key, label, signal) {
+        return this.addTag(key, label, signal);
+      }
+      async removeLabel(key, label, signal) {
+        return this.removeTag(key, label, signal);
+      }
+      async getTransitions(key, signal) {
+        return this.listStatuses(key, signal);
+      }
+    };
+  }
+});
+
+// src/adapters/tracker/trello.ts
+var TRELLO_BASE, DEFAULT_TIMEOUT_MS3, TrelloAdapter;
+var init_trello = __esm({
+  "src/adapters/tracker/trello.ts"() {
+    "use strict";
+    TRELLO_BASE = "https://api.trello.com/1";
+    DEFAULT_TIMEOUT_MS3 = 3e4;
+    TrelloAdapter = class {
+      apiKey;
+      token;
+      timeoutMs;
+      constructor(options) {
+        this.apiKey = options.apiKey;
+        this.token = options.token;
+        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS3;
+      }
+      authQS(extra = {}) {
+        const params = new URLSearchParams({ key: this.apiKey, token: this.token, ...extra });
+        return params.toString();
+      }
+      async request(method, path3, body, signal, extraQS = {}) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+        const composedSignal = signal ?? controller.signal;
+        try {
+          const url2 = `${TRELLO_BASE}${path3}?${this.authQS(extraQS)}`;
+          const init = {
+            method,
+            headers: { "Content-Type": "application/json" },
+            signal: composedSignal
+          };
+          if (body !== void 0) init.body = JSON.stringify(body);
+          const response = await fetch(url2, init);
+          if (!response.ok) {
+            const text = await response.text().catch(() => "");
+            return {
+              ok: false,
+              error: new Error(`Trello API ${response.status}: ${text || response.statusText}`)
+            };
+          }
+          const ct = response.headers.get("content-type") ?? "";
+          if (!ct.includes("application/json")) {
+            return { ok: true, value: void 0 };
+          }
+          const data = await response.json();
+          return { ok: true, value: data };
+        } catch (err) {
+          return {
+            ok: false,
+            error: err instanceof Error ? err : new Error(String(err))
+          };
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      async fetchTask(key, signal) {
+        const card = await this.request("GET", `/cards/${key}`, void 0, signal, {
+          fields: "name,desc,shortUrl,idList,idLabels",
+          labels: "true"
+        });
+        if (!card.ok) return card;
+        const list = await this.request(
+          "GET",
+          `/lists/${card.value.idList}`,
+          void 0,
+          signal,
+          { fields: "name" }
+        );
+        const status = list.ok ? list.value.name : "unknown";
+        return {
+          ok: true,
+          value: {
+            key: card.value.id,
+            summary: card.value.name,
+            description: card.value.desc,
+            status,
+            issueType: "Task",
+            assignee: null,
+            labels: card.value.labels.map((l) => l.name || l.color),
+            url: card.value.shortUrl
+          }
+        };
+      }
+      async postComment(key, body, signal) {
+        const r = await this.request(
+          "POST",
+          `/cards/${key}/actions/comments`,
+          void 0,
+          signal,
+          { text: body }
+        );
+        if (!r.ok) return r;
+        return { ok: true, value: { id: r.value.id, body, created: r.value.date } };
+      }
+      async setStatus(key, statusName, signal) {
+        if (statusName.trim() === "") return { ok: true, value: void 0 };
+        const card = await this.request(
+          "GET",
+          `/cards/${key}`,
+          void 0,
+          signal,
+          { fields: "idBoard" }
+        );
+        if (!card.ok) return card;
+        const lists = await this.request(
+          "GET",
+          `/boards/${card.value.idBoard}/lists`,
+          void 0,
+          signal,
+          { fields: "name" }
+        );
+        if (!lists.ok) return lists;
+        const target = lists.value.find((l) => l.name.toLowerCase() === statusName.toLowerCase());
+        if (!target) {
+          return {
+            ok: false,
+            error: new Error(
+              `Trello list "${statusName}" not found on board. Available: ${lists.value.map((l) => l.name).join(", ")}`
+            )
+          };
+        }
+        const r = await this.request("PUT", `/cards/${key}`, void 0, signal, {
+          idList: target.id
+        });
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async addTag(key, tag, signal) {
+        const card = await this.request(
+          "GET",
+          `/cards/${key}`,
+          void 0,
+          signal,
+          { fields: "idBoard" }
+        );
+        if (!card.ok) return card;
+        const labels = await this.request(
+          "GET",
+          `/boards/${card.value.idBoard}/labels`,
+          void 0,
+          signal,
+          { fields: "name" }
+        );
+        if (!labels.ok) return labels;
+        let labelId = labels.value.find((l) => l.name === tag)?.id;
+        if (!labelId) {
+          const created = await this.request(
+            "POST",
+            `/boards/${card.value.idBoard}/labels`,
+            void 0,
+            signal,
+            { name: tag, color: "sky" }
+          );
+          if (!created.ok) return created;
+          labelId = created.value.id;
+        }
+        const r = await this.request("POST", `/cards/${key}/idLabels`, void 0, signal, {
+          value: labelId
+        });
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async removeTag(key, tag, signal) {
+        const card = await this.request(
+          "GET",
+          `/cards/${key}`,
+          void 0,
+          signal,
+          { fields: "idBoard" }
+        );
+        if (!card.ok) return card;
+        const labels = await this.request(
+          "GET",
+          `/boards/${card.value.idBoard}/labels`,
+          void 0,
+          signal,
+          { fields: "name" }
+        );
+        if (!labels.ok) return labels;
+        const labelId = labels.value.find((l) => l.name === tag)?.id;
+        if (!labelId) return { ok: true, value: void 0 };
+        const r = await this.request(
+          "DELETE",
+          `/cards/${key}/idLabels/${labelId}`,
+          void 0,
+          signal
+        );
+        if (!r.ok) return r;
+        return { ok: true, value: void 0 };
+      }
+      async attachFile() {
+        return { ok: true, value: void 0 };
+      }
+      async listStatuses(key, signal) {
+        const card = await this.request(
+          "GET",
+          `/cards/${key}`,
+          void 0,
+          signal,
+          { fields: "idBoard" }
+        );
+        if (!card.ok) return card;
+        const lists = await this.request(
+          "GET",
+          `/boards/${card.value.idBoard}/lists`,
+          void 0,
+          signal,
+          { fields: "name" }
+        );
+        if (!lists.ok) return lists;
+        return {
+          ok: true,
+          value: lists.value.map((l) => ({ id: l.id, name: l.name, toStatusName: l.name }))
+        };
+      }
+      // ─── v0.25.0 deprecated aliases ──────────────────────────────────────
+      async getIssue(key, signal) {
+        return this.fetchTask(key, signal);
+      }
+      async addComment(key, body, signal) {
+        return this.postComment(key, body, signal);
+      }
+      async transitionStatus(key, name, signal) {
+        return this.setStatus(key, name, signal);
+      }
+      async addLabel(key, label, signal) {
+        return this.addTag(key, label, signal);
+      }
+      async removeLabel(key, label, signal) {
+        return this.removeTag(key, label, signal);
+      }
+      async getTransitions(key, signal) {
+        return this.listStatuses(key, signal);
+      }
+    };
+  }
+});
+
+// src/adapters/jira/adf.ts
+function textToAdf(text) {
+  const paragraphs = text.split(/\n{2,}/);
+  const content = paragraphs.filter((p) => p.length > 0).map((p) => ({
+    type: "paragraph",
+    content: [{ type: "text", text: p }]
+  }));
+  if (content.length === 0) {
+    content.push({ type: "paragraph", content: [] });
+  }
+  return {
+    type: "doc",
+    version: 1,
+    content
+  };
+}
+function adfToText(node) {
+  if (node === null || node === void 0) return "";
+  if (typeof node === "string") return node;
+  if (typeof node !== "object") return "";
+  const n = node;
+  if (n.type === "text" && typeof n.text === "string") {
+    return n.text;
+  }
+  if (Array.isArray(n.content)) {
+    const sep2 = n.type === "paragraph" || n.type === "heading" ? "\n\n" : "";
+    return n.content.map((c) => adfToText(c)).join("") + sep2;
+  }
+  return "";
+}
+var init_adf = __esm({
+  "src/adapters/jira/adf.ts"() {
+    "use strict";
+  }
+});
+
+// src/adapters/jira/rest.ts
+function normalizeJiraSite(site) {
+  let s = site.trim();
+  if (!/^https?:\/\//i.test(s)) {
+    s = `https://${s}`;
+  }
+  return s.replace(/\/+$/, "");
+}
+function withTimeout(signal, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error("Request timed out")), timeoutMs);
+  const cleanup = () => clearTimeout(timer);
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+  return { signal: controller.signal, cleanup };
+}
+async function testJiraConnection(site, email3, apiToken, signal, timeoutMs = DEFAULT_TIMEOUT_MS4) {
+  const { signal: timeoutSignal, cleanup } = withTimeout(signal, timeoutMs);
+  try {
+    const auth = Buffer.from(`${email3}:${apiToken}`).toString("base64");
+    const url2 = `${normalizeJiraSite(site)}/rest/api/3/serverInfo`;
+    const init = {
+      headers: {
+        Authorization: `Basic ${auth}`,
+        Accept: "application/json"
+      },
+      signal: timeoutSignal
+    };
+    const response = await fetch(url2, init);
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      return {
+        ok: false,
+        error: new Error(`Connection failed (${response.status}): ${text || response.statusText}`)
+      };
+    }
+    return { ok: true, value: void 0 };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return { ok: false, error: new Error("Connection timed out") };
+    }
+    return {
+      ok: false,
+      error: err instanceof Error ? err : new Error(String(err))
+    };
+  } finally {
+    cleanup();
+  }
+}
+var DEFAULT_TIMEOUT_MS4, RealJiraAdapter;
+var init_rest = __esm({
+  "src/adapters/jira/rest.ts"() {
+    "use strict";
+    init_adf();
+    DEFAULT_TIMEOUT_MS4 = 3e4;
+    RealJiraAdapter = class {
+      site;
+      auth;
+      timeoutMs;
+      constructor(site, email3, apiToken, timeoutMs = DEFAULT_TIMEOUT_MS4) {
+        this.site = normalizeJiraSite(site);
+        this.auth = Buffer.from(`${email3}:${apiToken}`).toString("base64");
+        this.timeoutMs = timeoutMs;
+      }
+      async request(method, path3, body, signal) {
+        const { signal: timeoutSignal, cleanup } = withTimeout(signal, this.timeoutMs);
+        try {
+          const url2 = `${this.site}/rest/api/3${path3}`;
+          const init = {
+            method,
+            headers: {
+              Authorization: `Basic ${this.auth}`,
+              Accept: "application/json",
+              "Content-Type": "application/json"
+            },
+            signal: timeoutSignal
+          };
+          if (body !== void 0) init.body = JSON.stringify(body);
+          const response = await fetch(url2, init);
+          if (!response.ok) {
+            const text2 = await response.text().catch(() => "");
+            return {
+              ok: false,
+              error: new Error(`Jira API error ${response.status}: ${text2 || response.statusText}`)
+            };
+          }
+          if (response.status === 204) {
+            return { ok: true, value: void 0 };
+          }
+          const text = await response.text();
+          if (!text) return { ok: true, value: void 0 };
+          const data = JSON.parse(text);
+          return { ok: true, value: data };
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") {
+            return { ok: false, error: new Error("Request timed out") };
+          }
+          return {
+            ok: false,
+            error: err instanceof Error ? err : new Error(String(err))
+          };
+        } finally {
+          cleanup();
+        }
+      }
+      async getIssue(key, signal) {
+        const result = await this.request("GET", `/issue/${key}`, void 0, signal);
+        if (!result.ok) return result;
+        const issue2 = result.value;
+        const rawDescription = issue2.fields?.description;
+        const description = typeof rawDescription === "string" ? rawDescription : adfToText(rawDescription).trim();
+        return {
+          ok: true,
+          value: {
+            key: issue2.key,
+            summary: issue2.fields?.summary ?? "",
+            description,
+            status: issue2.fields?.status?.name ?? "",
+            issueType: issue2.fields?.issuetype?.name ?? "",
+            assignee: issue2.fields?.assignee?.displayName ?? null,
+            labels: issue2.fields?.labels ?? [],
+            url: `${this.site}/browse/${issue2.key}`
+          }
+        };
+      }
+      async addComment(key, body, signal) {
+        const result = await this.request(
+          "POST",
+          `/issue/${key}/comment`,
+          { body: textToAdf(body) },
+          signal
+        );
+        if (!result.ok) return result;
+        const respBody = result.value.body;
+        const bodyText = typeof respBody === "string" ? respBody : adfToText(respBody).trim() || body;
+        return {
+          ok: true,
+          value: {
+            id: result.value.id,
+            body: bodyText,
+            created: result.value.created
+          }
+        };
+      }
+      async transitionStatus(key, transitionName, signal) {
+        return this.transitionToStatus(key, transitionName, signal);
+      }
+      async addLabel(key, label, signal) {
+        return await this.request(
+          "PUT",
+          `/issue/${key}`,
+          { update: { labels: [{ add: label }] } },
+          signal
+        );
+      }
+      async removeLabel(key, label, signal) {
+        return await this.request(
+          "PUT",
+          `/issue/${key}`,
+          { update: { labels: [{ remove: label }] } },
+          signal
+        );
+      }
+      async attachFile(_key, _filename, _content, _signal) {
+        return { ok: true, value: void 0 };
+      }
+      async getTransitions(key, signal) {
+        const result = await this.request("GET", `/issue/${key}/transitions`, void 0, signal);
+        if (!result.ok) return result;
+        const transitions = result.value.transitions;
+        if (!Array.isArray(transitions)) {
+          return { ok: true, value: [] };
+        }
+        return {
+          ok: true,
+          value: transitions.map((t) => {
+            const out = { id: t.id, name: t.name };
+            if (t.to?.name) out.toStatusName = t.to.name;
+            return out;
+          })
+        };
+      }
+      async transitionToStatus(key, targetStatusName, signal) {
+        const transitions = await this.getTransitions(key, signal);
+        if (!transitions.ok) return transitions;
+        const transition = transitions.value.find(
+          (t) => t.name.toLowerCase() === targetStatusName.toLowerCase() || t.toStatusName?.toLowerCase() === targetStatusName.toLowerCase()
+        );
+        if (!transition) {
+          const available = transitions.value.map((t) => `"${t.name}" \u2192 "${t.toStatusName ?? "?"}"`).join(", ");
+          return {
+            ok: false,
+            error: new Error(`Transition to "${targetStatusName}" not found. Available: ${available}`)
+          };
+        }
+        return await this.request(
+          "POST",
+          `/issue/${key}/transitions`,
+          { transition: { id: transition.id } },
+          signal
+        );
+      }
+      // ─── v0.25.0 provider-neutral aliases (delegate to legacy methods) ───
+      async fetchTask(key, signal) {
+        return this.getIssue(key, signal);
+      }
+      async postComment(key, body, signal) {
+        return this.addComment(key, body, signal);
+      }
+      async setStatus(key, statusName, signal) {
+        return this.transitionStatus(key, statusName, signal);
+      }
+      async addTag(key, tag, signal) {
+        return this.addLabel(key, tag, signal);
+      }
+      async removeTag(key, tag, signal) {
+        return this.removeLabel(key, tag, signal);
+      }
+      async listStatuses(key, signal) {
+        return this.getTransitions(key, signal);
+      }
+    };
+  }
+});
+
+// src/adapters/jira/mock.ts
+var mockIssues, mockComments, mockLabels, MockJiraAdapter;
+var init_mock = __esm({
+  "src/adapters/jira/mock.ts"() {
+    "use strict";
+    mockIssues = /* @__PURE__ */ new Map();
+    mockComments = /* @__PURE__ */ new Map();
+    mockLabels = /* @__PURE__ */ new Map();
+    MockJiraAdapter = class {
+      async getIssue(key, _signal) {
+        const issue2 = mockIssues.get(key);
+        if (!issue2) return { ok: false, error: new Error(`Issue ${key} not found`) };
+        return { ok: true, value: { ...issue2, labels: [...mockLabels.get(key) ?? []] } };
+      }
+      async addComment(key, body, _signal) {
+        const comment = {
+          id: `comment-${Date.now()}`,
+          body,
+          created: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        const existing = mockComments.get(key) ?? [];
+        existing.push(comment);
+        mockComments.set(key, existing);
+        return { ok: true, value: comment };
+      }
+      async transitionStatus(_key, _transitionName, _signal) {
+        return { ok: true, value: void 0 };
+      }
+      async addLabel(key, label, _signal) {
+        const labels = mockLabels.get(key) ?? /* @__PURE__ */ new Set();
+        labels.add(label);
+        mockLabels.set(key, labels);
+        return { ok: true, value: void 0 };
+      }
+      async removeLabel(key, label, _signal) {
+        mockLabels.get(key)?.delete(label);
+        return { ok: true, value: void 0 };
+      }
+      async attachFile(_key, _filename, _content, _signal) {
+        return { ok: true, value: void 0 };
+      }
+      async getTransitions(_key, _signal) {
+        return {
+          ok: true,
+          value: [
+            { id: "1", name: "Start Progress", toStatusName: "In Progress" },
+            { id: "2", name: "Done", toStatusName: "Done" }
+          ]
+        };
+      }
+      // ─── v0.25.0 provider-neutral aliases (delegate to legacy methods) ───
+      async fetchTask(key, signal) {
+        return this.getIssue(key, signal);
+      }
+      async postComment(key, body, signal) {
+        return this.addComment(key, body, signal);
+      }
+      async setStatus(key, statusName, signal) {
+        return this.transitionStatus(key, statusName, signal);
+      }
+      async addTag(key, tag, signal) {
+        return this.addLabel(key, tag, signal);
+      }
+      async removeTag(key, tag, signal) {
+        return this.removeLabel(key, tag, signal);
+      }
+      async listStatuses(key, signal) {
+        return this.getTransitions(key, signal);
+      }
+      static seedIssue(issue2) {
+        mockIssues.set(issue2.key, issue2);
+        mockLabels.set(issue2.key, new Set(issue2.labels));
+        mockComments.set(issue2.key, []);
+      }
+      static reset() {
+        mockIssues.clear();
+        mockComments.clear();
+        mockLabels.clear();
+      }
+    };
+  }
+});
+
+// src/adapters/tracker/factory.ts
+function selectTracker(options) {
+  const explicit = options.force ?? options.tracker;
+  if (explicit) {
+    return materialize(explicit, options);
+  }
+  if (options.jira?.site && options.jira?.email && options.jira?.api_token) {
+    return materialize("jira", options);
+  }
+  return materialize("local", options);
+}
+function materialize(kind, options) {
+  switch (kind) {
+    case "jira":
+      if (options.jira?.email && options.jira?.api_token && options.jira?.site) {
+        return {
+          kind: "jira",
+          adapter: new RealJiraAdapter(
+            options.jira.site,
+            options.jira.email,
+            options.jira.api_token
+          )
+        };
+      }
+      return { kind: "mock", adapter: new MockJiraAdapter() };
+    case "github-issues":
+      return {
+        kind: "github-issues",
+        adapter: new GitHubIssuesAdapter({ workdir: options.workdir })
+      };
+    case "linear": {
+      const apiKey = options.linear?.api_key ?? process.env["LINEAR_API_KEY"];
+      if (!apiKey) {
+        throw new Error(
+          "Linear tracker selected but no API key found. Set linear.api_key in config or LINEAR_API_KEY env var."
+        );
+      }
+      return { kind: "linear", adapter: new LinearAdapter({ apiKey }) };
+    }
+    case "notion": {
+      const apiToken = options.notion?.api_token ?? process.env["NOTION_TOKEN"];
+      const databaseId = options.notion?.database_id ?? process.env["NOTION_DATABASE_ID"];
+      if (!apiToken || !databaseId) {
+        throw new Error(
+          "Notion tracker selected but missing config. Set notion.api_token (or NOTION_TOKEN) and notion.database_id (or NOTION_DATABASE_ID)."
+        );
+      }
+      return {
+        kind: "notion",
+        adapter: new NotionAdapter({
+          apiToken,
+          databaseId,
+          ...options.notion?.properties ? { properties: options.notion.properties } : {}
+        })
+      };
+    }
+    case "trello": {
+      const apiKey = options.trello?.api_key ?? process.env["TRELLO_KEY"];
+      const token = options.trello?.token ?? process.env["TRELLO_TOKEN"];
+      if (!apiKey || !token) {
+        throw new Error(
+          "Trello tracker selected but missing credentials. Set trello.api_key + trello.token in config, or TRELLO_KEY + TRELLO_TOKEN env vars."
+        );
+      }
+      return { kind: "trello", adapter: new TrelloAdapter({ apiKey, token }) };
+    }
+    case "mock":
+      return { kind: "mock", adapter: new MockJiraAdapter() };
+    case "plain-markdown":
+    case "local":
+    default:
+      return { kind: "local", adapter: new LocalTrackerAdapter(options.workdir) };
+  }
+}
+var init_factory = __esm({
+  "src/adapters/tracker/factory.ts"() {
+    "use strict";
+    init_local();
+    init_github_issues();
+    init_linear();
+    init_notion();
+    init_trello();
+    init_rest();
+    init_mock();
+  }
+});
+
 // node_modules/@inquirer/core/dist/lib/key.js
 function isKeybinding(value) {
   return keybindingLookup.has(value);
@@ -64559,61 +66075,6 @@ var init_dist17 = __esm({
   }
 });
 
-// src/config/projects.ts
-import { readdir } from "node:fs/promises";
-import { existsSync as existsSync5 } from "node:fs";
-import { join as join5 } from "node:path";
-import { readFile as readFile2 } from "node:fs/promises";
-async function listProjects() {
-  const dir = getProjectsDir();
-  if (!existsSync5(dir)) return { ok: true, value: [] };
-  try {
-    const files = await readdir(dir);
-    const projects = [];
-    for (const file2 of files) {
-      if (!file2.endsWith(".yml") && !file2.endsWith(".yaml")) continue;
-      const raw = await readFile2(join5(dir, file2), "utf-8");
-      const parsed = (0, import_yaml2.parse)(raw);
-      const validated = projectConfigSchema.safeParse(parsed);
-      if (validated.success) {
-        projects.push(validated.data);
-      }
-    }
-    return { ok: true, value: projects };
-  } catch (error52) {
-    return { ok: false, error: error52 };
-  }
-}
-async function loadProjectConfig(name) {
-  const dir = getProjectsDir();
-  for (const ext of [".yml", ".yaml"]) {
-    const path3 = join5(dir, `${name}${ext}`);
-    if (!existsSync5(path3)) continue;
-    try {
-      const raw = await readFile2(path3, "utf-8");
-      const parsed = (0, import_yaml2.parse)(raw);
-      const validated = projectConfigSchema.safeParse(parsed);
-      if (!validated.success) {
-        const errors = validated.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-        return { ok: false, error: new Error(`Invalid project config "${name}": ${errors}`) };
-      }
-      return { ok: true, value: validated.data };
-    } catch (error52) {
-      return { ok: false, error: error52 };
-    }
-  }
-  return { ok: true, value: null };
-}
-var import_yaml2;
-var init_projects = __esm({
-  "src/config/projects.ts"() {
-    "use strict";
-    import_yaml2 = __toESM(require_dist(), 1);
-    init_schema();
-    init_defaults();
-  }
-});
-
 // src/utils/fs.ts
 var fs_exports = {};
 __export(fs_exports, {
@@ -64624,12 +66085,12 @@ __export(fs_exports, {
   writeJson: () => writeJson,
   writeText: () => writeText
 });
-import { chmod, mkdir, readFile as readFile3, rename, unlink, writeFile } from "node:fs/promises";
-import { existsSync as existsSync6 } from "node:fs";
+import { chmod, mkdir as mkdir2, readFile as readFile5, rename, unlink, writeFile as writeFile2 } from "node:fs/promises";
+import { existsSync as existsSync8 } from "node:fs";
 import { dirname as dirname2 } from "node:path";
 async function ensureDir(path3) {
-  if (!existsSync6(path3)) {
-    await mkdir(path3, { recursive: true });
+  if (!existsSync8(path3)) {
+    await mkdir2(path3, { recursive: true });
   }
 }
 async function writeJson(path3, data) {
@@ -64637,7 +66098,7 @@ async function writeJson(path3, data) {
   const tmpPath = `${path3}.tmp.${process.pid}.${Date.now()}`;
   const body = JSON.stringify(data, null, 2);
   try {
-    await writeFile(tmpPath, body, "utf-8");
+    await writeFile2(tmpPath, body, "utf-8");
     await rename(tmpPath, path3);
   } catch (err) {
     try {
@@ -64645,24 +66106,24 @@ async function writeJson(path3, data) {
     } catch {
     }
     try {
-      await writeFile(path3, body, "utf-8");
+      await writeFile2(path3, body, "utf-8");
     } catch {
       throw err;
     }
   }
 }
 async function readJson(path3) {
-  if (!existsSync6(path3)) return null;
-  const raw = await readFile3(path3, "utf-8");
+  if (!existsSync8(path3)) return null;
+  const raw = await readFile5(path3, "utf-8");
   return JSON.parse(raw);
 }
 async function writeText(path3, content) {
   await ensureDir(dirname2(path3));
-  await writeFile(path3, content, "utf-8");
+  await writeFile2(path3, content, "utf-8");
 }
 async function readText(path3) {
-  if (!existsSync6(path3)) return null;
-  return await readFile3(path3, "utf-8");
+  if (!existsSync8(path3)) return null;
+  return await readFile5(path3, "utf-8");
 }
 async function chmodSensitive(path3) {
   if (process.platform === "win32") return;
@@ -64678,17 +66139,17 @@ var init_fs = __esm({
 });
 
 // src/config/project-resolver.ts
-import { existsSync as existsSync7 } from "node:fs";
-import { readFile as readFile4 } from "node:fs/promises";
-import { join as join6 } from "node:path";
+import { existsSync as existsSync9 } from "node:fs";
+import { readFile as readFile6 } from "node:fs/promises";
+import { join as join8 } from "node:path";
 async function loadRepoLocalProject(cwd2) {
   let dir = cwd2;
   while (true) {
-    const candidate = join6(dir, ".bode.yml");
-    if (existsSync7(candidate)) {
+    const candidate = join8(dir, ".bode.yml");
+    if (existsSync9(candidate)) {
       try {
-        const raw = await readFile4(candidate, "utf-8");
-        const parsed = (0, import_yaml3.parse)(raw);
+        const raw = await readFile6(candidate, "utf-8");
+        const parsed = (0, import_yaml5.parse)(raw);
         if (parsed && typeof parsed === "object") {
           const withDefaults = { workdir: dir, name: "repo-local", ...parsed };
           const result = projectConfigSchema.safeParse(withDefaults);
@@ -64698,7 +66159,7 @@ async function loadRepoLocalProject(cwd2) {
       }
       return null;
     }
-    const parent = join6(dir, "..");
+    const parent = join8(dir, "..");
     if (parent === dir) return null;
     dir = parent;
   }
@@ -64826,1478 +66287,17 @@ function projectConfigToYaml(p) {
   }
   return lines.join("\n") + "\n";
 }
-var import_yaml3;
+var import_yaml5;
 var init_project_resolver = __esm({
   "src/config/project-resolver.ts"() {
     "use strict";
     init_dist17();
-    import_yaml3 = __toESM(require_dist(), 1);
+    import_yaml5 = __toESM(require_dist(), 1);
     init_projects();
     init_loader();
     init_schema();
     init_defaults();
     init_fs();
-  }
-});
-
-// src/adapters/tracker/local.ts
-import { existsSync as existsSync8 } from "node:fs";
-import { mkdir as mkdir2, readFile as readFile5, writeFile as writeFile2 } from "node:fs/promises";
-import { join as join7 } from "node:path";
-function parseLocalTask(raw) {
-  const match = raw.match(FRONTMATTER_RE);
-  if (!match || !match[1] || match[2] === void 0) {
-    return { ok: true, value: { frontmatter: {}, body: raw } };
-  }
-  try {
-    const fm = (0, import_yaml4.parse)(match[1]);
-    if (!fm || typeof fm !== "object") {
-      return { ok: true, value: { frontmatter: {}, body: match[2] } };
-    }
-    return { ok: true, value: { frontmatter: fm, body: match[2] } };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
-  }
-}
-function serializeLocalTask(frontmatter, body) {
-  const fmYaml = (0, import_yaml4.stringify)(frontmatter).trimEnd();
-  const trimmedBody = body.trimStart();
-  return `---
-${fmYaml}
----
-
-${trimmedBody}`;
-}
-var import_yaml4, LocalTrackerAdapter, FRONTMATTER_RE;
-var init_local = __esm({
-  "src/adapters/tracker/local.ts"() {
-    "use strict";
-    import_yaml4 = __toESM(require_dist(), 1);
-    LocalTrackerAdapter = class {
-      tasksDir;
-      constructor(workdir) {
-        this.tasksDir = join7(workdir, ".bode", "tasks");
-      }
-      taskPath(key) {
-        return join7(this.tasksDir, `${key}.md`);
-      }
-      async readTask(key) {
-        const path3 = this.taskPath(key);
-        if (!existsSync8(path3)) {
-          return {
-            ok: false,
-            error: new Error(
-              `Local task "${key}" not found at ${path3}. Create it manually or use \`bode new "<summary>"\` (coming in a future release).`
-            )
-          };
-        }
-        try {
-          const raw = await readFile5(path3, "utf-8");
-          const parsed = parseLocalTask(raw);
-          if (!parsed.ok) return parsed;
-          return { ok: true, value: parsed.value };
-        } catch (err) {
-          return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
-        }
-      }
-      async writeTask(key, frontmatter, body) {
-        try {
-          await mkdir2(this.tasksDir, { recursive: true });
-          const content = serializeLocalTask(frontmatter, body);
-          await writeFile2(this.taskPath(key), content, "utf-8");
-          return { ok: true, value: void 0 };
-        } catch (err) {
-          return { ok: false, error: err instanceof Error ? err : new Error(String(err)) };
-        }
-      }
-      async getIssue(key) {
-        const result = await this.readTask(key);
-        if (!result.ok) return result;
-        const { frontmatter, body } = result.value;
-        return {
-          ok: true,
-          value: {
-            key,
-            summary: frontmatter.summary ?? key,
-            description: body.trim(),
-            status: frontmatter.status ?? "pending",
-            issueType: frontmatter.type ?? "Task",
-            assignee: frontmatter.assignee ?? null,
-            labels: frontmatter.labels ?? [],
-            url: `file://${this.taskPath(key)}`
-          }
-        };
-      }
-      async addComment(key, body) {
-        const result = await this.readTask(key);
-        if (!result.ok) return result;
-        const { frontmatter, body: existingBody } = result.value;
-        const created = (/* @__PURE__ */ new Date()).toISOString();
-        const newBody = `${existingBody.trimEnd()}
-
-## Comment \u2014 ${created}
-
-${body.trim()}
-`;
-        frontmatter.updated = created;
-        const wr = await this.writeTask(key, frontmatter, newBody);
-        if (!wr.ok) return wr;
-        return {
-          ok: true,
-          value: { id: `local-${Date.now()}`, body, created }
-        };
-      }
-      async transitionStatus(key, transitionName) {
-        const result = await this.readTask(key);
-        if (!result.ok) return result;
-        const { frontmatter, body } = result.value;
-        frontmatter.status = transitionName;
-        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
-        return this.writeTask(key, frontmatter, body);
-      }
-      async addLabel(key, label) {
-        const result = await this.readTask(key);
-        if (!result.ok) return result;
-        const { frontmatter, body } = result.value;
-        const labels = new Set(frontmatter.labels ?? []);
-        labels.add(label);
-        frontmatter.labels = [...labels];
-        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
-        return this.writeTask(key, frontmatter, body);
-      }
-      async removeLabel(key, label) {
-        const result = await this.readTask(key);
-        if (!result.ok) return result;
-        const { frontmatter, body } = result.value;
-        frontmatter.labels = (frontmatter.labels ?? []).filter((l) => l !== label);
-        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
-        return this.writeTask(key, frontmatter, body);
-      }
-      async attachFile(_key, _filename, _content) {
-        return { ok: true, value: void 0 };
-      }
-      async getTransitions(_key) {
-        return {
-          ok: true,
-          value: [
-            { id: "pending", name: "Pending", toStatusName: "pending" },
-            { id: "planning", name: "In Progress", toStatusName: "planning" },
-            { id: "implementing", name: "In Progress", toStatusName: "implementing" },
-            { id: "reviewing", name: "In Progress", toStatusName: "reviewing" },
-            { id: "awaiting-merge", name: "Code Review", toStatusName: "awaiting-merge" },
-            { id: "done", name: "Done", toStatusName: "done" }
-          ]
-        };
-      }
-      /**
-       * Convenience for callers that want to create a brand-new local task
-       * (used by the upcoming `bode new` / `bode <prompt>` fast path).
-       */
-      async createTask(key, summary, options = {}) {
-        const now = (/* @__PURE__ */ new Date()).toISOString();
-        const frontmatter = {
-          summary,
-          status: "pending",
-          type: options.type ?? "Task",
-          labels: options.labels ?? [],
-          created: now,
-          updated: now
-        };
-        const body = options.description ?? `# ${summary}
-`;
-        const wr = await this.writeTask(key, frontmatter, body);
-        if (!wr.ok) return wr;
-        return this.getIssue(key);
-      }
-      // ─── v0.25.0 provider-neutral aliases ────────────────────────────────
-      async fetchTask(key) {
-        return this.getIssue(key);
-      }
-      async postComment(key, body) {
-        return this.addComment(key, body);
-      }
-      async setStatus(key, statusName) {
-        return this.transitionStatus(key, statusName);
-      }
-      async addTag(key, tag) {
-        return this.addLabel(key, tag);
-      }
-      async removeTag(key, tag) {
-        return this.removeLabel(key, tag);
-      }
-      async listStatuses(key) {
-        return this.getTransitions(key);
-      }
-    };
-    FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
-  }
-});
-
-// src/adapters/tracker/github-issues.ts
-import { execFile as execFile2 } from "node:child_process";
-import { promisify as promisify2 } from "node:util";
-function inferIssueType(labels) {
-  const lower = labels.map((l) => l.toLowerCase());
-  if (lower.includes("bug")) return "Bug";
-  if (lower.some((l) => l.includes("enhancement") || l.includes("feature"))) return "Story";
-  if (lower.some((l) => l.includes("chore") || l.includes("refactor"))) return "Task";
-  return "Task";
-}
-var execFileAsync2, GitHubIssuesAdapter;
-var init_github_issues = __esm({
-  "src/adapters/tracker/github-issues.ts"() {
-    "use strict";
-    execFileAsync2 = promisify2(execFile2);
-    GitHubIssuesAdapter = class {
-      workdir;
-      constructor(options) {
-        this.workdir = options.workdir;
-      }
-      /** Strips a leading `#` or trailing fragment, returns the numeric id. */
-      parseKey(key) {
-        const slugMatch = key.match(/^([^/\s]+\/[^/\s#]+)#(\d+)$/);
-        if (slugMatch?.[1] && slugMatch[2]) {
-          return { num: slugMatch[2], repoFlag: ["--repo", slugMatch[1]] };
-        }
-        const hashMatch = key.match(/^#?(\d+)$/);
-        if (hashMatch?.[1]) {
-          return { num: hashMatch[1], repoFlag: [] };
-        }
-        return { num: key, repoFlag: [] };
-      }
-      async runGh(args2, options = {}) {
-        try {
-          const { stdout } = await execFileAsync2("gh", args2, { cwd: this.workdir });
-          if (options.parseJson) {
-            return { ok: true, value: JSON.parse(stdout) };
-          }
-          return { ok: true, value: stdout };
-        } catch (e) {
-          const err = e;
-          return {
-            ok: false,
-            error: new Error(
-              `gh failed: ${err.stderr?.trim() ?? err.message ?? "unknown error"}
-  Command: gh ${args2.join(" ")}`
-            )
-          };
-        }
-      }
-      async getIssue(key) {
-        const { num, repoFlag } = this.parseKey(key);
-        const result = await this.runGh(
-          ["issue", "view", num, ...repoFlag, "--json", "number,title,body,state,labels,assignees,url"],
-          { parseJson: true }
-        );
-        if (!result.ok) return result;
-        const data = result.value;
-        const labels = data.labels.map((l) => l.name);
-        const bodeStatusLabel = labels.find((l) => l.startsWith("bode:"));
-        const status = data.state === "CLOSED" ? "done" : bodeStatusLabel ? bodeStatusLabel.slice("bode:".length) : "pending";
-        return {
-          ok: true,
-          value: {
-            key,
-            summary: data.title,
-            description: data.body ?? "",
-            status,
-            issueType: inferIssueType(labels),
-            assignee: data.assignees[0]?.login ?? null,
-            labels,
-            url: data.url
-          }
-        };
-      }
-      async addComment(key, body) {
-        const { num, repoFlag } = this.parseKey(key);
-        const result = await this.runGh(["issue", "comment", num, ...repoFlag, "--body", body]);
-        if (!result.ok) return result;
-        return {
-          ok: true,
-          value: {
-            id: `gh-${Date.now()}`,
-            body,
-            created: (/* @__PURE__ */ new Date()).toISOString()
-          }
-        };
-      }
-      async transitionStatus(key, transitionName) {
-        const { num, repoFlag } = this.parseKey(key);
-        const target = transitionName.toLowerCase();
-        if (target === "done" || target === "closed" || target === "close") {
-          const result = await this.runGh(["issue", "close", num, ...repoFlag]);
-          if (!result.ok) return result;
-          return { ok: true, value: void 0 };
-        }
-        return { ok: true, value: void 0 };
-      }
-      async addLabel(key, label) {
-        const { num, repoFlag } = this.parseKey(key);
-        const result = await this.runGh(["issue", "edit", num, ...repoFlag, "--add-label", label]);
-        if (!result.ok) return result;
-        return { ok: true, value: void 0 };
-      }
-      async removeLabel(key, label) {
-        const { num, repoFlag } = this.parseKey(key);
-        const result = await this.runGh(["issue", "edit", num, ...repoFlag, "--remove-label", label]);
-        if (!result.ok) return result;
-        return { ok: true, value: void 0 };
-      }
-      async attachFile(_key, _filename, _content) {
-        return { ok: true, value: void 0 };
-      }
-      async getTransitions(_key) {
-        return {
-          ok: true,
-          value: [
-            { id: "planning", name: "Planning", toStatusName: "planning" },
-            { id: "implementing", name: "In Progress", toStatusName: "implementing" },
-            { id: "reviewing", name: "Reviewing", toStatusName: "reviewing" },
-            { id: "awaiting-merge", name: "Awaiting Merge", toStatusName: "awaiting-merge" },
-            { id: "done", name: "Done", toStatusName: "done" }
-          ]
-        };
-      }
-      // ─── v0.25.0 provider-neutral aliases ────────────────────────────────
-      async fetchTask(key) {
-        return this.getIssue(key);
-      }
-      async postComment(key, body) {
-        return this.addComment(key, body);
-      }
-      async setStatus(key, statusName) {
-        return this.transitionStatus(key, statusName);
-      }
-      async addTag(key, tag) {
-        return this.addLabel(key, tag);
-      }
-      async removeTag(key, tag) {
-        return this.removeLabel(key, tag);
-      }
-      async listStatuses(key) {
-        return this.getTransitions(key);
-      }
-    };
-  }
-});
-
-// src/adapters/tracker/linear.ts
-var LINEAR_ENDPOINT, DEFAULT_TIMEOUT_MS, LinearAdapter;
-var init_linear = __esm({
-  "src/adapters/tracker/linear.ts"() {
-    "use strict";
-    LINEAR_ENDPOINT = "https://api.linear.app/graphql";
-    DEFAULT_TIMEOUT_MS = 3e4;
-    LinearAdapter = class {
-      apiKey;
-      timeoutMs;
-      constructor(options) {
-        this.apiKey = options.apiKey;
-        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-      }
-      async gql(query, variables, signal) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-        const composedSignal = signal ?? controller.signal;
-        try {
-          const response = await fetch(LINEAR_ENDPOINT, {
-            method: "POST",
-            headers: {
-              Authorization: this.apiKey,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ query, variables }),
-            signal: composedSignal
-          });
-          if (!response.ok) {
-            const body = await response.text().catch(() => "");
-            return {
-              ok: false,
-              error: new Error(`Linear API ${response.status}: ${body || response.statusText}`)
-            };
-          }
-          const json2 = await response.json();
-          if (json2.errors?.length) {
-            return {
-              ok: false,
-              error: new Error(
-                `Linear GraphQL errors: ${json2.errors.map((e) => e.message).join("; ")}`
-              )
-            };
-          }
-          return { ok: true, value: json2.data };
-        } catch (err) {
-          return {
-            ok: false,
-            error: err instanceof Error ? err : new Error(String(err))
-          };
-        } finally {
-          clearTimeout(timer);
-        }
-      }
-      async fetchTask(key, signal) {
-        const query = `
-			query Issue($id: String!) {
-				issue(id: $id) {
-					id
-					identifier
-					title
-					description
-					state { name type }
-					labels { nodes { name } }
-					assignee { name }
-					url
-				}
-			}
-		`;
-        const r = await this.gql(query, { id: key }, signal);
-        if (!r.ok) return r;
-        if (!r.value.issue) {
-          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
-        }
-        const issue2 = r.value.issue;
-        return {
-          ok: true,
-          value: {
-            key: issue2.identifier,
-            summary: issue2.title,
-            description: issue2.description ?? "",
-            status: issue2.state.name,
-            issueType: issue2.state.type,
-            assignee: issue2.assignee?.name ?? null,
-            labels: issue2.labels.nodes.map((l) => l.name),
-            url: issue2.url
-          }
-        };
-      }
-      async postComment(key, body, signal) {
-        const issueR = await this.gql(
-          `query Issue($id: String!) { issue(id: $id) { id } }`,
-          { id: key },
-          signal
-        );
-        if (!issueR.ok) return issueR;
-        if (!issueR.value.issue) {
-          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
-        }
-        const id = issueR.value.issue.id;
-        const mutation = `
-			mutation Comment($issueId: String!, $body: String!) {
-				commentCreate(input: { issueId: $issueId, body: $body }) {
-					success
-					comment { id body createdAt }
-				}
-			}
-		`;
-        const r = await this.gql(mutation, { issueId: id, body }, signal);
-        if (!r.ok) return r;
-        if (!r.value.commentCreate.success) {
-          return { ok: false, error: new Error("Linear commentCreate returned success=false") };
-        }
-        return {
-          ok: true,
-          value: {
-            id: r.value.commentCreate.comment.id,
-            body: r.value.commentCreate.comment.body,
-            created: r.value.commentCreate.comment.createdAt
-          }
-        };
-      }
-      async setStatus(key, statusName, signal) {
-        if (statusName.trim() === "") return { ok: true, value: void 0 };
-        const issueR = await this.gql(
-          `query Issue($id: String!) {
-				issue(id: $id) {
-					id
-					team {
-						id
-						states { nodes { id name } }
-					}
-				}
-			}`,
-          { id: key },
-          signal
-        );
-        if (!issueR.ok) return issueR;
-        if (!issueR.value.issue) {
-          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
-        }
-        const states = issueR.value.issue.team.states.nodes;
-        const target = states.find((s) => s.name.toLowerCase() === statusName.toLowerCase());
-        if (!target) {
-          return {
-            ok: false,
-            error: new Error(
-              `Linear state "${statusName}" not found. Available: ${states.map((s) => s.name).join(", ")}`
-            )
-          };
-        }
-        const r = await this.gql(
-          `mutation U($id: String!, $stateId: String!) {
-				issueUpdate(id: $id, input: { stateId: $stateId }) { success }
-			}`,
-          { id: issueR.value.issue.id, stateId: target.id },
-          signal
-        );
-        if (!r.ok) return r;
-        if (!r.value.issueUpdate.success) {
-          return { ok: false, error: new Error("Linear issueUpdate returned success=false") };
-        }
-        return { ok: true, value: void 0 };
-      }
-      async addTag(key, tag, signal) {
-        return this.toggleLabel(key, tag, "add", signal);
-      }
-      async removeTag(key, tag, signal) {
-        return this.toggleLabel(key, tag, "remove", signal);
-      }
-      async toggleLabel(key, tag, mode, signal) {
-        const issueR = await this.gql(
-          `query Issue($id: String!) {
-				issue(id: $id) {
-					id
-					team {
-						id
-						labels { nodes { id name } }
-					}
-					labels { nodes { id name } }
-				}
-			}`,
-          { id: key },
-          signal
-        );
-        if (!issueR.ok) return issueR;
-        if (!issueR.value.issue) {
-          return { ok: false, error: new Error(`Linear issue ${key} not found`) };
-        }
-        const currentIds = issueR.value.issue.labels.nodes.map((l) => l.id);
-        const teamLabel = issueR.value.issue.team.labels.nodes.find(
-          (l) => l.name.toLowerCase() === tag.toLowerCase()
-        );
-        if (!teamLabel && mode === "add") {
-          return {
-            ok: false,
-            error: new Error(
-              `Linear label "${tag}" does not exist on the team. Create it in Linear first.`
-            )
-          };
-        }
-        if (!teamLabel && mode === "remove") {
-          return { ok: true, value: void 0 };
-        }
-        const nextIds = mode === "add" ? Array.from(/* @__PURE__ */ new Set([...currentIds, teamLabel.id])) : currentIds.filter((id) => id !== teamLabel.id);
-        const r = await this.gql(
-          `mutation U($id: String!, $ids: [String!]!) {
-				issueUpdate(id: $id, input: { labelIds: $ids }) { success }
-			}`,
-          { id: issueR.value.issue.id, ids: nextIds },
-          signal
-        );
-        if (!r.ok) return r;
-        return { ok: true, value: void 0 };
-      }
-      async attachFile() {
-        return { ok: true, value: void 0 };
-      }
-      async listStatuses(key, signal) {
-        const r = await this.gql(
-          `query Issue($id: String!) {
-				issue(id: $id) { team { states { nodes { id name } } } }
-			}`,
-          { id: key },
-          signal
-        );
-        if (!r.ok) return r;
-        if (!r.value.issue) return { ok: true, value: [] };
-        return {
-          ok: true,
-          value: r.value.issue.team.states.nodes.map((s) => ({
-            id: s.id,
-            name: s.name,
-            toStatusName: s.name
-          }))
-        };
-      }
-      // ─── v0.25.0 deprecated aliases ──────────────────────────────────────
-      async getIssue(key, signal) {
-        return this.fetchTask(key, signal);
-      }
-      async addComment(key, body, signal) {
-        return this.postComment(key, body, signal);
-      }
-      async transitionStatus(key, name, signal) {
-        return this.setStatus(key, name, signal);
-      }
-      async addLabel(key, label, signal) {
-        return this.addTag(key, label, signal);
-      }
-      async removeLabel(key, label, signal) {
-        return this.removeTag(key, label, signal);
-      }
-      async getTransitions(key, signal) {
-        return this.listStatuses(key, signal);
-      }
-    };
-  }
-});
-
-// src/adapters/tracker/notion.ts
-function extractTitle(prop) {
-  if (!prop || prop.type !== "title") return null;
-  const p = prop;
-  return p.title.map((t) => t.plain_text).join("") || null;
-}
-function extractStatus(prop) {
-  if (!prop) return null;
-  if (prop.type === "status") {
-    return prop.status?.name ?? null;
-  }
-  if (prop.type === "select") {
-    return prop.select?.name ?? null;
-  }
-  return null;
-}
-function extractTags(prop) {
-  if (!prop || prop.type !== "multi_select") return [];
-  return prop.multi_select.map(
-    (t) => t.name
-  );
-}
-var NOTION_BASE, NOTION_VERSION, DEFAULT_TIMEOUT_MS2, NotionAdapter;
-var init_notion = __esm({
-  "src/adapters/tracker/notion.ts"() {
-    "use strict";
-    NOTION_BASE = "https://api.notion.com/v1";
-    NOTION_VERSION = "2022-06-28";
-    DEFAULT_TIMEOUT_MS2 = 3e4;
-    NotionAdapter = class {
-      token;
-      databaseId;
-      titleProp;
-      statusProp;
-      tagsProp;
-      timeoutMs;
-      constructor(options) {
-        this.token = options.apiToken;
-        this.databaseId = options.databaseId;
-        this.titleProp = options.properties?.title ?? "Name";
-        this.statusProp = options.properties?.status ?? "Status";
-        this.tagsProp = options.properties?.tags ?? "Tags";
-        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS2;
-      }
-      async request(method, path3, body, signal) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-        const composedSignal = signal ?? controller.signal;
-        try {
-          const init = {
-            method,
-            headers: {
-              Authorization: `Bearer ${this.token}`,
-              "Notion-Version": NOTION_VERSION,
-              "Content-Type": "application/json"
-            },
-            signal: composedSignal
-          };
-          if (body !== void 0) init.body = JSON.stringify(body);
-          const response = await fetch(`${NOTION_BASE}${path3}`, init);
-          if (!response.ok) {
-            const text = await response.text().catch(() => "");
-            return {
-              ok: false,
-              error: new Error(`Notion API ${response.status}: ${text || response.statusText}`)
-            };
-          }
-          const data = await response.json();
-          return { ok: true, value: data };
-        } catch (err) {
-          return {
-            ok: false,
-            error: err instanceof Error ? err : new Error(String(err))
-          };
-        } finally {
-          clearTimeout(timer);
-        }
-      }
-      async fetchTask(key, signal) {
-        const r = await this.request("GET", `/pages/${key}`, void 0, signal);
-        if (!r.ok) return r;
-        const props = r.value.properties;
-        const titleProp = props[this.titleProp];
-        const statusProp = props[this.statusProp];
-        const tagsProp = props[this.tagsProp];
-        return {
-          ok: true,
-          value: {
-            key: r.value.id,
-            summary: extractTitle(titleProp) ?? "(no title)",
-            description: "",
-            status: extractStatus(statusProp) ?? "pending",
-            issueType: "Task",
-            assignee: null,
-            labels: extractTags(tagsProp),
-            url: r.value.url
-          }
-        };
-      }
-      async postComment(key, body, signal) {
-        const r = await this.request(
-          "POST",
-          `/comments`,
-          {
-            parent: { page_id: key },
-            rich_text: [{ type: "text", text: { content: body } }]
-          },
-          signal
-        );
-        if (!r.ok) return r;
-        return {
-          ok: true,
-          value: { id: r.value.id, body, created: r.value.created_time }
-        };
-      }
-      async setStatus(key, statusName, signal) {
-        if (statusName.trim() === "") return { ok: true, value: void 0 };
-        const r = await this.request(
-          "PATCH",
-          `/pages/${key}`,
-          {
-            properties: {
-              [this.statusProp]: { status: { name: statusName } }
-            }
-          },
-          signal
-        );
-        if (!r.ok) return r;
-        return { ok: true, value: void 0 };
-      }
-      async addTag(key, tag, signal) {
-        return this.modifyTags(key, tag, "add", signal);
-      }
-      async removeTag(key, tag, signal) {
-        return this.modifyTags(key, tag, "remove", signal);
-      }
-      async modifyTags(key, tag, mode, signal) {
-        const issue2 = await this.fetchTask(key, signal);
-        if (!issue2.ok) return issue2;
-        const next = mode === "add" ? Array.from(/* @__PURE__ */ new Set([...issue2.value.labels, tag])) : issue2.value.labels.filter((t) => t !== tag);
-        const r = await this.request(
-          "PATCH",
-          `/pages/${key}`,
-          {
-            properties: {
-              [this.tagsProp]: { multi_select: next.map((name) => ({ name })) }
-            }
-          },
-          signal
-        );
-        if (!r.ok) return r;
-        return { ok: true, value: void 0 };
-      }
-      async attachFile() {
-        return { ok: true, value: void 0 };
-      }
-      async listStatuses(_key, signal) {
-        const r = await this.request("GET", `/databases/${this.databaseId}`, void 0, signal);
-        if (!r.ok) return r;
-        const prop = r.value.properties[this.statusProp];
-        const options = prop?.status?.options ?? prop?.select?.options ?? [];
-        return {
-          ok: true,
-          value: options.map((o) => ({ id: o.id, name: o.name, toStatusName: o.name }))
-        };
-      }
-      // ─── v0.25.0 deprecated aliases ──────────────────────────────────────
-      async getIssue(key, signal) {
-        return this.fetchTask(key, signal);
-      }
-      async addComment(key, body, signal) {
-        return this.postComment(key, body, signal);
-      }
-      async transitionStatus(key, name, signal) {
-        return this.setStatus(key, name, signal);
-      }
-      async addLabel(key, label, signal) {
-        return this.addTag(key, label, signal);
-      }
-      async removeLabel(key, label, signal) {
-        return this.removeTag(key, label, signal);
-      }
-      async getTransitions(key, signal) {
-        return this.listStatuses(key, signal);
-      }
-    };
-  }
-});
-
-// src/adapters/tracker/trello.ts
-var TRELLO_BASE, DEFAULT_TIMEOUT_MS3, TrelloAdapter;
-var init_trello = __esm({
-  "src/adapters/tracker/trello.ts"() {
-    "use strict";
-    TRELLO_BASE = "https://api.trello.com/1";
-    DEFAULT_TIMEOUT_MS3 = 3e4;
-    TrelloAdapter = class {
-      apiKey;
-      token;
-      timeoutMs;
-      constructor(options) {
-        this.apiKey = options.apiKey;
-        this.token = options.token;
-        this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS3;
-      }
-      authQS(extra = {}) {
-        const params = new URLSearchParams({ key: this.apiKey, token: this.token, ...extra });
-        return params.toString();
-      }
-      async request(method, path3, body, signal, extraQS = {}) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-        const composedSignal = signal ?? controller.signal;
-        try {
-          const url2 = `${TRELLO_BASE}${path3}?${this.authQS(extraQS)}`;
-          const init = {
-            method,
-            headers: { "Content-Type": "application/json" },
-            signal: composedSignal
-          };
-          if (body !== void 0) init.body = JSON.stringify(body);
-          const response = await fetch(url2, init);
-          if (!response.ok) {
-            const text = await response.text().catch(() => "");
-            return {
-              ok: false,
-              error: new Error(`Trello API ${response.status}: ${text || response.statusText}`)
-            };
-          }
-          const ct = response.headers.get("content-type") ?? "";
-          if (!ct.includes("application/json")) {
-            return { ok: true, value: void 0 };
-          }
-          const data = await response.json();
-          return { ok: true, value: data };
-        } catch (err) {
-          return {
-            ok: false,
-            error: err instanceof Error ? err : new Error(String(err))
-          };
-        } finally {
-          clearTimeout(timer);
-        }
-      }
-      async fetchTask(key, signal) {
-        const card = await this.request("GET", `/cards/${key}`, void 0, signal, {
-          fields: "name,desc,shortUrl,idList,idLabels",
-          labels: "true"
-        });
-        if (!card.ok) return card;
-        const list = await this.request(
-          "GET",
-          `/lists/${card.value.idList}`,
-          void 0,
-          signal,
-          { fields: "name" }
-        );
-        const status = list.ok ? list.value.name : "unknown";
-        return {
-          ok: true,
-          value: {
-            key: card.value.id,
-            summary: card.value.name,
-            description: card.value.desc,
-            status,
-            issueType: "Task",
-            assignee: null,
-            labels: card.value.labels.map((l) => l.name || l.color),
-            url: card.value.shortUrl
-          }
-        };
-      }
-      async postComment(key, body, signal) {
-        const r = await this.request(
-          "POST",
-          `/cards/${key}/actions/comments`,
-          void 0,
-          signal,
-          { text: body }
-        );
-        if (!r.ok) return r;
-        return { ok: true, value: { id: r.value.id, body, created: r.value.date } };
-      }
-      async setStatus(key, statusName, signal) {
-        if (statusName.trim() === "") return { ok: true, value: void 0 };
-        const card = await this.request(
-          "GET",
-          `/cards/${key}`,
-          void 0,
-          signal,
-          { fields: "idBoard" }
-        );
-        if (!card.ok) return card;
-        const lists = await this.request(
-          "GET",
-          `/boards/${card.value.idBoard}/lists`,
-          void 0,
-          signal,
-          { fields: "name" }
-        );
-        if (!lists.ok) return lists;
-        const target = lists.value.find((l) => l.name.toLowerCase() === statusName.toLowerCase());
-        if (!target) {
-          return {
-            ok: false,
-            error: new Error(
-              `Trello list "${statusName}" not found on board. Available: ${lists.value.map((l) => l.name).join(", ")}`
-            )
-          };
-        }
-        const r = await this.request("PUT", `/cards/${key}`, void 0, signal, {
-          idList: target.id
-        });
-        if (!r.ok) return r;
-        return { ok: true, value: void 0 };
-      }
-      async addTag(key, tag, signal) {
-        const card = await this.request(
-          "GET",
-          `/cards/${key}`,
-          void 0,
-          signal,
-          { fields: "idBoard" }
-        );
-        if (!card.ok) return card;
-        const labels = await this.request(
-          "GET",
-          `/boards/${card.value.idBoard}/labels`,
-          void 0,
-          signal,
-          { fields: "name" }
-        );
-        if (!labels.ok) return labels;
-        let labelId = labels.value.find((l) => l.name === tag)?.id;
-        if (!labelId) {
-          const created = await this.request(
-            "POST",
-            `/boards/${card.value.idBoard}/labels`,
-            void 0,
-            signal,
-            { name: tag, color: "sky" }
-          );
-          if (!created.ok) return created;
-          labelId = created.value.id;
-        }
-        const r = await this.request("POST", `/cards/${key}/idLabels`, void 0, signal, {
-          value: labelId
-        });
-        if (!r.ok) return r;
-        return { ok: true, value: void 0 };
-      }
-      async removeTag(key, tag, signal) {
-        const card = await this.request(
-          "GET",
-          `/cards/${key}`,
-          void 0,
-          signal,
-          { fields: "idBoard" }
-        );
-        if (!card.ok) return card;
-        const labels = await this.request(
-          "GET",
-          `/boards/${card.value.idBoard}/labels`,
-          void 0,
-          signal,
-          { fields: "name" }
-        );
-        if (!labels.ok) return labels;
-        const labelId = labels.value.find((l) => l.name === tag)?.id;
-        if (!labelId) return { ok: true, value: void 0 };
-        const r = await this.request(
-          "DELETE",
-          `/cards/${key}/idLabels/${labelId}`,
-          void 0,
-          signal
-        );
-        if (!r.ok) return r;
-        return { ok: true, value: void 0 };
-      }
-      async attachFile() {
-        return { ok: true, value: void 0 };
-      }
-      async listStatuses(key, signal) {
-        const card = await this.request(
-          "GET",
-          `/cards/${key}`,
-          void 0,
-          signal,
-          { fields: "idBoard" }
-        );
-        if (!card.ok) return card;
-        const lists = await this.request(
-          "GET",
-          `/boards/${card.value.idBoard}/lists`,
-          void 0,
-          signal,
-          { fields: "name" }
-        );
-        if (!lists.ok) return lists;
-        return {
-          ok: true,
-          value: lists.value.map((l) => ({ id: l.id, name: l.name, toStatusName: l.name }))
-        };
-      }
-      // ─── v0.25.0 deprecated aliases ──────────────────────────────────────
-      async getIssue(key, signal) {
-        return this.fetchTask(key, signal);
-      }
-      async addComment(key, body, signal) {
-        return this.postComment(key, body, signal);
-      }
-      async transitionStatus(key, name, signal) {
-        return this.setStatus(key, name, signal);
-      }
-      async addLabel(key, label, signal) {
-        return this.addTag(key, label, signal);
-      }
-      async removeLabel(key, label, signal) {
-        return this.removeTag(key, label, signal);
-      }
-      async getTransitions(key, signal) {
-        return this.listStatuses(key, signal);
-      }
-    };
-  }
-});
-
-// src/adapters/jira/adf.ts
-function textToAdf(text) {
-  const paragraphs = text.split(/\n{2,}/);
-  const content = paragraphs.filter((p) => p.length > 0).map((p) => ({
-    type: "paragraph",
-    content: [{ type: "text", text: p }]
-  }));
-  if (content.length === 0) {
-    content.push({ type: "paragraph", content: [] });
-  }
-  return {
-    type: "doc",
-    version: 1,
-    content
-  };
-}
-function adfToText(node) {
-  if (node === null || node === void 0) return "";
-  if (typeof node === "string") return node;
-  if (typeof node !== "object") return "";
-  const n = node;
-  if (n.type === "text" && typeof n.text === "string") {
-    return n.text;
-  }
-  if (Array.isArray(n.content)) {
-    const sep2 = n.type === "paragraph" || n.type === "heading" ? "\n\n" : "";
-    return n.content.map((c) => adfToText(c)).join("") + sep2;
-  }
-  return "";
-}
-var init_adf = __esm({
-  "src/adapters/jira/adf.ts"() {
-    "use strict";
-  }
-});
-
-// src/adapters/jira/rest.ts
-function normalizeJiraSite(site) {
-  let s = site.trim();
-  if (!/^https?:\/\//i.test(s)) {
-    s = `https://${s}`;
-  }
-  return s.replace(/\/+$/, "");
-}
-function withTimeout(signal, timeoutMs) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error("Request timed out")), timeoutMs);
-  const cleanup = () => clearTimeout(timer);
-  if (signal) {
-    if (signal.aborted) controller.abort();
-    else signal.addEventListener("abort", () => controller.abort(), { once: true });
-  }
-  return { signal: controller.signal, cleanup };
-}
-async function testJiraConnection(site, email3, apiToken, signal, timeoutMs = DEFAULT_TIMEOUT_MS4) {
-  const { signal: timeoutSignal, cleanup } = withTimeout(signal, timeoutMs);
-  try {
-    const auth = Buffer.from(`${email3}:${apiToken}`).toString("base64");
-    const url2 = `${normalizeJiraSite(site)}/rest/api/3/serverInfo`;
-    const init = {
-      headers: {
-        Authorization: `Basic ${auth}`,
-        Accept: "application/json"
-      },
-      signal: timeoutSignal
-    };
-    const response = await fetch(url2, init);
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      return {
-        ok: false,
-        error: new Error(`Connection failed (${response.status}): ${text || response.statusText}`)
-      };
-    }
-    return { ok: true, value: void 0 };
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") {
-      return { ok: false, error: new Error("Connection timed out") };
-    }
-    return {
-      ok: false,
-      error: err instanceof Error ? err : new Error(String(err))
-    };
-  } finally {
-    cleanup();
-  }
-}
-var DEFAULT_TIMEOUT_MS4, RealJiraAdapter;
-var init_rest = __esm({
-  "src/adapters/jira/rest.ts"() {
-    "use strict";
-    init_adf();
-    DEFAULT_TIMEOUT_MS4 = 3e4;
-    RealJiraAdapter = class {
-      site;
-      auth;
-      timeoutMs;
-      constructor(site, email3, apiToken, timeoutMs = DEFAULT_TIMEOUT_MS4) {
-        this.site = normalizeJiraSite(site);
-        this.auth = Buffer.from(`${email3}:${apiToken}`).toString("base64");
-        this.timeoutMs = timeoutMs;
-      }
-      async request(method, path3, body, signal) {
-        const { signal: timeoutSignal, cleanup } = withTimeout(signal, this.timeoutMs);
-        try {
-          const url2 = `${this.site}/rest/api/3${path3}`;
-          const init = {
-            method,
-            headers: {
-              Authorization: `Basic ${this.auth}`,
-              Accept: "application/json",
-              "Content-Type": "application/json"
-            },
-            signal: timeoutSignal
-          };
-          if (body !== void 0) init.body = JSON.stringify(body);
-          const response = await fetch(url2, init);
-          if (!response.ok) {
-            const text2 = await response.text().catch(() => "");
-            return {
-              ok: false,
-              error: new Error(`Jira API error ${response.status}: ${text2 || response.statusText}`)
-            };
-          }
-          if (response.status === 204) {
-            return { ok: true, value: void 0 };
-          }
-          const text = await response.text();
-          if (!text) return { ok: true, value: void 0 };
-          const data = JSON.parse(text);
-          return { ok: true, value: data };
-        } catch (err) {
-          if (err instanceof DOMException && err.name === "AbortError") {
-            return { ok: false, error: new Error("Request timed out") };
-          }
-          return {
-            ok: false,
-            error: err instanceof Error ? err : new Error(String(err))
-          };
-        } finally {
-          cleanup();
-        }
-      }
-      async getIssue(key, signal) {
-        const result = await this.request("GET", `/issue/${key}`, void 0, signal);
-        if (!result.ok) return result;
-        const issue2 = result.value;
-        const rawDescription = issue2.fields?.description;
-        const description = typeof rawDescription === "string" ? rawDescription : adfToText(rawDescription).trim();
-        return {
-          ok: true,
-          value: {
-            key: issue2.key,
-            summary: issue2.fields?.summary ?? "",
-            description,
-            status: issue2.fields?.status?.name ?? "",
-            issueType: issue2.fields?.issuetype?.name ?? "",
-            assignee: issue2.fields?.assignee?.displayName ?? null,
-            labels: issue2.fields?.labels ?? [],
-            url: `${this.site}/browse/${issue2.key}`
-          }
-        };
-      }
-      async addComment(key, body, signal) {
-        const result = await this.request(
-          "POST",
-          `/issue/${key}/comment`,
-          { body: textToAdf(body) },
-          signal
-        );
-        if (!result.ok) return result;
-        const respBody = result.value.body;
-        const bodyText = typeof respBody === "string" ? respBody : adfToText(respBody).trim() || body;
-        return {
-          ok: true,
-          value: {
-            id: result.value.id,
-            body: bodyText,
-            created: result.value.created
-          }
-        };
-      }
-      async transitionStatus(key, transitionName, signal) {
-        return this.transitionToStatus(key, transitionName, signal);
-      }
-      async addLabel(key, label, signal) {
-        return await this.request(
-          "PUT",
-          `/issue/${key}`,
-          { update: { labels: [{ add: label }] } },
-          signal
-        );
-      }
-      async removeLabel(key, label, signal) {
-        return await this.request(
-          "PUT",
-          `/issue/${key}`,
-          { update: { labels: [{ remove: label }] } },
-          signal
-        );
-      }
-      async attachFile(_key, _filename, _content, _signal) {
-        return { ok: true, value: void 0 };
-      }
-      async getTransitions(key, signal) {
-        const result = await this.request("GET", `/issue/${key}/transitions`, void 0, signal);
-        if (!result.ok) return result;
-        const transitions = result.value.transitions;
-        if (!Array.isArray(transitions)) {
-          return { ok: true, value: [] };
-        }
-        return {
-          ok: true,
-          value: transitions.map((t) => {
-            const out = { id: t.id, name: t.name };
-            if (t.to?.name) out.toStatusName = t.to.name;
-            return out;
-          })
-        };
-      }
-      async transitionToStatus(key, targetStatusName, signal) {
-        const transitions = await this.getTransitions(key, signal);
-        if (!transitions.ok) return transitions;
-        const transition = transitions.value.find(
-          (t) => t.name.toLowerCase() === targetStatusName.toLowerCase() || t.toStatusName?.toLowerCase() === targetStatusName.toLowerCase()
-        );
-        if (!transition) {
-          const available = transitions.value.map((t) => `"${t.name}" \u2192 "${t.toStatusName ?? "?"}"`).join(", ");
-          return {
-            ok: false,
-            error: new Error(`Transition to "${targetStatusName}" not found. Available: ${available}`)
-          };
-        }
-        return await this.request(
-          "POST",
-          `/issue/${key}/transitions`,
-          { transition: { id: transition.id } },
-          signal
-        );
-      }
-      // ─── v0.25.0 provider-neutral aliases (delegate to legacy methods) ───
-      async fetchTask(key, signal) {
-        return this.getIssue(key, signal);
-      }
-      async postComment(key, body, signal) {
-        return this.addComment(key, body, signal);
-      }
-      async setStatus(key, statusName, signal) {
-        return this.transitionStatus(key, statusName, signal);
-      }
-      async addTag(key, tag, signal) {
-        return this.addLabel(key, tag, signal);
-      }
-      async removeTag(key, tag, signal) {
-        return this.removeLabel(key, tag, signal);
-      }
-      async listStatuses(key, signal) {
-        return this.getTransitions(key, signal);
-      }
-    };
-  }
-});
-
-// src/adapters/jira/mock.ts
-var mockIssues, mockComments, mockLabels, MockJiraAdapter;
-var init_mock = __esm({
-  "src/adapters/jira/mock.ts"() {
-    "use strict";
-    mockIssues = /* @__PURE__ */ new Map();
-    mockComments = /* @__PURE__ */ new Map();
-    mockLabels = /* @__PURE__ */ new Map();
-    MockJiraAdapter = class {
-      async getIssue(key, _signal) {
-        const issue2 = mockIssues.get(key);
-        if (!issue2) return { ok: false, error: new Error(`Issue ${key} not found`) };
-        return { ok: true, value: { ...issue2, labels: [...mockLabels.get(key) ?? []] } };
-      }
-      async addComment(key, body, _signal) {
-        const comment = {
-          id: `comment-${Date.now()}`,
-          body,
-          created: (/* @__PURE__ */ new Date()).toISOString()
-        };
-        const existing = mockComments.get(key) ?? [];
-        existing.push(comment);
-        mockComments.set(key, existing);
-        return { ok: true, value: comment };
-      }
-      async transitionStatus(_key, _transitionName, _signal) {
-        return { ok: true, value: void 0 };
-      }
-      async addLabel(key, label, _signal) {
-        const labels = mockLabels.get(key) ?? /* @__PURE__ */ new Set();
-        labels.add(label);
-        mockLabels.set(key, labels);
-        return { ok: true, value: void 0 };
-      }
-      async removeLabel(key, label, _signal) {
-        mockLabels.get(key)?.delete(label);
-        return { ok: true, value: void 0 };
-      }
-      async attachFile(_key, _filename, _content, _signal) {
-        return { ok: true, value: void 0 };
-      }
-      async getTransitions(_key, _signal) {
-        return {
-          ok: true,
-          value: [
-            { id: "1", name: "Start Progress", toStatusName: "In Progress" },
-            { id: "2", name: "Done", toStatusName: "Done" }
-          ]
-        };
-      }
-      // ─── v0.25.0 provider-neutral aliases (delegate to legacy methods) ───
-      async fetchTask(key, signal) {
-        return this.getIssue(key, signal);
-      }
-      async postComment(key, body, signal) {
-        return this.addComment(key, body, signal);
-      }
-      async setStatus(key, statusName, signal) {
-        return this.transitionStatus(key, statusName, signal);
-      }
-      async addTag(key, tag, signal) {
-        return this.addLabel(key, tag, signal);
-      }
-      async removeTag(key, tag, signal) {
-        return this.removeLabel(key, tag, signal);
-      }
-      async listStatuses(key, signal) {
-        return this.getTransitions(key, signal);
-      }
-      static seedIssue(issue2) {
-        mockIssues.set(issue2.key, issue2);
-        mockLabels.set(issue2.key, new Set(issue2.labels));
-        mockComments.set(issue2.key, []);
-      }
-      static reset() {
-        mockIssues.clear();
-        mockComments.clear();
-        mockLabels.clear();
-      }
-    };
-  }
-});
-
-// src/adapters/tracker/factory.ts
-function selectTracker(options) {
-  const explicit = options.force ?? options.tracker;
-  if (explicit) {
-    return materialize(explicit, options);
-  }
-  if (options.jira?.site && options.jira?.email && options.jira?.api_token) {
-    return materialize("jira", options);
-  }
-  return materialize("local", options);
-}
-function materialize(kind, options) {
-  switch (kind) {
-    case "jira":
-      if (options.jira?.email && options.jira?.api_token && options.jira?.site) {
-        return {
-          kind: "jira",
-          adapter: new RealJiraAdapter(
-            options.jira.site,
-            options.jira.email,
-            options.jira.api_token
-          )
-        };
-      }
-      return { kind: "mock", adapter: new MockJiraAdapter() };
-    case "github-issues":
-      return {
-        kind: "github-issues",
-        adapter: new GitHubIssuesAdapter({ workdir: options.workdir })
-      };
-    case "linear": {
-      const apiKey = options.linear?.api_key ?? process.env["LINEAR_API_KEY"];
-      if (!apiKey) {
-        throw new Error(
-          "Linear tracker selected but no API key found. Set linear.api_key in config or LINEAR_API_KEY env var."
-        );
-      }
-      return { kind: "linear", adapter: new LinearAdapter({ apiKey }) };
-    }
-    case "notion": {
-      const apiToken = options.notion?.api_token ?? process.env["NOTION_TOKEN"];
-      const databaseId = options.notion?.database_id ?? process.env["NOTION_DATABASE_ID"];
-      if (!apiToken || !databaseId) {
-        throw new Error(
-          "Notion tracker selected but missing config. Set notion.api_token (or NOTION_TOKEN) and notion.database_id (or NOTION_DATABASE_ID)."
-        );
-      }
-      return {
-        kind: "notion",
-        adapter: new NotionAdapter({
-          apiToken,
-          databaseId,
-          ...options.notion?.properties ? { properties: options.notion.properties } : {}
-        })
-      };
-    }
-    case "trello": {
-      const apiKey = options.trello?.api_key ?? process.env["TRELLO_KEY"];
-      const token = options.trello?.token ?? process.env["TRELLO_TOKEN"];
-      if (!apiKey || !token) {
-        throw new Error(
-          "Trello tracker selected but missing credentials. Set trello.api_key + trello.token in config, or TRELLO_KEY + TRELLO_TOKEN env vars."
-        );
-      }
-      return { kind: "trello", adapter: new TrelloAdapter({ apiKey, token }) };
-    }
-    case "mock":
-      return { kind: "mock", adapter: new MockJiraAdapter() };
-    case "plain-markdown":
-    case "local":
-    default:
-      return { kind: "local", adapter: new LocalTrackerAdapter(options.workdir) };
-  }
-}
-var init_factory = __esm({
-  "src/adapters/tracker/factory.ts"() {
-    "use strict";
-    init_local();
-    init_github_issues();
-    init_linear();
-    init_notion();
-    init_trello();
-    init_rest();
-    init_mock();
   }
 });
 
@@ -73229,7 +73229,7 @@ async function setupTransitionsAction(options) {
     process.exit(1);
   }
   const target = join24(projectConfig.workdir, ".bode.yml");
-  const existing = existsSync24(target) ? (0, import_yaml5.parse)(await readFile14(target, "utf-8")) ?? {} : {};
+  const existing = existsSync24(target) ? (0, import_yaml6.parse)(await readFile14(target, "utf-8")) ?? {} : {};
   const existingJira = existing["jira"] ?? {};
   const updated = {
     ...existing,
@@ -73239,7 +73239,7 @@ async function setupTransitionsAction(options) {
     }
   };
   await mkdir7(dirname5(target), { recursive: true });
-  await writeFile7(target, (0, import_yaml5.stringify)(updated), "utf-8");
+  await writeFile7(target, (0, import_yaml6.stringify)(updated), "utf-8");
   console.log("");
   console.log(import_picocolors13.default.green(`\u2713 Saved transitions to ${target}`));
   console.log("");
@@ -73248,13 +73248,13 @@ async function setupTransitionsAction(options) {
     console.log(import_picocolors13.default.dim(`  ${k.padEnd(18)} ${v || "(skip)"}`));
   }
 }
-var import_picocolors13, import_yaml5;
+var import_picocolors13, import_yaml6;
 var init_setup_transitions = __esm({
   "src/cli/actions/setup-transitions.ts"() {
     "use strict";
     import_picocolors13 = __toESM(require_picocolors(), 1);
     init_dist17();
-    import_yaml5 = __toESM(require_dist(), 1);
+    import_yaml6 = __toESM(require_dist(), 1);
     init_loader();
     init_project_resolver();
     init_factory();
@@ -74860,7 +74860,6 @@ var KEY_REQUIRED_SUBCOMMANDS = /* @__PURE__ */ new Set([
   "start",
   "continue",
   "status",
-  "show",
   "replay",
   "log",
   "abort",
@@ -80781,22 +80780,60 @@ function App2({ state, lastExitCode, onSubmit }) {
 }
 
 // src/tui/state.ts
+var import_yaml4 = __toESM(require_dist(), 1);
 init_loader();
-init_project_resolver();
+init_projects();
+init_schema();
 init_factory();
 init_defaults();
 init_version();
-import { existsSync as existsSync9, statSync } from "node:fs";
-import { readdir as readdir2, readFile as readFile6 } from "node:fs/promises";
-import { join as join8 } from "node:path";
+import { existsSync as existsSync7, statSync } from "node:fs";
+import { readdir as readdir2, readFile as readFile4 } from "node:fs/promises";
+import { join as join7 } from "node:path";
+async function readRepoLocalProject(cwd2) {
+  let dir = cwd2;
+  while (true) {
+    const candidate = join7(dir, ".bode.yml");
+    if (existsSync7(candidate)) {
+      try {
+        const raw = await readFile4(candidate, "utf-8");
+        const parsed = (0, import_yaml4.parse)(raw);
+        if (parsed && typeof parsed === "object") {
+          const withDefaults = { workdir: dir, name: "repo-local", ...parsed };
+          const result = projectConfigSchema.safeParse(withDefaults);
+          if (result.success) return result.data;
+        }
+      } catch {
+      }
+      return null;
+    }
+    const parent = join7(dir, "..");
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
 async function resolveCurrentProject(cwd2 = process.cwd()) {
   try {
     const configResult = await loadConfig(cwd2);
     if (!configResult.ok) return null;
     const config2 = configResult.value;
-    const projectResult = await resolveProject(config2, { cwd: cwd2 });
-    if (!projectResult.ok) return null;
-    const { projectConfig } = projectResult.value;
+    let projectConfig = await readRepoLocalProject(cwd2);
+    if (!projectConfig) {
+      const named = config2.defaults?.project;
+      if (named) {
+        const loaded = await loadProjectConfig(named);
+        if (loaded.ok && loaded.value) projectConfig = loaded.value;
+      }
+    }
+    if (!projectConfig) {
+      const projects = await listProjects();
+      if (projects.ok && projects.value.length === 1) {
+        const only = projects.value[0];
+        const loaded = await loadProjectConfig(only.name);
+        if (loaded.ok && loaded.value) projectConfig = loaded.value;
+      }
+    }
+    if (!projectConfig) return null;
     const tracker = selectTracker({
       workdir: projectConfig.workdir,
       tracker: config2.tracker,
@@ -80815,7 +80852,7 @@ async function resolveCurrentProject(cwd2 = process.cwd()) {
   }
 }
 async function findLatestRun(runsDir) {
-  if (!existsSync9(runsDir)) return null;
+  if (!existsSync7(runsDir)) return null;
   let entries;
   try {
     entries = await readdir2(runsDir);
@@ -80825,8 +80862,8 @@ async function findLatestRun(runsDir) {
   let bestKey = null;
   let bestMtime = -1;
   for (const key of entries) {
-    const metaPath = join8(runsDir, key, "meta.json");
-    if (!existsSync9(metaPath)) continue;
+    const metaPath = join7(runsDir, key, "meta.json");
+    if (!existsSync7(metaPath)) continue;
     try {
       const mtime = statSync(metaPath).mtimeMs;
       if (mtime > bestMtime) {
@@ -80838,7 +80875,7 @@ async function findLatestRun(runsDir) {
   }
   if (!bestKey) return null;
   try {
-    const raw = await readFile6(join8(runsDir, bestKey, "meta.json"), "utf-8");
+    const raw = await readFile4(join7(runsDir, bestKey, "meta.json"), "utf-8");
     const meta3 = JSON.parse(raw);
     return { key: meta3.taskKey, phase: meta3.status };
   } catch {
@@ -80891,6 +80928,20 @@ function tokenize3(line) {
   }
   return tokens;
 }
+var KNOWN_STRING_FLAGS = /* @__PURE__ */ new Set([
+  "project",
+  "from-branch",
+  "with-cli",
+  "with-model",
+  "phase",
+  "phases",
+  "agents",
+  "title",
+  "diff",
+  "pick",
+  "from",
+  "import"
+]);
 function parseTokens(tokens) {
   const positionals = [];
   const options = {};
@@ -80905,7 +80956,7 @@ function parseTokens(tokens) {
       }
       const key = tok.slice(2);
       const next = tokens[i + 1];
-      if (next !== void 0 && !next.startsWith("-")) {
+      if (KNOWN_STRING_FLAGS.has(key) && next !== void 0 && !next.startsWith("-")) {
         options[key] = next;
         i++;
       } else {

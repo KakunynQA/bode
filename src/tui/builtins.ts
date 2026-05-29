@@ -91,11 +91,16 @@ export const COMMAND_HELP: { [category: string]: CommandSummary[] } = {
 	],
 };
 
+// Subcommands whose FIRST positional must be a ticket key. Used by the
+// dispatcher's disambiguation rule: when the second token does not look
+// like a key, fall through to fastAction so prompts like "start the
+// project from scratch" keep working. `show` is excluded because its
+// signature is `show <artifact> <KEY>` — the key is the third token, not
+// the second.
 export const KEY_REQUIRED_SUBCOMMANDS = new Set([
 	'start',
 	'continue',
 	'status',
-	'show',
 	'replay',
 	'log',
 	'abort',

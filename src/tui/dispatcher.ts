@@ -53,6 +53,26 @@ export function tokenize(line: string): string[] {
 	return tokens;
 }
 
+// Flags that take a string value with the space-separated form (`--flag val`).
+// Anything not in this set is treated as a boolean when written without `=`,
+// so `start --auto KD-1` keeps `KD-1` as the positional ticket key instead of
+// consuming it as the value of `--auto`. The `--flag=value` form always works
+// regardless and is the right call for ambiguous flags like `--report path`.
+export const KNOWN_STRING_FLAGS = new Set([
+	'project',
+	'from-branch',
+	'with-cli',
+	'with-model',
+	'phase',
+	'phases',
+	'agents',
+	'title',
+	'diff',
+	'pick',
+	'from',
+	'import',
+]);
+
 export function parseTokens(tokens: string[]): Parsed {
 	const positionals: string[] = [];
 	const options: Record<string, string | boolean> = {};
@@ -67,7 +87,7 @@ export function parseTokens(tokens: string[]): Parsed {
 			}
 			const key = tok.slice(2);
 			const next = tokens[i + 1];
-			if (next !== undefined && !next.startsWith('-')) {
+			if (KNOWN_STRING_FLAGS.has(key) && next !== undefined && !next.startsWith('-')) {
 				options[key] = next;
 				i++;
 			} else {

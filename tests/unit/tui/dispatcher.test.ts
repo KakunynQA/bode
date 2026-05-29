@@ -38,6 +38,20 @@ describe('parseTokens', () => {
 		const parsed = parseTokens(['KD-1', '-y']);
 		assert.deepEqual(parsed.options, { y: true });
 	});
+
+	it('keeps positionals after a boolean flag (no operand consumption)', () => {
+		// `start --auto KD-1` — without the known-string-flag list, the parser
+		// previously ate KD-1 as the value of --auto. KD-1 must stay positional.
+		const parsed = parseTokens(['--auto', 'KD-1']);
+		assert.deepEqual(parsed.tokens, ['KD-1']);
+		assert.deepEqual(parsed.options, { auto: true });
+	});
+
+	it('still consumes the space-separated value for a known string flag', () => {
+		const parsed = parseTokens(['--project', 'grid', 'KD-1']);
+		assert.deepEqual(parsed.tokens, ['KD-1']);
+		assert.deepEqual(parsed.options, { project: 'grid' });
+	});
 });
 
 describe('decideRoute', () => {
@@ -93,6 +107,25 @@ describe('decideRoute', () => {
 		const d = decideRoute('start KD-1 --project=grid');
 		assert.equal(d.kind, 'subcommand');
 		if (d.kind === 'subcommand') assert.equal(d.parsed.options.project, 'grid');
+	});
+
+	it('routes "start --auto KD-1" with the flag before the key', () => {
+		const d = decideRoute('start --auto KD-1');
+		assert.equal(d.kind, 'subcommand');
+		if (d.kind === 'subcommand') {
+			assert.deepEqual(d.parsed.tokens, ['KD-1']);
+			assert.equal(d.parsed.options.auto, true);
+		}
+	});
+
+	it('routes "show --html plan KD-1" with the boolean flag before positionals', () => {
+		const d = decideRoute('show --html plan KD-1');
+		assert.equal(d.kind, 'subcommand');
+		if (d.kind === 'subcommand') {
+			assert.equal(d.name, 'show');
+			assert.deepEqual(d.parsed.tokens, ['plan', 'KD-1']);
+			assert.equal(d.parsed.options.html, true);
+		}
 	});
 
 	it('recognises help, ?, clear, exit, quit, :q', () => {
