@@ -131,6 +131,17 @@ bode "fix the dashboard bug" --strict
 
 Use `--strict` on `bode start` or the fast path to enable Wave 6 gates: plan-review, YAML artifact contract validation, configured `validation:` commands, configured `release:` checks, and HTML rendering via `bode show plan <KEY> --html`.
 
+### Daily-driver depth
+
+Wave 8 adds local power-user surfaces:
+
+- `bode list --watch` reads `~/.bode/scheduler.json` as a live run monitor.
+- `bode cancel <KEY>` removes a task from the scheduler and terminates the local process when possible.
+- `bode memory init|add|show|off` manages project-scoped notes injected into future prompts when enabled.
+- `budget:` in config can cap per-task, per-phase, and daily spend on a best-effort basis.
+- `bode trigger-test <payload.json>` validates `/bode plan|fix|review` comment triggers locally.
+- `bode skills install <repo>#<path>` installs curated/community skills into `~/.bode/skills/`.
+
 ### Zero config — just type what you want
 
 In any git repo:

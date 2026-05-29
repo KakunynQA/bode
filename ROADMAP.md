@@ -8,7 +8,7 @@ Source of truth for direction. GitHub issues track the actual work; this file de
 
 ## Where we are (May 2026)
 
-The engine is built. Waves 0–6 are **functionally closed** (see `CHANGELOG.md`):
+The engine is built. Waves 0–6 are **functionally closed** (see `CHANGELOG.md`), with Wave 8 primitives now landed early to unlock Wave 7 delivery:
 
 - ✅ Wave 0 — hardening (atomic meta, lockfiles, prompt-injection guard, exit-code gate)
 - ✅ Wave 1 — solo-dev fast path (`bode <prompt>`, `.bode.yml`, `bode doctor`, optional tracker)
@@ -17,6 +17,7 @@ The engine is built. Waves 0–6 are **functionally closed** (see `CHANGELOG.md`
 - ✅ Wave 4 — public-release plumbing (release-SEA workflow, docs scaffold)
 - ✅ Wave 5 — ecosystem hooks doable in-tree (plugin hooks, `bode compare`)
 - ✅ Wave 6 — launch readiness in-tree features (neutral skills, strict gates, `bode init`, `bode learn`, HTML artifacts)
+- ✅ Wave 8 primitives — scheduler, budgets, memory, trigger parser, multi-repo, community skills, integration skeletons
 
 What's left from the old plan is gated on **external action** (npm publish, demo video, launch post, marketplace infra, GitHub App). Those don't ship more code — they ship a product.
 

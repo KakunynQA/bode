@@ -58,6 +58,22 @@ export function getRunsDir(): string {
 	return join(getGlobalDir(), 'runs');
 }
 
+export function getSchedulerPath(): string {
+	return join(getGlobalDir(), 'scheduler.json');
+}
+
+export function getWorktreesDir(): string {
+	return join(getGlobalDir(), 'worktrees');
+}
+
+export function getUsageDir(): string {
+	return join(getGlobalDir(), 'usage');
+}
+
+export function getMemoryDir(): string {
+	return join(getGlobalDir(), 'memory');
+}
+
 export function getSkillsDir(): string {
 	return join(getGlobalDir(), 'skills');
 }

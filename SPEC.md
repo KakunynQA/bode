@@ -432,6 +432,42 @@ Resolution: `<repo>/.bode/skills/<name>.md` → `~/.bode/skills/<name>.md` → f
 
 Every strict artifact starts with a YAML contract containing `objective`, `depends_on`, `files`, `validation`, `expected_output`, and `risk`.
 
+Community skills can be installed with `bode skills install <repo>#<path>`. Installs are pinned by source metadata under `~/.bode/skills/<slug>/.install.json`; bode never auto-updates them.
+
+## Wave 8 Local Power Surfaces
+
+### Parallel Scheduler
+
+`~/.bode/scheduler.json` stores local task state for `bode list --watch`, `bode cancel`, external monitors, and future worktree-based parallel execution. Entries include task key, repo, phase, status, pid, CLI, model, and timestamps. Running entries with dead PIDs are marked `crashed` on read.
+
+### Budgets
+
+Config supports:
+
+```yaml
+budget:
+  per_task_max_usd: 5
+  per_phase_max_usd: 2
+  daily_max_usd: 25
+  abort_on_breach: true
+  warn_at_pct: 80
+  fallback_if_no_usage_data: continue
+```
+
+Usage aggregates live under `~/.bode/usage/<YYYY-MM-DD>.json`. Enforcement is best-effort because AI CLIs expose usage differently.
+
+### Memory
+
+`bode memory init` opts the current project into prompt memory. Files live under `~/.bode/memory/<project-slug>/` and are injected below `.bode/context.md` and above `AGENTS.md` when `memory.enabled` is set.
+
+### Trigger Architecture
+
+`/bode plan`, `/bode fix`, and `/bode review` are parsed by the local trigger parser and by the webhook skeleton under `packaging/webhook/`. The webhook verifies GitHub HMAC signatures and never sees AI provider keys; execution belongs to the user's runner.
+
+### Multi-repo
+
+`repos[]` accepts `name`, `workdir`, `role`, and `optional`. The multi-repo runner primitive builds a per-repo plan used by future fan-out phase execution.
+
 Skills are user-editable; never refactor them automatically.
 
 ## Hooks

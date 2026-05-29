@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ProjectConfig } from '~/config/schema.ts';
+import { readProjectMemory } from '~/utils/memory-store.ts';
 
 const FILE_TREE_MAX_DEPTH = 4;
 const FILE_TREE_MAX_ENTRIES = 200;
@@ -48,10 +49,11 @@ export async function gatherContext(
 
 	const agentsMd = await readAgentsMd(workdir, projectConfig.context_files);
 	const learnedContext = await readLearnedContext(workdir);
+	const memory = projectConfig.memory?.enabled ? await readProjectMemory(workdir) : undefined;
 	const fileTree = await generateFileTree(workdir, projectConfig.context_paths);
 
 	return {
-		agentsMd: [learnedContext, agentsMd].filter(Boolean).join('\n\n') || undefined,
+		agentsMd: [learnedContext, memory, agentsMd].filter(Boolean).join('\n\n') || undefined,
 		fileTree,
 	};
 }

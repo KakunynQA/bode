@@ -9,6 +9,8 @@ export function createCommands(program: Command): void {
 		.argument('[query...]', 'Ticket key (e.g. KD-312) or freeform prompt')
 		.option('--project <name>', 'Project name from ~/.bode/projects/')
 		.option('--auto', 'Run all phases automatically until PR is created')
+		.option('--foreground', 'Run in the foreground while still recording scheduler state')
+		.option('--no-budget', 'Disable budget enforcement for this run')
 		.option(
 			'--strict',
 			'Enable Wave 6 strict gates (plan review contracts, validation, release gate)'
@@ -27,6 +29,8 @@ export function createCommands(program: Command): void {
 					dangerouslyAutoMerge?: boolean;
 					dangerouslyApproveAll?: boolean;
 					strict?: boolean;
+					foreground?: boolean;
+					noBudget?: boolean;
 				}
 			) => {
 				const joined = (query ?? []).join(' ').trim();
@@ -72,6 +76,8 @@ export function createCommands(program: Command): void {
 		.option('--project <name>', 'Project name from ~/.bode/projects/')
 		.option('--from-branch <branch>', 'Base branch (default: project default_branch or main)')
 		.option('--auto', 'Run all phases automatically until PR is created')
+		.option('--foreground', 'Run in the foreground while still recording scheduler state')
+		.option('--no-budget', 'Disable budget enforcement for this run')
 		.option(
 			'--strict',
 			'Enable Wave 6 strict gates (plan review contracts, validation, release gate)'
@@ -91,6 +97,8 @@ export function createCommands(program: Command): void {
 					dangerouslyAutoMerge?: boolean;
 					dangerouslyApproveAll?: boolean;
 					strict?: boolean;
+					foreground?: boolean;
+					noBudget?: boolean;
 				}
 			) => {
 				const { startAction } = await import('./actions/start.ts');
@@ -180,19 +188,30 @@ export function createCommands(program: Command): void {
 	program
 		.command('list')
 		.description('List all tasks currently tracked locally')
-		.action(async () => {
+		.option('--watch', 'Watch scheduler state until interrupted')
+		.action(async (options: { watch?: boolean }) => {
 			const { listAction } = await import('./actions/list.ts');
-			await listAction();
+			await listAction(options);
 		});
 
 	program
-		.command('skills')
-		.description('Show resolved skill paths and prompts')
-		.option('--project <name>', 'Project name from ~/.bode/projects/')
-		.action(async (options: { project?: string }) => {
-			const { skillsAction } = await import('./actions/skills.ts');
-			await skillsAction(options);
+		.command('cancel <taskKey>')
+		.description('Cancel a scheduled task and remove its scheduler entry')
+		.action(async (taskKey: string) => {
+			const { cancelAction } = await import('./actions/cancel.ts');
+			await cancelAction(taskKey);
 		});
+
+	program
+		.command('skills [subcommand] [args...]')
+		.description('Show resolved skill paths or manage installed community skills')
+		.option('--project <name>', 'Project name from ~/.bode/projects/')
+		.action(
+			async (subcommand: string | undefined, args: string[], options: { project?: string }) => {
+				const { skillsAction } = await import('./actions/skills.ts');
+				await skillsAction({ ...options, ...(subcommand ? { subcommand } : {}), args: args ?? [] });
+			}
+		);
 
 	program
 		.command('doctor')
@@ -214,11 +233,29 @@ export function createCommands(program: Command): void {
 		.command('compare <taskKey>')
 		.description('Run planning phase across multiple agents (headless) and compare outputs')
 		.requiredOption('--agents <list>', 'Comma-separated agents (e.g. claude-code,codex)')
+		.option('--phases <list>', 'Comma-separated phases or "all"')
+		.option('--show', 'Show the latest comparison summary for this key')
+		.option('--diff <agent>', 'Print the artifact path for one agent')
+		.option('--pick <agent>', 'Record the selected agent in the comparison summary')
+		.option('--pr-each', 'Plan draft PR creation for each agent (recorded in summary)')
 		.option('--project <name>', 'Project name from ~/.bode/projects/')
-		.action(async (taskKey: string, options: { agents: string; project?: string }) => {
-			const { compareAction } = await import('./actions/compare.ts');
-			await compareAction(taskKey, options);
-		});
+		.action(
+			async (
+				taskKey: string,
+				options: {
+					agents: string;
+					project?: string;
+					phases?: string;
+					show?: boolean;
+					diff?: string;
+					pick?: string;
+					prEach?: boolean;
+				}
+			) => {
+				const { compareAction } = await import('./actions/compare.ts');
+				await compareAction(taskKey, options);
+			}
+		);
 
 	program
 		.command('setup-transitions')

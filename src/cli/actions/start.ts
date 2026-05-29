@@ -12,6 +12,11 @@ import { printTaskSummary } from '~/cli/summary.ts';
 import { acquireLock } from '~/storage/lockfile.ts';
 import { registerLockReleaseHandlers } from '~/cli/lock-release.ts';
 import { hasProjectContext } from '~/orchestrator/preflight.ts';
+import {
+	createSchedulerTask,
+	updateSchedulerTask,
+	upsertSchedulerTask,
+} from '~/orchestrator/scheduler.ts';
 import { select } from '@inquirer/prompts';
 import pc from 'picocolors';
 import ora from 'ora';
@@ -25,6 +30,8 @@ export async function startAction(
 		dangerouslyAutoMerge?: boolean;
 		dangerouslyApproveAll?: boolean;
 		strict?: boolean;
+		foreground?: boolean;
+		noBudget?: boolean;
 	}
 ): Promise<void> {
 	const configResult = await loadConfig();
@@ -246,7 +253,18 @@ export async function startAction(
 		interactive,
 		dangerousBypass,
 		strict: options.strict ?? false,
+		noBudget: options.noBudget ?? false,
 	};
+
+	await upsertSchedulerTask(
+		createSchedulerTask({
+			key: taskKey,
+			repo: projectConfig.workdir,
+			phase: 'planning',
+			cli: config.phases.planning.cli,
+			model: config.phases.planning.model,
+		})
+	);
 
 	if (interactive) {
 		const result = await advancePhase(taskKey, config, trackerAdapter, engineOpts);
@@ -257,6 +275,7 @@ export async function startAction(
 
 		const advanceVal = result.value;
 		if (advanceVal.kind === 'phase' && advanceVal.phaseResult.kind === 'success') {
+			await updateSchedulerTask(taskKey, { status: 'done', phase: advanceVal.meta.status });
 			console.log(pc.green(`\nPlan ready. Run ${pc.bold(`bode continue ${taskKey}`)} to advance.`));
 		} else if (advanceVal.kind === 'phase' && advanceVal.phaseResult.kind === 'missing-artifact') {
 			const decision = await handleMissingArtifact('planning', taskKey);
@@ -302,6 +321,7 @@ export async function startAction(
 		}
 
 		if (advanceVal.kind === 'pr-created') {
+			await updateSchedulerTask(taskKey, { status: 'done', phase: advanceVal.meta.status });
 			console.log(pc.green(`\nPR created: ${pc.bold(advanceVal.prUrl)}`));
 
 			if (isDangerous && advanceVal.meta.prNumber) {

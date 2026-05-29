@@ -1,0 +1,14 @@
+name: Bode Runner Shim
+description: Run bode from a GitHub Actions runner in response to a verified trigger.
+inputs:
+  task-key:
+    required: true
+    description: Tracker task key or issue number.
+  bode-args:
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - run: bode start "${{ inputs.task-key }}" ${{ inputs.bode-args }}
+      shell: bash

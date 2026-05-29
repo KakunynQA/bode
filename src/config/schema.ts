@@ -35,6 +35,23 @@ const releaseSchema = z
 	})
 	.optional();
 
+const budgetSchema = z
+	.object({
+		per_task_max_usd: z.number().positive().optional(),
+		per_phase_max_usd: z.number().positive().optional(),
+		daily_max_usd: z.number().positive().optional(),
+		abort_on_breach: z.boolean().optional(),
+		warn_at_pct: z.number().min(1).max(100).optional(),
+		fallback_if_no_usage_data: z.enum(['continue', 'abort']).optional(),
+	})
+	.optional();
+
+const concurrencySchema = z
+	.object({ max_tasks: z.number().int().positive().max(32).optional() })
+	.optional();
+
+const memorySchema = z.object({ enabled: z.boolean().optional() }).optional();
+
 const jiraTransitionsSchema = z
 	.object({
 		planning: z.string().optional(),
@@ -127,6 +144,9 @@ export const bodeConfigSchema = z.object({
 	}),
 	validation: validationSchema,
 	release: releaseSchema,
+	budget: budgetSchema,
+	concurrency: concurrencySchema,
+	memory: memorySchema,
 	gates: z
 		.object({
 			after_planning: z.boolean(),
@@ -162,6 +182,9 @@ export type BodeConfig = z.infer<typeof bodeConfigSchema>;
 const reposItemSchema = z.object({
 	workdir: z.string().min(1),
 	name: z.string().optional(),
+	path: z.string().optional(),
+	role: z.string().optional(),
+	optional: z.boolean().optional(),
 });
 
 export const projectConfigSchema = z.object({
@@ -188,8 +211,12 @@ export const projectConfigSchema = z.object({
 		.optional(),
 	validation: validationSchema,
 	release: releaseSchema,
+	budget: budgetSchema,
+	concurrency: concurrencySchema,
+	memory: memorySchema,
 	branch_tool: z.string().optional(),
 	repos: z.array(reposItemSchema).optional(),
+	skill_sources_allowed: z.array(z.string()).optional(),
 	tracker: z
 		.enum([
 			'jira',

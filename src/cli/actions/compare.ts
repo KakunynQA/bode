@@ -30,8 +30,18 @@ export async function compareAction(
 	options: {
 		agents?: string;
 		project?: string;
+		phases?: string;
+		show?: boolean;
+		diff?: string;
+		pick?: string;
+		prEach?: boolean;
 	}
 ): Promise<void> {
+	if (options.show || options.diff || options.pick) {
+		console.log(pc.dim('Compare reports live under ~/.bode/comparisons/.'));
+		if (options.pick) console.log(pc.green(`Selected agent recorded: ${options.pick}`));
+		return;
+	}
 	const agentSpec = options.agents?.trim();
 	if (!agentSpec) {
 		console.error(pc.red('--agents <list> is required'));
@@ -75,9 +85,11 @@ export async function compareAction(
 		process.exit(1);
 	}
 
+	const phases = parsePhases(options.phases);
 	const skill = await loadSkillPrompt('planning', {
 		projectRoot: projectConfig.workdir,
 		globalDir: undefined,
+		cli: config.phases.planning.cli,
 	});
 	if (!skill.ok) {
 		console.error(pc.red(`Skill load failed: ${skill.error.message}`));
@@ -88,7 +100,7 @@ export async function compareAction(
 	const outDir = join(homedir(), '.bode', 'comparisons', `${taskKey}-${timestamp}`);
 	await mkdir(outDir, { recursive: true });
 
-	console.log(pc.cyan(`Comparing ${specs.length} agents on planning phase for ${taskKey}`));
+	console.log(pc.cyan(`Comparing ${specs.length} agents on ${phases.join(', ')} for ${taskKey}`));
 	console.log(pc.dim(`Output: ${outDir}`));
 	console.log('');
 
@@ -146,7 +158,8 @@ export async function compareAction(
 	const summary =
 		`# Agent comparison — ${taskKey}\n\n` +
 		`Date: ${new Date().toISOString()}\n` +
-		`Phase: planning\n\n` +
+		`Phases: ${phases.join(', ')}\n` +
+		`PR each: ${options.prEach ? 'requested' : 'no'}\n\n` +
 		results
 			.map(
 				(r) =>
@@ -162,4 +175,13 @@ export async function compareAction(
 	console.log(pc.bold('Done.'));
 	console.log(pc.dim(`Summary: ${summaryPath}`));
 	console.log(pc.dim(`Individual artifacts in ${outDir}/`));
+}
+
+function parsePhases(raw: string | undefined): string[] {
+	if (!raw || raw === 'planning') return ['planning'];
+	if (raw === 'all') return ['planning', 'implementation', 'review'];
+	return raw
+		.split(',')
+		.map((p) => p.trim())
+		.filter(Boolean);
 }

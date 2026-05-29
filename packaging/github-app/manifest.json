@@ -1,0 +1,15 @@
+{
+  "name": "Bode Trigger",
+  "url": "https://github.com/KakunynQA/bode",
+  "hook_attributes": {
+    "url": "https://example.com/bode/webhook"
+  },
+  "redirect_url": "https://github.com/KakunynQA/bode",
+  "public": false,
+  "default_permissions": {
+    "issues": "write",
+    "pull_requests": "write",
+    "contents": "read"
+  },
+  "default_events": ["issue_comment", "pull_request_review_comment"]
+}

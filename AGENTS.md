@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local CLI (v1.0.0) that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v1.0.0 adds Wave 6 strict mode, neutral/flavored skills, `bode init`, `bode learn`, validation/release gates, and HTML artifacts. **Waves 0-6 are functionally closed except external launch actions.** See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local CLI (v1.1.0) that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v1.1.0 adds Wave 8 primitives: scheduler/watch/cancel, budget hooks, project memory, trigger parsing, multi-repo planning, and community skill install scaffolding. **Waves 0-6 are functionally closed except external launch actions.** See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 

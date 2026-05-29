@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-05-29
+
+Wave 8 / milestone 9 daily-driver depth release. Adds local scheduler state, watch/cancel surfaces, budget enforcement hooks, project memory, trigger parsing, multi-repo planning primitives, community skill install scaffolding, and packaging skeletons for server/IDE integrations.
+
+### Added
+
+- Scheduler state at `~/.bode/scheduler.json`, `bode list --watch`, and `bode cancel <KEY>`.
+- Worktree manager primitives for Wave 8 isolated task execution.
+- `budget:` config schema and pre-phase budget enforcement hooks.
+- Project memory store plus `bode memory init|show|add|edit|prune|off`.
+- `.bode/context.md` prompt layering now supports opted-in project memory.
+- `bode trigger-test` and `/bode plan|fix|review` trigger parser.
+- `bode compare --phases`, `--show`, `--diff`, `--pick`, and `--pr-each` CLI surface.
+- Multi-repo runner planning primitive and expanded `repos[]` schema (`role`, `optional`, `path`).
+- Community skill example and `bode skills install|list|remove|search|audit|update` management surface.
+- GitHub App manifest, runner shim, webhook worker skeleton, and VS Code panel contract docs.
+
+### Changed
+
+- `bode list` and `bode status` show best-effort task cost.
+- Version bumped to `1.1.0` for Wave 8 CLI/config additions.
+
 ## [1.0.0] — 2026-05-28
 
 Wave 6 launch-readiness release: model-aware skills, strict delivery gates, generated project context, and first-run repo initialization.

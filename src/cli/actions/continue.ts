@@ -6,6 +6,7 @@ import { planDangerousMode } from '~/cli/dangerous-check.ts';
 import { handleMissingArtifact } from '~/cli/missing-artifact.ts';
 import { acquireLock } from '~/storage/lockfile.ts';
 import { registerLockReleaseHandlers } from '~/cli/lock-release.ts';
+import { updateSchedulerTask } from '~/orchestrator/scheduler.ts';
 import pc from 'picocolors';
 
 export async function continueAction(
@@ -65,6 +66,7 @@ export async function continueAction(
 		projectConfig,
 		interactive: true,
 		dangerousBypass,
+		noBudget: false,
 	});
 	if (!result.ok) {
 		console.error(pc.red(`Error: ${result.error.message}`));
@@ -81,6 +83,7 @@ export async function continueAction(
 	}
 
 	if (advanceVal.kind === 'pr-created') {
+		await updateSchedulerTask(taskKey, { status: 'done', phase: advanceVal.meta.status });
 		console.log(pc.green(`\nPR created: ${pc.bold(advanceVal.prUrl)}`));
 		console.log(pc.dim('Review the PR manually. Run "bode done" when ready to finalize.'));
 		return;
@@ -90,6 +93,7 @@ export async function continueAction(
 		const { meta, phaseResult } = advanceVal;
 
 		if (phaseResult.kind === 'success') {
+			await updateSchedulerTask(taskKey, { status: 'done', phase: meta.status });
 			console.log(pc.green(`\nPhase complete. Status: ${meta.status}`));
 
 			if (meta.status === 'reviewed') {

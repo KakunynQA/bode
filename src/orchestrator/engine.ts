@@ -30,6 +30,7 @@ export type AdvanceOptions = {
 	interactive?: boolean;
 	dangerousBypass?: boolean;
 	strict?: boolean;
+	noBudget?: boolean;
 };
 
 export async function advancePhase(
@@ -120,6 +121,7 @@ export async function advancePhase(
 		projectConfig: options.projectConfig,
 		interactive,
 		dangerousBypass: options.dangerousBypass ?? false,
+		noBudget: options.noBudget ?? false,
 	});
 
 	if (!phaseResult.ok) {

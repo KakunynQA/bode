@@ -1,5 +1,6 @@
 import { loadRunMeta } from '~/storage/run-meta.ts';
 import { getPhaseStatusLabel } from '~/types/phase.ts';
+import { getTaskCost } from '~/orchestrator/budget-tracker.ts';
 import pc from 'picocolors';
 
 export async function statusAction(taskKey: string): Promise<void> {
@@ -15,8 +16,10 @@ export async function statusAction(taskKey: string): Promise<void> {
 	}
 
 	const meta = result.value;
+	const cost = await getTaskCost(meta.taskKey);
 	console.log(`Task: ${pc.bold(meta.taskKey)} - ${meta.trackerSummary}`);
 	console.log(`Status: ${pc.cyan(getPhaseStatusLabel(meta.status))}`);
+	console.log(`Cost: ${pc.dim(`$${cost.toFixed(2)}`)}`);
 	if (meta.branch) {
 		console.log(`Branch: ${pc.dim(meta.branch)} (from ${meta.baseBranch ?? 'unknown'})`);
 	}

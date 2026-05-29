@@ -12,6 +12,7 @@ import { getRunDir } from '~/config/defaults.ts';
 import { writeText, readText } from '~/utils/fs.ts';
 import { gatherContext } from '~/config/context.ts';
 import { preflightProjectPaths } from './preflight.ts';
+import { assertBudgetAvailable, recordPhaseCost } from './budget-tracker.ts';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -28,6 +29,7 @@ export type RunPhaseOptions = {
 	projectConfig?: ProjectConfig | undefined;
 	interactive?: boolean;
 	dangerousBypass?: boolean;
+	noBudget?: boolean;
 };
 
 export async function runPhase(
@@ -57,6 +59,15 @@ export async function runPhase(
 			return { ok: false, error: new Error(preflight.error.message) };
 		}
 	}
+
+	const budget = await assertBudgetAvailable({
+		taskKey,
+		phase: phaseName,
+		config,
+		...(options.projectConfig ? { projectConfig: options.projectConfig } : {}),
+		noBudget: options.noBudget ?? false,
+	});
+	if (!budget.ok) return budget;
 
 	const skillResult = await loadSkillPrompt(phaseName, {
 		projectRoot: options.projectRoot,
@@ -158,6 +169,7 @@ export async function runPhase(
 	}
 
 	const invocation = invokeResult.value;
+	await recordPhaseCost(taskKey, phaseName, 0);
 
 	if (invocation.stdout || invocation.stderr) {
 		const logBody = `STDOUT:\n${invocation.stdout}\n\nSTDERR:\n${invocation.stderr}`;
