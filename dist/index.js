@@ -7492,10 +7492,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep, value } = collItem;
+        const { start, key, sep: sep2, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep?.[0],
+          next: key ?? sep2?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -7509,7 +7509,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep) {
+          if (!keyProps.anchor && !keyProps.tag && !sep2) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map2.comment)
@@ -7533,7 +7533,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map2.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep ?? [], {
+        const valueProps = resolveProps.resolveProps(sep2 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -7549,7 +7549,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep2, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -7640,7 +7640,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep = "";
+        let sep2 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -7654,13 +7654,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep + cb;
-              sep = "";
+                comment += sep2 + cb;
+              sep2 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep += source;
+                sep2 += source;
               hasSpace = true;
               break;
             default:
@@ -7703,18 +7703,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep, value } = collItem;
+        const { start, key, sep: sep2, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep?.[0],
+          next: key ?? sep2?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep && !value) {
+          if (!props.anchor && !props.tag && !sep2 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -7768,8 +7768,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap && !sep && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep, null, props, onError);
+        if (!isMap && !sep2 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep2, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -7781,7 +7781,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep ?? [], {
+          const valueProps = resolveProps.resolveProps(sep2 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -7792,8 +7792,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap && !props.found && ctx.options.strict) {
-              if (sep)
-                for (const st of sep) {
+              if (sep2)
+                for (const st of sep2) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -7810,7 +7810,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep2, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -7990,7 +7990,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i + 1;
       }
       let value = "";
-      let sep = "";
+      let sep2 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
@@ -8007,24 +8007,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep + indent.slice(trimIndent) + content;
-          sep = "\n";
+          value += sep2 + indent.slice(trimIndent) + content;
+          sep2 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep === " ")
-            sep = "\n";
-          else if (!prevMoreIndented && sep === "\n")
-            sep = "\n\n";
-          value += sep + indent.slice(trimIndent) + content;
-          sep = "\n";
+          if (sep2 === " ")
+            sep2 = "\n";
+          else if (!prevMoreIndented && sep2 === "\n")
+            sep2 = "\n\n";
+          value += sep2 + indent.slice(trimIndent) + content;
+          sep2 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep === "\n")
+          if (sep2 === "\n")
             value += "\n";
           else
-            sep = "\n";
+            sep2 = "\n";
         } else {
-          value += sep + content;
-          sep = " ";
+          value += sep2 + content;
+          sep2 = " ";
           prevMoreIndented = false;
         }
       }
@@ -8206,25 +8206,25 @@ var require_resolve_flow_scalar = __commonJS({
       if (!match)
         return source;
       let res = match[1];
-      let sep = " ";
+      let sep2 = " ";
       let pos = first.lastIndex;
       line.lastIndex = pos;
       while (match = line.exec(source)) {
         if (match[1] === "") {
-          if (sep === "\n")
-            res += sep;
+          if (sep2 === "\n")
+            res += sep2;
           else
-            sep = "\n";
+            sep2 = "\n";
         } else {
-          res += sep + match[1];
-          sep = " ";
+          res += sep2 + match[1];
+          sep2 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep + (match?.[1] ?? "");
+      return res + sep2 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -9034,14 +9034,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep, value }) {
+    function stringifyItem({ start, key, sep: sep2, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep)
-        for (const st of sep)
+      if (sep2)
+        for (const st of sep2)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -10208,18 +10208,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep;
+          let sep2;
           if (scalar.end) {
-            sep = scalar.end;
-            sep.push(this.sourceToken);
+            sep2 = scalar.end;
+            sep2.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep = [this.sourceToken];
+            sep2 = [this.sourceToken];
           const map2 = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep }]
+            items: [{ start, key: scalar, sep: sep2 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map2;
@@ -10372,15 +10372,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep = it.sep;
-                  sep.push(this.sourceToken);
+                  const sep2 = it.sep;
+                  sep2.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep }]
+                    items: [{ start: start2, key, sep: sep2 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -10574,13 +10574,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep = fc.end.splice(1, fc.end.length);
-            sep.push(this.sourceToken);
+            const sep2 = fc.end.splice(1, fc.end.length);
+            sep2.push(this.sourceToken);
             const map2 = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep }]
+              items: [{ start, key: fc, sep: sep2 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map2;
@@ -38943,8 +38943,24 @@ var init_schema = __esm({
         default_project: external_exports.string().optional(),
         transitions: jiraTransitionsSchema
       }).optional(),
+      /**
+       * Deprecated since v1.3.0. Accepted at load time for backwards compatibility
+       * with project YAMLs written by older versions, but ignored at runtime and
+       * dropped on next save. Use `context_files` and `project_context_path`.
+       */
       context_paths: external_exports.array(external_exports.string()).optional(),
       context_files: external_exports.array(external_exports.string()).optional(),
+      /**
+       * Absolute path to the project's PROJECT_CONTEXT.md generated by
+       * `bode setup-project` investigation. When set and the file exists, its
+       * content is prepended to the AI context block in every phase.
+       */
+      project_context_path: external_exports.string().optional(),
+      /**
+       * ISO 8601 timestamp of the last successful investigation run. Used by
+       * `--refresh-context` and surfaced in `bode doctor`.
+       */
+      context_investigated_at: external_exports.string().optional(),
       phases: external_exports.object({
         planning: phaseConfigSchema.partial().optional(),
         plan_review: phaseConfigSchema.partial().optional(),
@@ -39134,6 +39150,9 @@ var init_merge = __esm({
 });
 
 // src/config/auto-detect.ts
+function detectContextFilesIn(workdir) {
+  return CONTEXT_FILE_CANDIDATES.filter((rel) => (0, import_node_fs4.existsSync)((0, import_node_path6.join)(workdir, rel)));
+}
 async function readGitRemote(workdir) {
   try {
     const { stdout } = await execFileAsync("git", ["remote", "get-url", "origin"], {
@@ -39174,7 +39193,7 @@ async function detectAvailableCli() {
   return void 0;
 }
 function detectContextFiles(workdir) {
-  return CONTEXT_FILE_CANDIDATES.filter((rel) => (0, import_node_fs4.existsSync)((0, import_node_path6.join)(workdir, rel)));
+  return detectContextFilesIn(workdir);
 }
 async function detectEnv(workdir, options) {
   const gitRemoteUrl = await readGitRemote(workdir) ?? void 0;
@@ -39208,7 +39227,17 @@ var init_auto_detect = __esm({
       { name: "opencode", binary: "opencode" },
       { name: "codex", binary: "codex" }
     ];
-    CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md", "CONTRIBUTING.md"];
+    CONTEXT_FILE_CANDIDATES = [
+      "CLAUDE.md",
+      "AGENTS.md",
+      "CODE_CONVENTIONS.md",
+      "CONVENTIONS.md",
+      ".cursorrules",
+      "GEMINI.md",
+      ".github/copilot-instructions.md",
+      ".claude/CLAUDE.md",
+      "CONTRIBUTING.md"
+    ];
   }
 });
 
@@ -39504,17 +39533,17 @@ function projectConfigToYaml(p) {
     if (p.jira.site) lines.push(`  site: ${p.jira.site}`);
     if (p.jira.default_project) lines.push(`  default_project: ${p.jira.default_project}`);
   }
-  if (p.context_paths?.length) {
-    lines.push("context_paths:");
-    for (const cp2 of p.context_paths) {
-      lines.push(`  - ${cp2}`);
-    }
-  }
   if (p.context_files?.length) {
     lines.push("context_files:");
     for (const cf of p.context_files) {
       lines.push(`  - ${cf}`);
     }
+  }
+  if (p.project_context_path) {
+    lines.push(`project_context_path: ${p.project_context_path}`);
+  }
+  if (p.context_investigated_at) {
+    lines.push(`context_investigated_at: ${p.context_investigated_at}`);
   }
   if (p.phases) {
     lines.push("phases:");
@@ -40463,8 +40492,8 @@ function adfToText(node) {
     return n.text;
   }
   if (Array.isArray(n.content)) {
-    const sep = n.type === "paragraph" || n.type === "heading" ? "\n\n" : "";
-    return n.content.map((c) => adfToText(c)).join("") + sep;
+    const sep2 = n.type === "paragraph" || n.type === "heading" ? "\n\n" : "";
+    return n.content.map((c) => adfToText(c)).join("") + sep2;
   }
   return "";
 }
@@ -41566,14 +41595,27 @@ var init_memory_store = __esm({
 // src/config/context.ts
 async function gatherContext(projectConfig) {
   const workdir = projectConfig.workdir;
+  const projectContext = await readProjectContextFile(projectConfig.project_context_path);
   const agentsMd = await readAgentsMd(workdir, projectConfig.context_files);
   const learnedContext = await readLearnedContext(workdir);
   const memory = projectConfig.memory?.enabled ? await readProjectMemory(workdir) : void 0;
-  const fileTree = await generateFileTree(workdir, projectConfig.context_paths);
+  const fileTree = await generateFileTree(workdir);
   return {
-    agentsMd: [learnedContext, memory, agentsMd].filter(Boolean).join("\n\n") || void 0,
+    agentsMd: [projectContext, learnedContext, memory, agentsMd].filter(Boolean).join("\n\n") || void 0,
     fileTree
   };
+}
+async function readProjectContextFile(path3) {
+  if (!path3) return void 0;
+  if (!(0, import_node_fs10.existsSync)(path3)) return void 0;
+  try {
+    const content = await (0, import_promises9.readFile)(path3, "utf-8");
+    return content.trim() ? `### PROJECT_CONTEXT.md
+
+${content.trim()}` : void 0;
+  } catch {
+    return void 0;
+  }
 }
 async function readLearnedContext(workdir) {
   const fullPath = (0, import_node_path13.join)(workdir, ".bode", "context.md");
@@ -41606,18 +41648,10 @@ ${content.trim()}`);
   }
   return parts.length > 0 ? parts.join("\n\n") : void 0;
 }
-async function generateFileTree(workdir, contextPaths) {
-  const paths = contextPaths ?? ["."];
+async function generateFileTree(workdir) {
   const lines = [];
-  let count = 0;
-  for (const basePath of paths) {
-    const fullBase = (0, import_node_path13.join)(workdir, basePath);
-    if (!(0, import_node_fs10.existsSync)(fullBase)) continue;
-    await walkDir(fullBase, workdir, lines, 0, (ref) => {
-      count = ref;
-    });
-    if (count >= FILE_TREE_MAX_ENTRIES) break;
-  }
+  if (!(0, import_node_fs10.existsSync)(workdir)) return void 0;
+  await walkDir(workdir, workdir, lines, 0, () => void 0);
   return lines.length > 0 ? lines.join("\n") : void 0;
 }
 async function walkDir(dirPath, rootDir, lines, depth, counter, prefix = "") {
@@ -41698,9 +41732,6 @@ var init_context = __esm({
 });
 
 // src/orchestrator/preflight.ts
-function resolveTarget(workdir, candidate) {
-  return (0, import_node_path14.isAbsolute)(candidate) ? candidate : (0, import_node_path14.join)(workdir, candidate);
-}
 async function checkReadable(path3) {
   try {
     await (0, import_promises10.access)(path3, import_node_fs11.constants.R_OK);
@@ -41714,9 +41745,6 @@ async function preflightProjectPaths(projectConfig) {
   const issues = [];
   const seen = /* @__PURE__ */ new Set();
   const targets = [{ path: projectConfig.workdir, source: "workdir" }];
-  for (const p of projectConfig.context_paths ?? []) {
-    targets.push({ path: resolveTarget(projectConfig.workdir, p), source: "context_paths" });
-  }
   for (const r of projectConfig.repos ?? []) {
     targets.push({ path: r.workdir, source: "repos" });
   }
@@ -46489,49 +46517,108 @@ var init_abort = __esm({
 });
 
 // src/utils/prompt.ts
-function createCancelSignal() {
+function createBackSignal() {
   const ac = new AbortController();
   let escTimer = null;
   function onData(chunk) {
     if (chunk.length === 1 && chunk[0] === 27) {
-      if (escTimer) {
-        clearTimeout(escTimer);
-        ac.abort(new Error("Cancelled by user"));
-        cleanup();
-      } else {
-        escTimer = setTimeout(() => {
-          escTimer = null;
-        }, 60);
-      }
-    } else {
-      if (escTimer) {
-        clearTimeout(escTimer);
+      if (escTimer) clearTimeout(escTimer);
+      escTimer = setTimeout(() => {
         escTimer = null;
-      }
+        ac.abort(new BackError());
+        cleanup();
+      }, 60);
+    } else if (escTimer) {
+      clearTimeout(escTimer);
+      escTimer = null;
     }
   }
   process.stdin.on("data", onData);
   function cleanup() {
     process.stdin.removeListener("data", onData);
-    if (escTimer) clearTimeout(escTimer);
+    if (escTimer) {
+      clearTimeout(escTimer);
+      escTimer = null;
+    }
   }
   return { signal: ac.signal, cleanup };
 }
+function printFooterHint(firstStep) {
+  if (!firstStep) console.log(FOOTER_HINT);
+}
+async function runWithBackSignal(fn, opts) {
+  while (true) {
+    const { signal, cleanup } = createBackSignal();
+    try {
+      return await fn(signal);
+    } catch (err) {
+      cleanup();
+      if (isBackAbort(err)) {
+        if (opts.firstStep) {
+          console.log(FIRST_STEP_NO_BACK);
+          continue;
+        }
+        return BACK;
+      }
+      throw err;
+    } finally {
+      cleanup();
+    }
+  }
+}
+function isBackAbort(err) {
+  if (err instanceof BackError) return true;
+  if (err instanceof AbortPromptError) {
+    const cause = err.cause;
+    if (cause instanceof BackError) return true;
+    return err.message.includes("__BACK__");
+  }
+  return false;
+}
+async function askInput(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  return runWithBackSignal((signal) => dist_default7(opts, { signal }), wrap);
+}
+async function askSelect(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  return runWithBackSignal((signal) => dist_default13(opts, { signal }), wrap);
+}
+async function askPassword(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  return runWithBackSignal((signal) => dist_default11(opts, { signal }), wrap);
+}
+async function askSearch(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  return runWithBackSignal((signal) => dist_default12(opts, { signal }), wrap);
+}
 function handlePromptError(err, cleanup) {
   cleanup?.();
-  if (err instanceof ExitPromptError || err instanceof AbortPromptError) {
+  if (err instanceof ExitPromptError) {
+    console.log(import_picocolors5.default.dim("\nCancelled.\n"));
+    process.exit(0);
+  }
+  if (err instanceof AbortPromptError && !isBackAbort(err)) {
     console.log(import_picocolors5.default.dim("\nCancelled.\n"));
     process.exit(0);
   }
   throw err;
 }
-var import_picocolors5, BACK;
+var import_picocolors5, BACK, BackError, FOOTER_HINT, FIRST_STEP_NO_BACK;
 var init_prompt = __esm({
   "src/utils/prompt.ts"() {
     "use strict";
     init_dist5();
+    init_dist17();
     import_picocolors5 = __toESM(require_picocolors());
     BACK = Symbol("__BACK__");
+    BackError = class extends Error {
+      constructor() {
+        super("__BACK__");
+        this.name = "BackError";
+      }
+    };
+    FOOTER_HINT = import_picocolors5.default.dim("  (esc to go back \xB7 ctrl+c to cancel)");
+    FIRST_STEP_NO_BACK = import_picocolors5.default.dim("  (nothing to go back to)");
   }
 });
 
@@ -47336,15 +47423,102 @@ var init_models = __esm({
   }
 });
 
+// src/utils/file-picker.ts
+async function scanWorkdirFiles(workdir, query) {
+  const collected = [];
+  let scanned = 0;
+  async function walk(dir, depth) {
+    if (depth > MAX_DEPTH || scanned >= MAX_SCANNED) return;
+    let entries;
+    try {
+      entries = await (0, import_promises16.readdir)(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    entries.sort((a, b) => {
+      if (a.isDirectory() && !b.isDirectory()) return -1;
+      if (!a.isDirectory() && b.isDirectory()) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    for (const entry of entries) {
+      if (scanned >= MAX_SCANNED) return;
+      if (IGNORED_DIRS2.has(entry.name)) continue;
+      if (entry.name.startsWith(".") && entry.name !== ".cursorrules" && depth > 0) continue;
+      const full = (0, import_node_path24.join)(dir, entry.name);
+      scanned++;
+      if (entry.isDirectory()) {
+        await walk(full, depth + 1);
+      } else {
+        const rel = (0, import_node_path24.relative)(workdir, full).split(import_node_path24.sep).join("/");
+        collected.push(rel);
+      }
+    }
+  }
+  await walk(workdir, 0);
+  const q = query?.trim().toLowerCase();
+  if (!q) return collected.slice(0, MAX_RESULTS);
+  const scored = collected.map((path3) => ({ path: path3, score: scorePath(path3.toLowerCase(), q) })).filter((entry) => entry.score > 0).sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.path.length !== b.path.length) return a.path.length - b.path.length;
+    return a.path.localeCompare(b.path);
+  });
+  return scored.slice(0, MAX_RESULTS).map((entry) => entry.path);
+}
+function scorePath(pathLower, query) {
+  const basename2 = pathLower.split("/").pop() ?? pathLower;
+  if (basename2 === query) return 1e3;
+  if (basename2.startsWith(query)) return 800;
+  if (basename2.includes(query)) return 600;
+  if (pathLower.includes(query)) return 400;
+  if (isSubsequence(query, pathLower)) return 200;
+  return 0;
+}
+function isSubsequence(needle, haystack) {
+  let i = 0;
+  for (const ch of haystack) {
+    if (ch === needle[i]) i++;
+    if (i === needle.length) return true;
+  }
+  return i === needle.length;
+}
+var import_promises16, import_node_path24, IGNORED_DIRS2, MAX_DEPTH, MAX_RESULTS, MAX_SCANNED;
+var init_file_picker = __esm({
+  "src/utils/file-picker.ts"() {
+    "use strict";
+    import_promises16 = require("node:fs/promises");
+    import_node_path24 = require("node:path");
+    IGNORED_DIRS2 = /* @__PURE__ */ new Set([
+      "node_modules",
+      ".git",
+      "dist",
+      "build",
+      ".next",
+      ".nuxt",
+      "coverage",
+      ".cache",
+      ".turbo",
+      ".local",
+      ".bode",
+      "__pycache__",
+      ".venv",
+      "vendor",
+      "target"
+    ]);
+    MAX_DEPTH = 6;
+    MAX_RESULTS = 50;
+    MAX_SCANNED = 5e3;
+  }
+});
+
 // src/utils/version.ts
 function getVersion() {
-  if ("1.2.0") {
-    return "1.2.0";
+  if ("1.3.0") {
+    return "1.3.0";
   }
   if (typeof __dirname !== "undefined") {
     const candidates = [
-      (0, import_node_path24.join)(__dirname, "..", "..", "package.json"),
-      (0, import_node_path24.join)(__dirname, "..", "package.json")
+      (0, import_node_path25.join)(__dirname, "..", "..", "package.json"),
+      (0, import_node_path25.join)(__dirname, "..", "package.json")
     ];
     for (const path3 of candidates) {
       if ((0, import_node_fs21.existsSync)(path3)) {
@@ -47358,13 +47532,105 @@ function getVersion() {
   }
   return FALLBACK_VERSION;
 }
-var import_node_fs21, import_node_path24, FALLBACK_VERSION;
+var import_node_fs21, import_node_path25, FALLBACK_VERSION;
 var init_version = __esm({
   "src/utils/version.ts"() {
     "use strict";
     import_node_fs21 = require("node:fs");
-    import_node_path24 = require("node:path");
+    import_node_path25 = require("node:path");
     FALLBACK_VERSION = "0.0.0-dev";
+  }
+});
+
+// src/cli/actions/setup-project-investigate.ts
+function resolveProjectContextPath(projectName, workdir, sharedInRepo) {
+  if (sharedInRepo) return (0, import_node_path26.join)(workdir, "PROJECT_CONTEXT.md");
+  return (0, import_node_path26.join)(getProjectsDir(), projectName, "PROJECT_CONTEXT.md");
+}
+async function investigateProjectContext(opts) {
+  const target = resolveProjectContextPath(opts.projectName, opts.workdir, opts.sharedInRepo);
+  if ((0, import_node_fs22.existsSync)(target)) {
+    const overwrite = await askSelect({
+      message: `${target} already exists. Overwrite?`,
+      default: "no",
+      choices: [
+        { name: "No, keep existing file", value: "no" },
+        { name: "Yes, overwrite", value: "yes" }
+      ]
+    });
+    if (overwrite === BACK || overwrite === "no") {
+      console.log(import_picocolors11.default.dim(`Keeping existing ${target}`));
+      return {
+        path: target,
+        investigatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+    }
+  }
+  const adapterResult = getAdapter(opts.cliName);
+  if (!adapterResult.ok) throw adapterResult.error;
+  const skill = await loadSkillPrompt("learn", {
+    projectRoot: opts.workdir,
+    globalDir: void 0,
+    cli: opts.cliName
+  });
+  if (!skill.ok) throw skill.error;
+  const prompt = buildPrompt(skill.value, {
+    jiraIssue: {
+      key: "PROJECT-CONTEXT",
+      summary: `Investigate project context for ${opts.projectName}`,
+      description: `Workdir: ${opts.workdir}. Produce a thorough PROJECT_CONTEXT.md covering stack, architecture, conventions, entry points, testing strategy, and anything non-obvious from existing CLAUDE.md / AGENTS.md files. Write to ${target}.`,
+      status: "local",
+      issueType: "Task",
+      assignee: null,
+      labels: [],
+      url: ""
+    },
+    projectAgentsMd: void 0,
+    repoFileTree: void 0,
+    priorArtifact: void 0,
+    artifactPath: target,
+    phaseName: "planning",
+    mainWorkdir: opts.workdir
+  });
+  if (opts.sharedInRepo) {
+    await ensureDir(opts.workdir);
+  } else {
+    await ensureDir((0, import_node_path26.join)(getProjectsDir(), opts.projectName));
+  }
+  console.log(import_picocolors11.default.dim(`\u2192 Running ${opts.cliName} (${opts.model}) against ${opts.workdir}`));
+  console.log(import_picocolors11.default.dim(`  This may take a few minutes. Watch the AI output below.`));
+  const result = await adapterResult.value.invoke(
+    prompt,
+    { cli: opts.cliName, model: opts.model, timeout_minutes: opts.timeoutMinutes },
+    { interactive: true, workdir: opts.workdir }
+  );
+  if (!result.ok) throw result.error;
+  if (!(0, import_node_fs22.existsSync)(target) && result.value.stdout.trim()) {
+    await writeText(target, result.value.stdout);
+  }
+  if (!(0, import_node_fs22.existsSync)(target)) {
+    throw new Error(
+      `Investigation finished but no PROJECT_CONTEXT.md was written to ${target}. The AI may have written to a different location.`
+    );
+  }
+  const investigatedAt = (/* @__PURE__ */ new Date()).toISOString();
+  console.log(import_picocolors11.default.green(`\u2713 Project context written to ${target}`));
+  return { path: target, investigatedAt };
+}
+var import_node_fs22, import_node_path26, import_picocolors11;
+var init_setup_project_investigate = __esm({
+  "src/cli/actions/setup-project-investigate.ts"() {
+    "use strict";
+    import_node_fs22 = require("node:fs");
+    import_node_path26 = require("node:path");
+    import_picocolors11 = __toESM(require_picocolors());
+    init_defaults();
+    init_fs();
+    init_registry();
+    init_resolver();
+    init_prompt_builder();
+    init_prompt();
+    init_prompt();
   }
 });
 
@@ -47377,7 +47643,8 @@ async function runWizard(steps, results) {
   let cursor = 0;
   while (cursor < steps.length) {
     const step = steps[cursor];
-    const result = await step();
+    const isFirst = cursor === 0;
+    const result = await step(isFirst);
     if (result === BACK) {
       cursor = Math.max(0, cursor - 1);
     } else {
@@ -47386,77 +47653,37 @@ async function runWizard(steps, results) {
     }
   }
 }
-async function withSignal(fn) {
-  const { signal, cleanup } = createCancelSignal();
-  try {
-    return await fn(signal);
-  } catch (err) {
-    handlePromptError(err, cleanup);
-    throw err;
-  } finally {
-    cleanup();
-  }
-}
-async function selectCli(question, defaultCli, signal) {
+async function selectCli(question, defaultCli, firstStep = false) {
   const adapters2 = listAdapterNames();
   const choices = adapters2.map((name) => ({
     name,
     value: name,
     description: cliDescription(name)
   }));
-  choices.push({ name: import_picocolors11.default.dim("\u2190 Back"), value: BACK, description: "Go to previous question" });
-  return dist_default13(
+  return askSelect(
     {
       message: question,
       default: defaultCli,
       choices
     },
-    { signal }
+    { firstStep }
   );
 }
-async function selectModel(cliName, currentModel, signal) {
+async function selectModel(cliName, currentModel) {
   const models = getModelsForCli(cliName);
   if (models.length === 0) {
-    return dist_default7(
-      {
-        message: "Model:",
-        default: currentModel
-      },
-      { signal }
-    );
+    return askInput({ message: "Model:", default: currentModel });
   }
-  const choices = models.map(
-    (m) => ({
-      name: m,
-      value: m
-    })
-  );
-  choices.push({
-    name: import_picocolors11.default.dim("(other \u2014 type manually)"),
-    value: "__custom__"
+  const choices = models.map((m) => ({ name: m, value: m }));
+  choices.push({ name: import_picocolors12.default.dim("(other \u2014 type manually)"), value: "__custom__" });
+  const chosen = await askSelect({
+    message: "Model:",
+    default: currentModel,
+    choices
   });
-  choices.push({
-    name: import_picocolors11.default.dim("\u2190 Back"),
-    value: BACK,
-    description: "Go to previous question"
-  });
-  const chosen = await dist_default13(
-    {
-      message: "Model:",
-      default: currentModel,
-      choices
-    },
-    { signal }
-  );
   if (chosen === BACK) return BACK;
   if (chosen === "__custom__") {
-    return dist_default7(
-      {
-        message: "Custom model name:",
-        default: currentModel
-      },
-      { signal }
-    );
+    return askInput({ message: "Custom model name:", default: currentModel });
   }
   return chosen;
 }
@@ -47472,22 +47699,51 @@ function cliDescription(name) {
       return "";
   }
 }
-async function setupAction(subcommand) {
+async function askContextFiles(workdir, defaults, message) {
+  const defaultStr = defaults.join(", ");
+  const hint = import_picocolors12.default.dim("Type @ to open file picker. Comma-separated for multiple files.");
+  console.log(`  ${hint}`);
+  const raw = await askInput({
+    message,
+    default: defaultStr
+  });
+  if (raw === BACK) return BACK;
+  const entries = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  const expanded = [];
+  for (const entry of entries) {
+    if (entry.startsWith("@")) {
+      const query = entry.slice(1);
+      const picked = await askSearch({
+        message: "Pick a file:",
+        source: async (input) => {
+          const files = await scanWorkdirFiles(workdir, input ?? query);
+          return files.map((f) => ({ name: f, value: f }));
+        }
+      });
+      if (picked === BACK) return BACK;
+      expanded.push(picked);
+    } else {
+      expanded.push(entry);
+    }
+  }
+  return expanded;
+}
+async function setupAction(subcommand, options) {
   if (subcommand === "project") {
-    await setupProjectAction();
+    await setupProjectAction(options ?? {});
     return;
   }
   console.log("\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28A0\u28E4\u28C0\u2800\u2800\u2800\u28B0\u2876\u28E6\u2800\u2800\u2800\u28F0\u28FE\u28FF\u2844\u2800\u2800\u28E0\u28F4\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2800\u2800\u2800\u2800\u2880\u28FF\u2809\u28BB\u28F7\u2844\u2880\u28FF\u2837\u283B\u28FF\u2801\u2838\u280B\u2809\u28B9\u2847\u2800\u287E\u281B\u28BB\u287F\u2800\u28E4\u287E\u28FB\u2807\u2800\u2800\u28A0\u2876\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E0\u28E4\u28E4\u28E4\u28E4\u2840\u2800\u2800\u2800\u28FF\u287F\u28E6\u28C4\u2840\u28F4\u287F\u281F\u280B\u2819\u283F\u2819\u2809\u2800\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2801\u281B\u2809\u28BB\u285F\u2800\u2820\u28F4\u28FF\u2840\u28E0\u285E\u2801\u2880\u28F4\u2806\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F4\u28FF\u280B\u2801\u2800\u28E0\u285F\u2801\u2800\u2800\u2800\u28FD\u28FF\u281F\u283B\u2876\u2808\u2817\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u28F4\u28EA\u28E1\u28FE\u28F7\u287F\u28F7\u28FE\u28FF\u28FF\u28DF\u28C3\u2800\u2800\u2800\u2808\u2800\u2800\u28FE\u280F\u28E8\u28FF\u280B\u2880\u28F4\u281F\u2801\u28C0\u28F4\u281E\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u283B\u28F7\u28F4\u283F\u281B\u281B\u281B\u281B\u28F7\u2844\u2838\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28A7\u28FF\u28FF\u281B\u28DF\u28FF\u28CF\u28E4\u283E\u283F\u283E\u2837\u28F6\u28CC\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u281F\u2801\u2800\u281B\u2801\u28E0\u287E\u280B\u2801\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u28FF\u2844\u2800\u2800\u2800\u2800\u28FC\u285F\u2800\u2801\u2800\u2800\u2800\u2800\u2880\u28E4\u2874\u2836\u281B\u281B\u280B\u2809\u2809\u2800\u2800\u2800\u2800\u2811\u2804\u2880\u2800\u2800\u2809\u28B3\u28C4\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2810\u281F\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BF\u28FF\u28C0\u28C0\u28E0\u28FC\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u2803\u2880\u2840\u28C0\u28E4\u2824\u2824\u28A4\u28C0\u2800\u2800\u2800\u28C0\u287F\u28A7\u2824\u28C4\u281B\u281B\u281B\u281B\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u281B\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2830\u283E\u283F\u281B\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u28B0\u28FF\u28C3\u28F4\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2808\u2818\u28A6\u2848\u2801\u2800\u2800\u2810\u2812\u2800\u2820\u28F4\u2813\u281B\u281B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B6\u28FF\u2847\u2801\u2801\u2864\u2890\u28F4\u28E6\u28E4\u2840\u2800\u2800\u2800\u2808\u283B\u28C4\u2800\u2800\u2800\u2800\u2801\u2800\u2808\u28BB\u285F\u28BB\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u28E4\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2874\u281E\u28BB\u2847\u2800\u2800\u28F4\u28E1\u28E4\u28E4\u28EE\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u28B9\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28BE\u2877\u2866\u28E4\u28C4\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u2864\u281E\u2809\u28FB\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28C0\u28E0\u28E4\u2824\u2836\u281A\u281B\u2809\u2800\u2800\u2800\u28B8\u2847\u2800\u2820\u28FF\u281B\u281B\u281B\u2889\u28F8\u2807\u2800\u2800\u2800\u2800\u2800\u2800\u2838\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28AE\u280A\u2800\u2809\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u28F0\u2847\n\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u28E4\u28E4\u2864\u2834\u2836\u281A\u281B\u280B\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28B7\u2800\u2800\u2808\u28BB\u28D2\u28D2\u28EB\u280F\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2876\u281B\u281B\u281B\u281B\u28BF\u281B\u2809\u28F7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F8\u280B\u2800\n\u28ED\u28FF\u280D\u2809\u2809\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2840\u2804\u2810\u282B\u2800\u28B8\u2847\u2800\u283B\u283D\u2801\u2808\u2801\u2800\u2800\u2800\u2800\u2880\u2876\u2826\u2800\u2838\u28E4\u281E\u28FB\u2806\u2800\u2808\u2840\u28F4\u281F\u28B3\u28C0\u28C0\u2800\u2800\u2880\u28E0\u281C\u2803\u2800\u2800\n\u287C\u283B\u28E6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E4\u28BE\u2865\u2824\u28E4\u28C0\u2800\u2800\u2818\u28E7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28DE\u2801\u2800\u2800\u2800\u2800\u2808\u2819\u28A6\u28C0\u28C0\u28E1\u280F\u2800\u28A8\u2807\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u2800\u2800\n\u2800\u2800\u2808\u281B\u28A6\u28C0\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2834\u280B\u2801\u2800\u2800\u2800\u28FF\u2808\u2800\u2800\u2800\u2800\u2809\u281B\u28E6\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28C0\u28C0\u2800\u2800\u2800\u2800\u2809\u28BD\u2801\u2800\u28E0\u281E\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2808\u2809\u281B\u281B\u281B\u281B\u281B\u281B\u281B\u280B\u2809\u2809\u2801\u2800\u2800\u2800\u2800\u2800\u28B8\u28FF\u2800\u2800\u2800\u28B0\u2840\u2800\u2800\u280F\u282B\u2800\u2800\u2800\u2800\u2880\u2800\u28F4\u28CB\u28FD\u28FF\u28C9\u28F9\u285F\u2812\u2836\u2824\u28A4\u2836\u28FA\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u287F\u2800\u2800\u2800\u2800\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u285E\u28F8\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28F7\u28F6\u28F6\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u28FF\u2807\u2800\u2800\u2800\u2800\u2839\u28F7\u2840\u2800\u2800\u2800\u2800\u28A0\u28CE\u2800\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u2843\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FB\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u2840\u2800\u2800\u2800\u2800\u2819\u2846\u28BF\u287F\u28BF\u28FB\u288D\u2809\u2809\u2819\u2832\u28C4\u2809\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28B8\u28E7\u285F\u28B9\u28E6\u2860\u2800\u2800\u2800\u2808\u28A3\u2800\u2819\u28A6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FD\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28A3\u28F3\u28DE\u2880\u285F\u28A7\u2844\u2800\u2800\u2800\u281B\u2842\u2800\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28BF\u28E6\u2840\u2800\u2800\u2800\u2800\u2819\u28BF\u28FF\u2867\u28EF\u28D9\u287E\u28D7\u2864\u2824\u28C0\u28C0\u28C0\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28E7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FF\u28FF\u28E6\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28B3\u28EE\u28E5\u28E5\u28ED\u28FF\u28FF\u28FF\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28F7\u28E6\u2840\u2880\u28C0\u2880\u2880\u28F4\u28BE\u28F7\u2876\u281E\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FB\u2886\u281E\u2830\u28FD\u28BF\u28CD\u28A2\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u283B\u28C6\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u287F\u28BF\u28FF\u28FF\u2819\u28FF\u287E\u2846\u2803\u2808\u28A7\u285F\u2847\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28A7\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u281E\u2801\u2800\u28B8\u287F\u2803\u2800\u284F\u2887\u285F\u2844\u28A0\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u2833\u28A4\u28C0\u2800\u2800\u2830\u280A\u2800\u2800\u2800\u28A0\u287F\u2803\u2800\u2818\u2800\u287F\u28F8\u2843\u283B\u28B7\u28F6\u28D2\u2832\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2811\u2822\u28C4\u2800\u2800\u2800\u28A0\u285F\u2801\u2800\u2800\u2800\u2800\u2837\u28FF\u28F7\u28F6\u28D6\u2852\u28FF\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u2810\u28F0\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u280B\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n");
-  console.log(import_picocolors11.default.bold(import_picocolors11.default.cyan(`  Bode Setup Wizard v${getVersion()}
+  console.log(import_picocolors12.default.bold(import_picocolors12.default.cyan(`  Bode Setup Wizard v${getVersion()}
 `)));
   const globalDir = getGlobalDir();
   await ensureDir(globalDir);
   await ensureDir(`${globalDir}/runs`);
   await ensureDir(`${globalDir}/skills`);
   await ensureDir(`${globalDir}/projects`);
-  console.log(import_picocolors11.default.green(`\u2713 Created ${globalDir}
+  console.log(import_picocolors12.default.green(`\u2713 Created ${globalDir}
 `));
-  const existingConfig = (0, import_node_fs22.existsSync)(getGlobalConfigPath());
+  const existingConfig = (0, import_node_fs23.existsSync)(getGlobalConfigPath());
   let currentJiraSite = "";
   let currentProject = "";
   let currentJiraEmail = "";
@@ -47516,84 +47772,66 @@ async function setupAction(subcommand) {
       currentReviewModel = cfg.phases.review.model;
     }
     console.log(
-      import_picocolors11.default.dim(
+      import_picocolors12.default.dim(
         `Found existing config at ${getGlobalConfigPath()}. Press Enter to keep current values.
 `
       )
     );
   }
-  await withSignal(async (signal) => {
-    console.log(import_picocolors11.default.bold("\u2500\u2500 Jira \u2500\u2500"));
-    const jiraSite = await dist_default7(
+  try {
+    console.log(import_picocolors12.default.bold("\u2500\u2500 Jira \u2500\u2500"));
+    const jiraSite = await askInput(
       {
         message: "Jira site (e.g. mycompany.atlassian.net):",
         default: currentJiraSite || "yourcompany.atlassian.net"
       },
-      { signal }
+      { firstStep: true }
     );
-    const jiraProject = await dist_default7(
-      {
-        message: "Default project key (e.g. KD):",
-        default: currentProject || "KD"
-      },
-      { signal }
-    );
-    let jiraEmail = await dist_default7(
-      {
-        message: "Jira account email (for API token auth):",
-        default: currentJiraEmail
-      },
-      { signal }
-    );
-    let jiraToken = await dist_default11(
-      {
-        message: "Jira API token (leave blank to keep existing or use mock):",
-        mask: true
-      },
-      { signal }
-    );
+    const jiraProject = await askInput({
+      message: "Default project key (e.g. KD):",
+      default: currentProject || "KD"
+    });
+    let jiraEmail = await askInput({
+      message: "Jira account email (for API token auth):",
+      default: currentJiraEmail
+    });
+    let jiraToken = await askPassword({
+      message: "Jira API token (leave blank to keep existing or use mock):",
+      mask: true
+    });
     if (!jiraToken) jiraToken = currentJiraToken;
     if (jiraEmail && jiraToken) {
       const spinner = ora("Testing Jira connection...").start();
-      const testResult = await testJiraConnection(jiraSite, jiraEmail, jiraToken, signal);
+      const testResult = await testJiraConnection(jiraSite, jiraEmail, jiraToken);
       if (testResult.ok) {
         spinner.succeed("Jira connection successful!");
       } else {
         spinner.fail(`Connection failed: ${testResult.error.message}`);
-        const action = await dist_default13(
-          {
-            message: "What would you like to do?",
-            choices: [
-              { name: "Retry with different credentials", value: "retry" },
-              { name: "Skip (mock adapter will be used)", value: "skip" }
-            ]
-          },
-          { signal }
-        );
+        const action = await askSelect({
+          message: "What would you like to do?",
+          choices: [
+            { name: "Retry with different credentials", value: "retry" },
+            { name: "Skip (mock adapter will be used)", value: "skip" }
+          ]
+        });
         if (action === "retry") {
-          const newEmail = await dist_default7(
-            {
-              message: "Jira account email:",
-              default: jiraEmail
-            },
-            { signal }
-          );
-          const newToken = await dist_default11(
-            {
-              message: "Jira API token:",
-              mask: true
-            },
-            { signal }
-          );
+          const newEmail = await askInput({
+            message: "Jira account email:",
+            default: jiraEmail
+          });
+          const newToken = await askPassword({
+            message: "Jira API token:",
+            mask: true
+          });
           if (newEmail && newToken) {
-            const retryResult = await testJiraConnection(jiraSite, newEmail, newToken, signal);
+            const retryResult = await testJiraConnection(jiraSite, newEmail, newToken);
             if (retryResult.ok) {
-              console.log(import_picocolors11.default.green("\u2713 Connection successful!"));
+              console.log(import_picocolors12.default.green("\u2713 Connection successful!"));
               jiraEmail = newEmail;
               jiraToken = newToken;
             } else {
-              console.log(import_picocolors11.default.yellow(`\u26A0 Still failing: ${retryResult.error.message}`));
-              console.log(import_picocolors11.default.dim('Continuing with mock adapter. Run "bode setup" to reconfigure.'));
+              console.log(import_picocolors12.default.yellow(`\u26A0 Still failing: ${retryResult.error.message}`));
+              console.log(import_picocolors12.default.dim('Continuing with mock adapter. Run "bode setup" to reconfigure.'));
               jiraToken = "";
             }
           }
@@ -47602,83 +47840,51 @@ async function setupAction(subcommand) {
         }
       }
     }
-    console.log(import_picocolors11.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
-    const vcsProvider = await dist_default13(
-      {
-        message: "VCS provider:",
-        default: "github",
-        choices: [
-          {
-            name: "GitHub (gh)",
-            value: "github",
-            description: "Uses gh CLI for PR creation"
-          },
-          {
-            name: "GitLab (glab)",
-            value: "gitlab",
-            description: "Uses glab CLI for MR creation"
-          }
-        ]
-      },
-      { signal }
-    );
-    const githubOrg = await dist_default7(
-      {
-        message: "Default org:",
-        default: currentGithubOrg || "myorg"
-      },
-      { signal }
-    );
+    console.log(import_picocolors12.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
+    const vcsProvider = await askSelect({
+      message: "VCS provider:",
+      default: "github",
+      choices: [
+        { name: "GitHub (gh)", value: "github", description: "Uses gh CLI for PR creation" },
+        { name: "GitLab (glab)", value: "gitlab", description: "Uses glab CLI for MR creation" }
+      ]
+    });
+    const githubOrg = await askInput({
+      message: "Default org:",
+      default: currentGithubOrg || "myorg"
+    });
     const results = [];
     const phaseSteps = [
       async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Planning Phase \u2500\u2500"));
-        return selectCli("CLI for planning:", currentPlanningCli, signal);
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Planning Phase \u2500\u2500"));
+        return selectCli("CLI for planning:", currentPlanningCli);
       },
       async () => {
         const cli = results[0];
         if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, currentPlanningModel, signal);
+        return selectModel(cli, currentPlanningModel);
       },
-      async () => dist_default7(
-        {
-          message: "Timeout (minutes):",
-          default: "15"
-        },
-        { signal }
-      ),
+      async () => askInput({ message: "Timeout (minutes):", default: "15" }),
       async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Implementation Phase \u2500\u2500"));
-        return selectCli("CLI for implementation:", currentImplCli, signal);
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Implementation Phase \u2500\u2500"));
+        return selectCli("CLI for implementation:", currentImplCli);
       },
       async () => {
         const cli = results[3];
         if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, currentImplModel, signal);
+        return selectModel(cli, currentImplModel);
       },
-      async () => dist_default7(
-        {
-          message: "Timeout (minutes):",
-          default: "60"
-        },
-        { signal }
-      ),
+      async () => askInput({ message: "Timeout (minutes):", default: "60" }),
       async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Review Phase \u2500\u2500"));
-        return selectCli("CLI for review:", currentReviewCli, signal);
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Review Phase \u2500\u2500"));
+        return selectCli("CLI for review:", currentReviewCli);
       },
       async () => {
         const cli = results[6];
         if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, currentReviewModel, signal);
+        return selectModel(cli, currentReviewModel);
       },
-      async () => dist_default7(
-        {
-          message: "Timeout (minutes):",
-          default: "10"
-        },
-        { signal }
-      )
+      async () => askInput({ message: "Timeout (minutes):", default: "10" })
     ];
     await runWizard(phaseSteps, results);
     const configYaml = `jira:
@@ -47727,64 +47933,70 @@ comment_format:
 `;
     await writeText(getGlobalConfigPath(), configYaml);
     await chmodSensitive(getGlobalConfigPath());
-    console.log(import_picocolors11.default.green(`
+    console.log(import_picocolors12.default.green(`
 \u2713 Config saved to ${getGlobalConfigPath()}`));
     if (jiraToken) {
       console.log(
-        import_picocolors11.default.dim(
+        import_picocolors12.default.dim(
           process.platform === "win32" ? "  (Windows: ensure your user profile is not world-readable; consider DPAPI-encrypted storage.)" : "  (Permissions tightened to 0600.)"
         )
       );
     }
-    console.log(import_picocolors11.default.green("\u2713 Setup complete!\n"));
+    console.log(import_picocolors12.default.green("\u2713 Setup complete!\n"));
     console.log(
-      import_picocolors11.default.dim('Next: Run "bode setup project" to configure a project, then "bode start <TASK-KEY>".')
+      import_picocolors12.default.dim('Next: Run "bode setup-project" to configure a project, then "bode start <TASK-KEY>".')
     );
-  });
+  } catch (err) {
+    handlePromptError(err);
+  }
 }
-async function setupProjectAction() {
-  console.log(import_picocolors11.default.bold(import_picocolors11.default.cyan("Bode Project Setup\n")));
-  await withSignal(async (signal) => {
+async function setupProjectAction(options) {
+  console.log(import_picocolors12.default.bold(import_picocolors12.default.cyan("Bode Project Setup\n")));
+  try {
     const projectsResult = await listProjects();
     const existingProjects = projectsResult.ok ? projectsResult.value : [];
     let selectedName;
     let existingProject = null;
     if (existingProjects.length > 0) {
       const projectChoices = existingProjects.map((p) => ({
-        name: `${p.name}  ${import_picocolors11.default.dim(`(${p.workdir})`)}`,
+        name: `${p.name}  ${import_picocolors12.default.dim(`(${p.workdir})`)}`,
         value: p.name
       }));
-      projectChoices.push({ name: import_picocolors11.default.green("+ Create new project"), value: "__new__" });
-      const picked = await dist_default13(
+      projectChoices.push({ name: import_picocolors12.default.green("+ Create new project"), value: "__new__" });
+      const picked = await askSelect(
         {
           message: "Select project or create new:",
           choices: projectChoices,
           pageSize: 10
         },
-        { signal }
+        { firstStep: true }
       );
-      if (typeof picked === "string" && picked !== "__new__") {
+      if (picked !== "__new__") {
         selectedName = picked;
         const loadResult = await loadProjectConfig(selectedName);
         if (loadResult.ok && loadResult.value) {
           existingProject = loadResult.value;
         }
       } else {
-        selectedName = await dist_default7(
-          {
-            message: "Project name (lowercase, no spaces):",
-            validate: (v) => /^[a-z0-9][a-z0-9_-]*$/.test(v) || "Use lowercase letters, numbers, dashes, underscores"
-          },
-          { signal }
-        );
+        selectedName = await askInput({
+          message: "Project name (lowercase, no spaces):",
+          validate: (v) => /^[a-z0-9][a-z0-9_-]*$/.test(v) || "Use lowercase letters, numbers, dashes, underscores"
+        });
       }
     } else {
-      selectedName = await dist_default7(
+      selectedName = await askInput(
         {
           message: "Project name (lowercase, no spaces):",
           validate: (v) => /^[a-z0-9][a-z0-9_-]*$/.test(v) || "Use lowercase letters, numbers, dashes, underscores"
         },
-        { signal }
+        { firstStep: true }
+      );
+    }
+    if (existingProject?.context_paths?.length) {
+      console.log(
+        import_picocolors12.default.dim(
+          "  \u26A0 context_paths is deprecated and will be dropped on save. Use context_files instead.\n"
+        )
       );
     }
     const configResult = await loadConfig();
@@ -47793,192 +48005,235 @@ async function setupProjectAction() {
     const baseVcsProvider = configResult.ok ? configResult.value.vcs?.provider ?? "github" : "github";
     const basePlanningCli = configResult.ok ? configResult.value.phases.planning.cli : "claude-code";
     const basePlanningModel = configResult.ok ? configResult.value.phases.planning.model : "claude-opus-4-7";
+    const basePlanningTimeout = configResult.ok ? configResult.value.phases.planning.timeout_minutes : 15;
     const baseImplCli = configResult.ok ? configResult.value.phases.implementation.cli : "opencode";
     const baseImplModel = configResult.ok ? configResult.value.phases.implementation.model : "claude-sonnet-4-6";
     const baseReviewCli = configResult.ok ? configResult.value.phases.review.cli : "opencode";
     const baseReviewModel = configResult.ok ? configResult.value.phases.review.model : "claude-sonnet-4-6";
+    if (options.refreshContext) {
+      if (!existingProject) {
+        console.error(
+          import_picocolors12.default.red(
+            "--refresh-context requires an existing project. Run without the flag to create one."
+          )
+        );
+        process.exit(1);
+      }
+      const cliName = existingProject.phases?.planning?.cli ?? basePlanningCli;
+      const model = existingProject.phases?.planning?.model ?? basePlanningModel;
+      const timeout = existingProject.phases?.planning?.timeout_minutes ?? basePlanningTimeout;
+      const result = await investigateProjectContext({
+        workdir: existingProject.workdir,
+        projectName: selectedName,
+        sharedInRepo: options.sharedInRepo ?? false,
+        cliName,
+        model,
+        timeoutMinutes: timeout
+      });
+      const updated = {
+        ...existingProject,
+        project_context_path: result.path,
+        context_investigated_at: result.investigatedAt
+      };
+      const saveResult2 = await saveProjectConfig(updated);
+      if (!saveResult2.ok) {
+        console.error(import_picocolors12.default.red(`Failed to save project: ${saveResult2.error.message}`));
+        process.exit(1);
+      }
+      console.log(import_picocolors12.default.green(`
+\u2713 Project "${selectedName}" context refreshed.`));
+      return;
+    }
     const defaultWorkdir = existingProject?.workdir ?? "";
     const defaultBranch = existingProject?.default_branch ?? "main";
     const defaultVcsProvider = existingProject?.vcs_provider ?? baseVcsProvider;
     const defaultJiraSite = existingProject?.jira?.site ?? baseJiraSite;
     const defaultJiraProject = existingProject?.jira?.default_project ?? baseJiraProject;
-    const defaultContextPaths = existingProject?.context_paths?.join(", ") ?? ".";
-    const defaultContextFiles = existingProject?.context_files?.join(", ") ?? "AGENTS.md,CLAUDE.md";
     const results = [];
     const steps = [
       async () => {
-        const wd = await dist_default7(
-          {
-            message: "Working directory (absolute path):",
-            default: defaultWorkdir
-          },
-          { signal }
-        );
+        const wd = await askInput({
+          message: "Working directory (absolute path):",
+          default: defaultWorkdir
+        });
+        if (wd === BACK) return BACK;
         const workdirPath = wd || defaultWorkdir;
         if (!workdirPath) {
-          console.error(import_picocolors11.default.red("Working directory is required."));
+          console.error(import_picocolors12.default.red("Working directory is required."));
           process.exit(1);
         }
-        if (!(0, import_node_fs22.existsSync)(workdirPath)) {
-          console.error(import_picocolors11.default.red(`Directory does not exist: ${workdirPath}`));
+        if (!(0, import_node_fs23.existsSync)(workdirPath)) {
+          console.error(import_picocolors12.default.red(`Directory does not exist: ${workdirPath}`));
           process.exit(1);
         }
         return workdirPath;
       },
       async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
-        const vcsChoices = [
-          { name: "GitHub (gh)", value: "github", description: "Uses gh CLI for PR creation" },
-          { name: "GitLab (glab)", value: "gitlab", description: "Uses glab CLI for MR creation" },
-          { name: import_picocolors11.default.dim("\u2190 Back"), value: BACK, description: "Go back" }
-        ];
-        return dist_default13(
-          {
-            message: "VCS provider:",
-            default: defaultVcsProvider,
-            choices: vcsChoices
-          },
-          { signal }
-        );
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Investigate Project Context \u2500\u2500"));
+        return askSelect({
+          message: "Investigate & document project context now?",
+          default: existingProject ? "no" : "yes",
+          choices: [
+            {
+              name: "Yes \u2014 run AI to summarize the project (writes PROJECT_CONTEXT.md)",
+              value: "yes"
+            },
+            {
+              name: "No \u2014 skip (you can run later with --refresh-context)",
+              value: "no"
+            }
+          ]
+        });
       },
       async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Jira (per-project override, Enter to use global) \u2500\u2500"));
-        const jiraSite = await dist_default7(
-          {
-            message: "Jira site:",
-            default: defaultJiraSite
-          },
-          { signal }
-        );
-        const jiraProject = await dist_default7(
-          {
-            message: "Jira project key:",
-            default: defaultJiraProject
-          },
-          { signal }
-        );
+        const wantInvestigate = results[1];
+        if (wantInvestigate !== "yes") return void 0;
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Investigation Model \u2500\u2500"));
+        const cli = await selectCli("CLI for investigation:", basePlanningCli);
+        if (cli === BACK) return BACK;
+        const model = await selectModel(cli, basePlanningModel);
+        if (model === BACK) return BACK;
+        return { cli, model };
+      },
+      async () => {
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
+        return askSelect({
+          message: "VCS provider:",
+          default: defaultVcsProvider,
+          choices: [
+            { name: "GitHub (gh)", value: "github" },
+            { name: "GitLab (glab)", value: "gitlab" }
+          ]
+        });
+      },
+      async () => {
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Jira (per-project override, Enter to use global) \u2500\u2500"));
+        const jiraSite = await askInput({
+          message: "Jira site:",
+          default: defaultJiraSite
+        });
+        if (jiraSite === BACK) return BACK;
+        const jiraProject = await askInput({
+          message: "Jira project key:",
+          default: defaultJiraProject
+        });
+        if (jiraProject === BACK) return BACK;
         return { site: jiraSite, project: jiraProject };
       },
       async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Context \u2500\u2500"));
-        const branch = await dist_default7(
-          {
-            message: "Default branch:",
-            default: defaultBranch
-          },
-          { signal }
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Context \u2500\u2500"));
+        const branch = await askInput({
+          message: "Default branch:",
+          default: defaultBranch
+        });
+        if (branch === BACK) return BACK;
+        const workdir2 = results[0];
+        const detected = detectContextFilesIn(workdir2);
+        const defaults = existingProject?.context_files ?? (detected.length > 0 ? detected : ["AGENTS.md"]);
+        const files = await askContextFiles(
+          workdir2,
+          defaults,
+          "Context files (comma-separated, or @ to pick):"
         );
-        const pathsRaw = await dist_default7(
-          {
-            message: "Context paths (comma-separated, relative to workdir):",
-            default: defaultContextPaths
-          },
-          { signal }
-        );
-        const filesRaw = await dist_default7(
-          {
-            message: "Context files (comma-separated, relative to workdir):",
-            default: defaultContextFiles
-          },
-          { signal }
-        );
-        return { branch, paths: pathsRaw, files: filesRaw };
+        if (files === BACK) return BACK;
+        return { branch, files };
       },
       async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Additional Repositories \u2500\u2500"));
-        return dist_default7(
-          {
-            message: "Number of additional repos (0-10):",
-            default: "0",
-            validate: (v) => {
-              const n = parseInt(v, 10);
-              if (isNaN(n) || n < 0 || n > 10) return "Enter a number between 0 and 10";
-              return true;
-            }
-          },
-          { signal }
-        );
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Additional Repositories \u2500\u2500"));
+        return askInput({
+          message: "Number of additional repos (0-10):",
+          default: "0",
+          validate: (v) => {
+            const n = parseInt(v, 10);
+            if (isNaN(n) || n < 0 || n > 10) return "Enter a number between 0 and 10";
+            return true;
+          }
+        });
       },
       async () => {
-        const repoCount = parseInt(results[4] || "0", 10);
+        const repoCount = parseInt(results[6] || "0", 10);
         if (repoCount === 0) return [];
         const repos2 = [];
         for (let i = 0; i < repoCount; i++) {
-          const wd = await dist_default7(
-            {
-              message: `Repo ${i + 1} workdir path (absolute or relative to project root):`
-            },
-            { signal }
+          const wd = await askInput({
+            message: `Repo ${i + 1} workdir path:`
+          });
+          if (wd === BACK) return BACK;
+          const name = await askInput({
+            message: `Repo ${i + 1} friendly name (optional):`,
+            default: wd.split(/[\\/]/).pop() ?? ""
+          });
+          if (name === BACK) return BACK;
+          const detected = (0, import_node_fs23.existsSync)(wd) ? detectContextFilesIn(wd) : [];
+          const files = await askContextFiles(
+            wd,
+            detected,
+            `Context files for ${name || `repo ${i + 1}`} (comma-separated, or @ to pick):`
           );
-          const name = await dist_default7(
-            {
-              message: `Repo ${i + 1} friendly name (optional):`,
-              default: wd.split(/[\\/]/).pop() ?? ""
-            },
-            { signal }
-          );
-          const entry = { workdir: wd };
+          if (files === BACK) return BACK;
+          const entry = {
+            workdir: wd
+          };
           if (name) entry.name = name;
+          if (files.length > 0) entry.context_files = files;
           repos2.push(entry);
         }
         return repos2;
       },
       async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Branch Tool \u2500\u2500"));
-        return dist_default7(
-          {
-            message: "Tool for AI to create branches (e.g. git):",
-            default: "git"
-          },
-          { signal }
-        );
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Branch Tool \u2500\u2500"));
+        return askInput({
+          message: "Tool for AI to create branches (e.g. git):",
+          default: "git"
+        });
       }
     ];
     const phaseSteps = [
       async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Planning Phase (override) \u2500\u2500"));
-        return selectCli("CLI:", basePlanningCli, signal);
-      },
-      async () => {
-        const cli = results[7];
-        if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, basePlanningModel, signal);
-      },
-      async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Implementation Phase (override) \u2500\u2500"));
-        return selectCli("CLI:", baseImplCli, signal);
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Planning Phase (override) \u2500\u2500"));
+        return selectCli("CLI:", basePlanningCli);
       },
       async () => {
         const cli = results[9];
         if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, baseImplModel, signal);
+        return selectModel(cli, basePlanningModel);
       },
       async () => {
-        console.log(import_picocolors11.default.bold("\n\u2500\u2500 Review Phase (override) \u2500\u2500"));
-        return selectCli("CLI:", baseReviewCli, signal);
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Implementation Phase (override) \u2500\u2500"));
+        return selectCli("CLI:", baseImplCli);
       },
       async () => {
         const cli = results[11];
         if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, baseReviewModel, signal);
+        return selectModel(cli, baseImplModel);
+      },
+      async () => {
+        console.log(import_picocolors12.default.bold("\n\u2500\u2500 Review Phase (override) \u2500\u2500"));
+        return selectCli("CLI:", baseReviewCli);
+      },
+      async () => {
+        const cli = results[13];
+        if (cli === BACK || cli === void 0) return BACK;
+        return selectModel(cli, baseReviewModel);
       }
     ];
     steps.push(...phaseSteps);
     await runWizard(steps, results);
     const workdir = results[0];
-    const vcsProvider = results[1];
-    const jiraOverrides = results[2];
-    const contextData = results[3];
-    const repos = results[5];
-    const branchTool = results[6];
-    const contextPaths = contextData?.paths?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
-    const contextFiles = contextData?.files?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
-    const planningCli = results[7];
-    const planningModel = results[8];
-    const implCli = results[9];
-    const implModel = results[10];
-    const reviewCli = results[11];
-    const reviewModel = results[12];
+    const investigationChoice = results[1];
+    const investigationModel = results[2];
+    const vcsProvider = results[3];
+    const jiraOverrides = results[4];
+    const contextData = results[5];
+    const repos = results[7];
+    const branchTool = results[8];
+    const contextFiles = contextData?.files ?? [];
+    const planningCli = results[9];
+    const planningModel = results[10];
+    const implCli = results[11];
+    const implModel = results[12];
+    const reviewCli = results[13];
+    const reviewModel = results[14];
     const phases = {};
     let hasPhaseOverride = false;
     if (planningCli && planningCli !== basePlanningCli) {
@@ -48005,6 +48260,27 @@ async function setupProjectAction() {
       phases.review = { ...phases.review, model: reviewModel };
       hasPhaseOverride = true;
     }
+    let investigationResult = null;
+    if (investigationChoice === "yes" && investigationModel) {
+      try {
+        investigationResult = await investigateProjectContext({
+          workdir,
+          projectName: selectedName,
+          sharedInRepo: options.sharedInRepo ?? false,
+          cliName: investigationModel.cli,
+          model: investigationModel.model,
+          timeoutMinutes: basePlanningTimeout
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(import_picocolors12.default.yellow(`\u26A0 Investigation failed: ${msg}`));
+        console.log(
+          import_picocolors12.default.dim(
+            "  The project will be saved without project_context_path. Retry with --refresh-context."
+          )
+        );
+      }
+    }
     const project = {
       name: selectedName,
       workdir,
@@ -48014,51 +48290,66 @@ async function setupProjectAction() {
         site: jiraOverrides?.site || void 0,
         default_project: jiraOverrides?.project || void 0
       },
-      context_paths: contextPaths.length > 0 ? contextPaths : void 0,
       context_files: contextFiles.length > 0 ? contextFiles : void 0,
+      ...investigationResult ? {
+        project_context_path: investigationResult.path,
+        context_investigated_at: investigationResult.investigatedAt
+      } : {},
       ...hasPhaseOverride ? { phases } : {},
       ...repos && repos.length > 0 ? { repos } : {},
       ...branchTool && branchTool !== "git" ? { branch_tool: branchTool } : {}
     };
     const saveResult = await saveProjectConfig(project);
     if (!saveResult.ok) {
-      console.error(import_picocolors11.default.red(`Failed to save project: ${saveResult.error.message}`));
+      console.error(import_picocolors12.default.red(`Failed to save project: ${saveResult.error.message}`));
       process.exit(1);
     }
-    if (existingProject) {
-      console.log(
-        import_picocolors11.default.green(`
-\u2713 Project "${selectedName}" updated in ~/.bode/projects/${selectedName}.yml`)
-      );
+    const verb = existingProject ? "updated" : "saved";
+    console.log(
+      import_picocolors12.default.green(`
+\u2713 Project "${selectedName}" ${verb} in ~/.bode/projects/${selectedName}.yml`)
+    );
+    if (investigationResult) {
+      const where = options.sharedInRepo ? "(in repo)" : "(global cache)";
+      console.log(import_picocolors12.default.dim(`  Project context: ${investigationResult.path} ${where}`));
     } else {
-      console.log(
-        import_picocolors11.default.green(`
-\u2713 Project "${selectedName}" saved to ~/.bode/projects/${selectedName}.yml`)
+      const previewPath = resolveProjectContextPath(
+        selectedName,
+        workdir,
+        options.sharedInRepo ?? false
       );
+      console.log(
+        import_picocolors12.default.dim(`  Run "bode setup-project --refresh-context --project ${selectedName}" later`)
+      );
+      console.log(import_picocolors12.default.dim(`  to generate ${previewPath}`));
     }
     console.log(
-      import_picocolors11.default.dim(`Now run "bode start <TASK-KEY> --project ${selectedName}" to use this project.`)
+      import_picocolors12.default.dim(`Now run "bode start <TASK-KEY> --project ${selectedName}" to use this project.`)
     );
-  });
+  } catch (err) {
+    handlePromptError(err);
+  }
 }
-var import_picocolors11, import_node_fs22;
+var import_picocolors12, import_node_fs23;
 var init_setup = __esm({
   "src/cli/actions/setup.ts"() {
     "use strict";
-    import_picocolors11 = __toESM(require_picocolors());
+    import_picocolors12 = __toESM(require_picocolors());
     init_ora();
-    init_dist17();
+    import_node_fs23 = require("node:fs");
     init_defaults();
-    import_node_fs22 = require("node:fs");
     init_fs();
     init_loader();
     init_registry();
     init_models();
     init_projects();
     init_project_resolver();
+    init_auto_detect();
+    init_file_picker();
     init_prompt();
     init_rest();
     init_version();
+    init_setup_project_investigate();
   }
 });
 
@@ -48070,13 +48361,13 @@ __export(continue_exports, {
 async function continueAction(taskKey, options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors12.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors13.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const baseConfig = configResult.value;
   const projectResult = await resolveProject(baseConfig, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors12.default.red(projectResult.error.message));
+    console.error(import_picocolors13.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
@@ -48091,7 +48382,7 @@ async function continueAction(taskKey, options) {
   const trackerAdapter = tracker.adapter;
   const lockResult = await acquireLock(taskKey, `continue ${taskKey}`);
   if (!lockResult.ok) {
-    console.error(import_picocolors12.default.red(lockResult.error.message));
+    console.error(import_picocolors13.default.red(lockResult.error.message));
     process.exit(1);
   }
   registerLockReleaseHandlers(lockResult.value.release);
@@ -48099,7 +48390,7 @@ async function continueAction(taskKey, options) {
   if (options.dangerouslyApproveAll) {
     const plan = await planDangerousMode(config2);
     if (!plan.approved) {
-      console.log(import_picocolors12.default.dim("Aborted by user."));
+      console.log(import_picocolors13.default.dim("Aborted by user."));
       process.exit(0);
     }
     dangerousBypass = true;
@@ -48114,40 +48405,40 @@ async function continueAction(taskKey, options) {
     noBudget: false
   });
   if (!result.ok) {
-    console.error(import_picocolors12.default.red(`Error: ${result.error.message}`));
+    console.error(import_picocolors13.default.red(`Error: ${result.error.message}`));
     process.exit(1);
   }
   const advanceVal = result.value;
   if (advanceVal.kind === "conflict") {
-    console.error(import_picocolors12.default.yellow("\nConflicts detected with base branch!"));
-    console.error(import_picocolors12.default.dim('Resolve conflicts manually, then run "bode continue" again.'));
-    console.error(import_picocolors12.default.dim(`Tracker label "bode:conflict" added to ${taskKey}.`));
+    console.error(import_picocolors13.default.yellow("\nConflicts detected with base branch!"));
+    console.error(import_picocolors13.default.dim('Resolve conflicts manually, then run "bode continue" again.'));
+    console.error(import_picocolors13.default.dim(`Tracker label "bode:conflict" added to ${taskKey}.`));
     process.exit(1);
   }
   if (advanceVal.kind === "pr-created") {
     await updateSchedulerTask(taskKey, { status: "done", phase: advanceVal.meta.status });
-    console.log(import_picocolors12.default.green(`
-PR created: ${import_picocolors12.default.bold(advanceVal.prUrl)}`));
-    console.log(import_picocolors12.default.dim('Review the PR manually. Run "bode done" when ready to finalize.'));
+    console.log(import_picocolors13.default.green(`
+PR created: ${import_picocolors13.default.bold(advanceVal.prUrl)}`));
+    console.log(import_picocolors13.default.dim('Review the PR manually. Run "bode done" when ready to finalize.'));
     return;
   }
   if (advanceVal.kind === "phase") {
     const { meta: meta3, phaseResult } = advanceVal;
     if (phaseResult.kind === "success") {
       await updateSchedulerTask(taskKey, { status: "done", phase: meta3.status });
-      console.log(import_picocolors12.default.green(`
+      console.log(import_picocolors13.default.green(`
 Phase complete. Status: ${meta3.status}`));
       if (meta3.status === "reviewed") {
-        console.log(import_picocolors12.default.dim('Run "bode continue" to create PR and move to awaiting-merge.'));
+        console.log(import_picocolors13.default.dim('Run "bode continue" to create PR and move to awaiting-merge.'));
       } else {
-        console.log(import_picocolors12.default.dim(`Run "bode continue ${taskKey}" to advance.`));
+        console.log(import_picocolors13.default.dim(`Run "bode continue ${taskKey}" to advance.`));
       }
     } else if (phaseResult.kind === "missing-artifact") {
       const decision = await handleMissingArtifact("phase", taskKey);
       if (decision === "abort") process.exit(1);
     } else {
       console.error(
-        import_picocolors12.default.red(
+        import_picocolors13.default.red(
           `
 Phase failed: ${phaseResult.kind === "failed" ? phaseResult.reason : "timed out"}`
         )
@@ -48156,7 +48447,7 @@ Phase failed: ${phaseResult.kind === "failed" ? phaseResult.reason : "timed out"
     }
   }
 }
-var import_picocolors12;
+var import_picocolors13;
 var init_continue = __esm({
   "src/cli/actions/continue.ts"() {
     "use strict";
@@ -48169,7 +48460,7 @@ var init_continue = __esm({
     init_lockfile();
     init_lock_release();
     init_scheduler();
-    import_picocolors12 = __toESM(require_picocolors());
+    import_picocolors13 = __toESM(require_picocolors());
   }
 });
 
@@ -48181,48 +48472,48 @@ __export(status_exports, {
 async function statusAction(taskKey) {
   const result = await loadRunMeta(taskKey);
   if (!result.ok) {
-    console.error(import_picocolors13.default.red(`Error: ${result.error.message}`));
+    console.error(import_picocolors14.default.red(`Error: ${result.error.message}`));
     process.exit(1);
   }
   if (!result.value) {
-    console.error(import_picocolors13.default.yellow(`No run found for ${taskKey}`));
+    console.error(import_picocolors14.default.yellow(`No run found for ${taskKey}`));
     process.exit(1);
   }
   const meta3 = result.value;
   const cost = await getTaskCost(meta3.taskKey);
   const phaseCosts = await getTaskPhaseCosts(meta3.taskKey);
-  console.log(`Task: ${import_picocolors13.default.bold(meta3.taskKey)} - ${meta3.trackerSummary}`);
-  console.log(`Status: ${import_picocolors13.default.cyan(getPhaseStatusLabel(meta3.status))}`);
-  console.log(`Cost: ${import_picocolors13.default.dim(`$${cost.toFixed(2)}`)}`);
+  console.log(`Task: ${import_picocolors14.default.bold(meta3.taskKey)} - ${meta3.trackerSummary}`);
+  console.log(`Status: ${import_picocolors14.default.cyan(getPhaseStatusLabel(meta3.status))}`);
+  console.log(`Cost: ${import_picocolors14.default.dim(`$${cost.toFixed(2)}`)}`);
   for (const [phase, phaseCost] of Object.entries(phaseCosts)) {
-    console.log(`  ${phase}: ${import_picocolors13.default.dim(`$${phaseCost.toFixed(2)}`)}`);
+    console.log(`  ${phase}: ${import_picocolors14.default.dim(`$${phaseCost.toFixed(2)}`)}`);
   }
   if (meta3.branch) {
-    console.log(`Branch: ${import_picocolors13.default.dim(meta3.branch)} (from ${meta3.baseBranch ?? "unknown"})`);
+    console.log(`Branch: ${import_picocolors14.default.dim(meta3.branch)} (from ${meta3.baseBranch ?? "unknown"})`);
   }
   if (meta3.prUrl) {
-    console.log(`PR: ${import_picocolors13.default.cyan(meta3.prUrl)}`);
+    console.log(`PR: ${import_picocolors14.default.cyan(meta3.prUrl)}`);
   }
   if (meta3.conflict) {
-    console.log(`Conflict: ${import_picocolors13.default.red("YES")}`);
+    console.log(`Conflict: ${import_picocolors14.default.red("YES")}`);
   }
   if (meta3.projectName) {
-    console.log(`Project: ${import_picocolors13.default.dim(meta3.projectName)}`);
+    console.log(`Project: ${import_picocolors14.default.dim(meta3.projectName)}`);
   }
   console.log(`Started: ${new Date(meta3.startedAt).toLocaleString()}`);
   console.log(`Updated: ${new Date(meta3.updatedAt).toLocaleString()}`);
   if (meta3.error) {
-    console.log(`Error: ${import_picocolors13.default.red(meta3.error)}`);
+    console.log(`Error: ${import_picocolors14.default.red(meta3.error)}`);
   }
 }
-var import_picocolors13;
+var import_picocolors14;
 var init_status = __esm({
   "src/cli/actions/status.ts"() {
     "use strict";
     init_run_meta();
     init_phase();
     init_budget_tracker();
-    import_picocolors13 = __toESM(require_picocolors());
+    import_picocolors14 = __toESM(require_picocolors());
   }
 });
 
@@ -48259,7 +48550,7 @@ __export(show_exports, {
 async function showAction(artifact, taskKey, options = {}) {
   const normalized = artifact.toLowerCase();
   if (!VALID_ARTIFACTS.includes(normalized)) {
-    console.error(import_picocolors14.default.red(`Invalid artifact: "${artifact}". Valid: ${VALID_ARTIFACTS.join(", ")}`));
+    console.error(import_picocolors15.default.red(`Invalid artifact: "${artifact}". Valid: ${VALID_ARTIFACTS.join(", ")}`));
     process.exit(1);
   }
   let filename;
@@ -48280,7 +48571,7 @@ async function showAction(artifact, taskKey, options = {}) {
   const path3 = `${getRunDir(taskKey)}/${filename}`;
   const content = await readText(path3);
   if (!content) {
-    console.error(import_picocolors14.default.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
+    console.error(import_picocolors15.default.yellow(`Artifact "${artifact}" not found for ${taskKey}`));
     process.exit(1);
   }
   if (options.html) {
@@ -48290,11 +48581,11 @@ async function showAction(artifact, taskKey, options = {}) {
     return;
   }
   const cost = await getTaskCost(taskKey);
-  console.log(import_picocolors14.default.dim(`${taskKey.toUpperCase()} ${normalized} | cost so far ~$${cost.toFixed(2)}`));
+  console.log(import_picocolors15.default.dim(`${taskKey.toUpperCase()} ${normalized} | cost so far ~$${cost.toFixed(2)}`));
   console.log("");
   console.log(content);
 }
-var import_picocolors14, VALID_ARTIFACTS;
+var import_picocolors15, VALID_ARTIFACTS;
 var init_show = __esm({
   "src/cli/actions/show.ts"() {
     "use strict";
@@ -48303,7 +48594,7 @@ var init_show = __esm({
     init_html_renderer();
     init_budget_tracker();
     init_fs();
-    import_picocolors14 = __toESM(require_picocolors());
+    import_picocolors15 = __toESM(require_picocolors());
     VALID_ARTIFACTS = ["plan", "planning", "implementation", "review"];
   }
 });
@@ -48328,34 +48619,34 @@ async function replayAction(taskKey, options) {
   const manifest = await readManifest(taskKey);
   const phase = options.phase ? manifest.phases.find((entry) => entry.phase === options.phase) : manifest.phases.at(-1);
   if (!phase) {
-    console.error(import_picocolors15.default.yellow(`No replay manifest phase found for ${taskKey}`));
+    console.error(import_picocolors16.default.yellow(`No replay manifest phase found for ${taskKey}`));
     process.exit(1);
   }
-  const prompt = await readText((0, import_node_path25.join)(getRunDir(taskKey), phase.prompt_path));
+  const prompt = await readText((0, import_node_path27.join)(getRunDir(taskKey), phase.prompt_path));
   if (!prompt) {
-    console.error(import_picocolors15.default.red(`Prompt artifact missing: ${phase.prompt_path}`));
+    console.error(import_picocolors16.default.red(`Prompt artifact missing: ${phase.prompt_path}`));
     process.exit(1);
   }
   const cli = options.withCli ?? phase.cli;
   const model = options.withModel ?? phase.model;
   const adapter = getAdapter(cli);
   if (!adapter.ok) {
-    console.error(import_picocolors15.default.red(adapter.error.message));
+    console.error(import_picocolors16.default.red(adapter.error.message));
     process.exit(1);
   }
-  console.log(import_picocolors15.default.bold(`Replaying ${taskKey.toUpperCase()} ${phase.phase}`));
-  console.log(import_picocolors15.default.dim(`cli=${cli} model=${model}`));
+  console.log(import_picocolors16.default.bold(`Replaying ${taskKey.toUpperCase()} ${phase.phase}`));
+  console.log(import_picocolors16.default.dim(`cli=${cli} model=${model}`));
   const result = await adapter.value.invoke(
     prompt,
     { cli, model, timeout_minutes: 60 },
     { interactive: true }
   );
   if (!result.ok) {
-    console.error(import_picocolors15.default.red(result.error.message));
+    console.error(import_picocolors16.default.red(result.error.message));
     process.exit(1);
   }
   await writeText(
-    (0, import_node_path25.join)(getRunDir(taskKey), `${phase.phase}.replay.log`),
+    (0, import_node_path27.join)(getRunDir(taskKey), `${phase.phase}.replay.log`),
     `STDOUT:
 ${result.value.stdout}
 
@@ -48367,27 +48658,27 @@ ${result.value.stderr}`
 async function importBundle(taskKey, bundlePath) {
   const raw = await readText(bundlePath);
   if (!raw) {
-    console.error(import_picocolors15.default.red(`Bundle not found: ${bundlePath}`));
+    console.error(import_picocolors16.default.red(`Bundle not found: ${bundlePath}`));
     process.exit(1);
   }
   const bundle = JSON.parse(raw);
   if (!bundle.files) {
-    console.error(import_picocolors15.default.red("Invalid .bode-run bundle"));
+    console.error(import_picocolors16.default.red("Invalid .bode-run bundle"));
     process.exit(1);
   }
   const runDir = getRunDir(taskKey);
   await ensureDir(runDir);
   for (const [file2, content] of Object.entries(bundle.files)) {
-    await writeText((0, import_node_path25.join)(runDir, file2), content);
+    await writeText((0, import_node_path27.join)(runDir, file2), content);
   }
-  console.log(import_picocolors15.default.green(`Imported ${Object.keys(bundle.files).length} file(s) into ${runDir}`));
+  console.log(import_picocolors16.default.green(`Imported ${Object.keys(bundle.files).length} file(s) into ${runDir}`));
 }
-var import_node_path25, import_picocolors15;
+var import_node_path27, import_picocolors16;
 var init_replay = __esm({
   "src/cli/actions/replay.ts"() {
     "use strict";
-    import_node_path25 = require("node:path");
-    import_picocolors15 = __toESM(require_picocolors());
+    import_node_path27 = require("node:path");
+    import_picocolors16 = __toESM(require_picocolors());
     init_registry();
     init_defaults();
     init_run_manifest();
@@ -48402,9 +48693,9 @@ __export(init_exports, {
 });
 async function initAction(options) {
   const workdir = process.cwd();
-  const outPath = (0, import_node_path26.join)(workdir, "AGENTS.md");
-  if ((0, import_node_fs23.existsSync)(outPath) && !options.overwrite) {
-    console.error(import_picocolors16.default.yellow("AGENTS.md already exists. Use --overwrite to regenerate."));
+  const outPath = (0, import_node_path28.join)(workdir, "AGENTS.md");
+  if ((0, import_node_fs24.existsSync)(outPath) && !options.overwrite) {
+    console.error(import_picocolors17.default.yellow("AGENTS.md already exists. Use --overwrite to regenerate."));
     process.exit(1);
   }
   const configResult = await loadConfig(workdir);
@@ -48418,7 +48709,7 @@ async function initAction(options) {
     cli: phaseConfig.cli
   });
   if (!skill.ok) throw skill.error;
-  const importedRules = options.from && (0, import_node_fs23.existsSync)((0, import_node_path26.join)(workdir, options.from)) ? (0, import_node_fs23.readFileSync)((0, import_node_path26.join)(workdir, options.from), "utf-8") : void 0;
+  const importedRules = options.from && (0, import_node_fs24.existsSync)((0, import_node_path28.join)(workdir, options.from)) ? (0, import_node_fs24.readFileSync)((0, import_node_path28.join)(workdir, options.from), "utf-8") : void 0;
   const prompt = buildPrompt(skill.value, {
     jiraIssue: {
       key: "INIT",
@@ -48437,23 +48728,23 @@ async function initAction(options) {
     phaseName: "planning",
     mainWorkdir: workdir
   });
-  (0, import_node_fs23.mkdirSync)(workdir, { recursive: true });
+  (0, import_node_fs24.mkdirSync)(workdir, { recursive: true });
   const result = await adapterResult.value.invoke(prompt, phaseConfig, {
     interactive: true,
     workdir
   });
   if (!result.ok) throw result.error;
-  if (!(0, import_node_fs23.existsSync)(outPath) && result.value.stdout.trim())
+  if (!(0, import_node_fs24.existsSync)(outPath) && result.value.stdout.trim())
     await writeText(outPath, result.value.stdout);
-  console.log(import_picocolors16.default.green(`AGENTS.md written to ${outPath}`));
+  console.log(import_picocolors17.default.green(`AGENTS.md written to ${outPath}`));
 }
-var import_node_fs23, import_node_path26, import_picocolors16;
+var import_node_fs24, import_node_path28, import_picocolors17;
 var init_init = __esm({
   "src/cli/actions/init.ts"() {
     "use strict";
-    import_node_fs23 = require("node:fs");
-    import_node_path26 = require("node:path");
-    import_picocolors16 = __toESM(require_picocolors());
+    import_node_fs24 = require("node:fs");
+    import_node_path28 = require("node:path");
+    import_picocolors17 = __toESM(require_picocolors());
     init_loader();
     init_resolver();
     init_prompt_builder();
@@ -48469,10 +48760,10 @@ __export(learn_exports, {
 });
 async function learnAction(options) {
   const workdir = process.cwd();
-  const outDir = (0, import_node_path27.join)(workdir, ".bode");
-  const outPath = (0, import_node_path27.join)(outDir, "context.md");
-  if ((0, import_node_fs24.existsSync)(outPath) && !options.refresh) {
-    console.log(import_picocolors17.default.yellow(`${outPath} already exists. Use --refresh to regenerate.`));
+  const outDir = (0, import_node_path29.join)(workdir, ".bode");
+  const outPath = (0, import_node_path29.join)(outDir, "context.md");
+  if ((0, import_node_fs25.existsSync)(outPath) && !options.refresh) {
+    console.log(import_picocolors18.default.yellow(`${outPath} already exists. Use --refresh to regenerate.`));
     return;
   }
   const configResult = await loadConfig(workdir);
@@ -48504,23 +48795,23 @@ async function learnAction(options) {
     phaseName: "planning",
     mainWorkdir: workdir
   });
-  (0, import_node_fs24.mkdirSync)(outDir, { recursive: true });
+  (0, import_node_fs25.mkdirSync)(outDir, { recursive: true });
   const result = await adapterResult.value.invoke(prompt, phaseConfig, {
     interactive: true,
     workdir
   });
   if (!result.ok) throw result.error;
-  if (!(0, import_node_fs24.existsSync)(outPath) && result.value.stdout.trim())
+  if (!(0, import_node_fs25.existsSync)(outPath) && result.value.stdout.trim())
     await writeText(outPath, result.value.stdout);
-  console.log(import_picocolors17.default.green(`Project context written to ${outPath}`));
+  console.log(import_picocolors18.default.green(`Project context written to ${outPath}`));
 }
-var import_node_fs24, import_node_path27, import_picocolors17;
+var import_node_fs25, import_node_path29, import_picocolors18;
 var init_learn = __esm({
   "src/cli/actions/learn.ts"() {
     "use strict";
-    import_node_fs24 = require("node:fs");
-    import_node_path27 = require("node:path");
-    import_picocolors17 = __toESM(require_picocolors());
+    import_node_fs25 = require("node:fs");
+    import_node_path29 = require("node:path");
+    import_picocolors18 = __toESM(require_picocolors());
     init_loader();
     init_resolver();
     init_prompt_builder();
@@ -48535,36 +48826,36 @@ __export(log_exports, {
   logAction: () => logAction
 });
 async function logAction(taskKey) {
-  const { readdir: readdir6 } = await import("node:fs/promises");
-  const { join: join28 } = await import("node:path");
+  const { readdir: readdir7 } = await import("node:fs/promises");
+  const { join: join30 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
-    const files = await readdir6(runDir);
+    const files = await readdir7(runDir);
     const logFiles = files.filter((f) => f.endsWith(".log")).sort();
     if (logFiles.length === 0) {
-      console.error(import_picocolors18.default.yellow(`No logs found for ${taskKey}`));
+      console.error(import_picocolors19.default.yellow(`No logs found for ${taskKey}`));
       return;
     }
     const latest = logFiles[logFiles.length - 1];
     if (!latest) {
-      console.error(import_picocolors18.default.yellow("No log file available"));
+      console.error(import_picocolors19.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join28(runDir, latest));
+    const content = await readText(join30(runDir, latest));
     if (content) {
       console.log(content);
     }
   } catch {
-    console.error(import_picocolors18.default.yellow(`No run directory found for ${taskKey}`));
+    console.error(import_picocolors19.default.yellow(`No run directory found for ${taskKey}`));
   }
 }
-var import_picocolors18;
+var import_picocolors19;
 var init_log = __esm({
   "src/cli/actions/log.ts"() {
     "use strict";
     init_defaults();
     init_fs();
-    import_picocolors18 = __toESM(require_picocolors());
+    import_picocolors19 = __toESM(require_picocolors());
   }
 });
 
@@ -48575,12 +48866,12 @@ __export(done_exports, {
 });
 async function doneAction(taskKey, options) {
   if (!options.yes) {
-    console.log(import_picocolors19.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
+    console.log(import_picocolors20.default.yellow(`Mark ${taskKey} as done? Use --yes to confirm.`));
     return;
   }
   const result = await loadRunMeta(taskKey);
   if (!result.ok || !result.value) {
-    console.error(import_picocolors19.default.red(`No run found for ${taskKey}`));
+    console.error(import_picocolors20.default.red(`No run found for ${taskKey}`));
     process.exit(1);
   }
   const meta3 = result.value;
@@ -48607,22 +48898,22 @@ async function doneAction(taskKey, options) {
   }
   if (options.autoApprovePrMerge && meta3.prNumber) {
     console.log(
-      import_picocolors19.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
+      import_picocolors20.default.yellow("\nAuto-merge can cause problems. Use only if you trust the automated review.")
     );
     const mergeResult = await mergePR(meta3.prNumber, provider);
     if (!mergeResult.ok) {
-      console.error(import_picocolors19.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
-      console.error(import_picocolors19.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
+      console.error(import_picocolors20.default.red(`Auto-merge failed: ${mergeResult.error.message}`));
+      console.error(import_picocolors20.default.dim("Merge the PR manually: " + (meta3.prUrl ?? "")));
     } else {
-      console.log(import_picocolors19.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
+      console.log(import_picocolors20.default.green(`PR #${meta3.prNumber} merged and branch deleted.`));
     }
   } else if (meta3.prUrl) {
-    console.log(import_picocolors19.default.dim(`
+    console.log(import_picocolors20.default.dim(`
 PR pending: ${meta3.prUrl} \u2014 merge manually when ready.`));
   }
   if (meta3.baseBranch) {
     console.log(
-      import_picocolors19.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
+      import_picocolors20.default.dim(`Switch back to ${meta3.baseBranch} manually: \`git checkout ${meta3.baseBranch}\``)
     );
   }
   await finalize2(taskKey, meta3, config2, projectCfg);
@@ -48638,9 +48929,9 @@ async function finalize2(taskKey, meta3, config2, projectCfg) {
     if (doneTarget.trim() !== "") {
       const transResult = await trackerAdapter.setStatus(taskKey, doneTarget);
       if (!transResult.ok) {
-        console.warn(import_picocolors19.default.yellow(`[bode] Tracker transition skipped: ${transResult.error.message}`));
+        console.warn(import_picocolors20.default.yellow(`[bode] Tracker transition skipped: ${transResult.error.message}`));
         console.warn(
-          import_picocolors19.default.dim(
+          import_picocolors20.default.dim(
             "  Configure tracker transitions (done) in your project YAML to match your workflow."
           )
         );
@@ -48668,7 +48959,7 @@ async function removeBodeLabels(taskKey, config2, meta3) {
     });
   }
 }
-var import_picocolors19;
+var import_picocolors20;
 var init_done = __esm({
   "src/cli/actions/done.ts"() {
     "use strict";
@@ -48679,7 +48970,7 @@ var init_done = __esm({
     init_transitions();
     init_projects();
     init_summary();
-    import_picocolors19 = __toESM(require_picocolors());
+    import_picocolors20 = __toESM(require_picocolors());
   }
 });
 
@@ -48691,7 +48982,7 @@ __export(list_exports, {
 async function listAction(options = {}) {
   if (options.watch) {
     if (!process.stdout.isTTY) {
-      console.log(import_picocolors20.default.dim("bode list --watch requires a TTY."));
+      console.log(import_picocolors21.default.dim("bode list --watch requires a TTY."));
       return;
     }
     while (true) {
@@ -48702,9 +48993,9 @@ async function listAction(options = {}) {
   }
   const runsDir = getRunsDir();
   try {
-    const entries = await (0, import_promises16.readdir)(runsDir);
+    const entries = await (0, import_promises17.readdir)(runsDir);
     if (entries.length === 0) {
-      console.log(import_picocolors20.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+      console.log(import_picocolors21.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
       return;
     }
     for (const entry of entries) {
@@ -48712,43 +49003,43 @@ async function listAction(options = {}) {
       if (result.ok && result.value) {
         const meta3 = result.value;
         const cost = await getTaskCost(meta3.taskKey);
-        const branchInfo = meta3.branch ? import_picocolors20.default.dim(` (${meta3.branch})`) : "";
-        const conflictInfo = meta3.conflict ? import_picocolors20.default.red(" [CONFLICT]") : "";
+        const branchInfo = meta3.branch ? import_picocolors21.default.dim(` (${meta3.branch})`) : "";
+        const conflictInfo = meta3.conflict ? import_picocolors21.default.red(" [CONFLICT]") : "";
         console.log(
-          `${import_picocolors20.default.bold(meta3.taskKey)} ${import_picocolors20.default.dim("-")} ${meta3.trackerSummary} ${import_picocolors20.default.dim("|")} ${getPhaseStatusLabel(meta3.status)} ${import_picocolors20.default.dim(`$${cost.toFixed(2)}`)}${branchInfo}${conflictInfo}`
+          `${import_picocolors21.default.bold(meta3.taskKey)} ${import_picocolors21.default.dim("-")} ${meta3.trackerSummary} ${import_picocolors21.default.dim("|")} ${getPhaseStatusLabel(meta3.status)} ${import_picocolors21.default.dim(`$${cost.toFixed(2)}`)}${branchInfo}${conflictInfo}`
         );
       }
     }
   } catch {
-    console.log(import_picocolors20.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
+    console.log(import_picocolors21.default.dim('No tasks tracked. Run "bode start <KEY>" to begin.'));
   }
 }
 async function printScheduler() {
   const state = await readScheduler();
-  console.log(import_picocolors20.default.bold("Bode scheduler"));
-  console.log(import_picocolors20.default.dim(`updated ${state.updated_at}`));
+  console.log(import_picocolors21.default.bold("Bode scheduler"));
+  console.log(import_picocolors21.default.dim(`updated ${state.updated_at}`));
   console.log("");
   if (state.tasks.length === 0) {
-    console.log(import_picocolors20.default.dim("No scheduled tasks."));
+    console.log(import_picocolors21.default.dim("No scheduled tasks."));
     return;
   }
   for (const task of state.tasks) {
     console.log(
-      `${import_picocolors20.default.bold(task.key)} ${task.status.padEnd(9)} ${task.phase.padEnd(14)} pid=${task.pid} ${import_picocolors20.default.dim(task.repo)}`
+      `${import_picocolors21.default.bold(task.key)} ${task.status.padEnd(9)} ${task.phase.padEnd(14)} pid=${task.pid} ${import_picocolors21.default.dim(task.repo)}`
     );
   }
 }
-var import_promises16, import_picocolors20;
+var import_promises17, import_picocolors21;
 var init_list = __esm({
   "src/cli/actions/list.ts"() {
     "use strict";
-    import_promises16 = require("node:fs/promises");
+    import_promises17 = require("node:fs/promises");
     init_defaults();
     init_run_meta();
     init_phase();
     init_scheduler();
     init_budget_tracker();
-    import_picocolors20 = __toESM(require_picocolors());
+    import_picocolors21 = __toESM(require_picocolors());
   }
 });
 
@@ -48761,7 +49052,7 @@ async function cancelAction(taskKey) {
   const state = await readScheduler();
   const task = state.tasks.find((t) => t.key.toUpperCase() === taskKey.toUpperCase());
   if (!task) {
-    console.log(import_picocolors21.default.yellow(`No scheduled task found for ${taskKey}`));
+    console.log(import_picocolors22.default.yellow(`No scheduled task found for ${taskKey}`));
     return;
   }
   if (task.status === "running") {
@@ -48772,13 +49063,13 @@ async function cancelAction(taskKey) {
   }
   await updateSchedulerTask(taskKey, { status: "cancelled" });
   await removeSchedulerTask(taskKey);
-  console.log(import_picocolors21.default.green(`Cancelled ${taskKey}`));
+  console.log(import_picocolors22.default.green(`Cancelled ${taskKey}`));
 }
-var import_picocolors21;
+var import_picocolors22;
 var init_cancel = __esm({
   "src/cli/actions/cancel.ts"() {
     "use strict";
-    import_picocolors21 = __toESM(require_picocolors());
+    import_picocolors22 = __toESM(require_picocolors());
     init_scheduler();
   }
 });
@@ -48805,10 +49096,10 @@ async function skillsAction(options) {
     const result = await resolveSkillPath(phase, opts);
     if (result.ok) {
       console.log(
-        `${import_picocolors22.default.bold(phase)}: ${import_picocolors22.default.cyan(result.value)} ${import_picocolors22.default.dim(`(${flavorForCli(phaseConfig?.cli)})`)}`
+        `${import_picocolors23.default.bold(phase)}: ${import_picocolors23.default.cyan(result.value)} ${import_picocolors23.default.dim(`(${flavorForCli(phaseConfig?.cli)})`)}`
       );
     } else {
-      console.log(`${import_picocolors22.default.bold(phase)}: ${import_picocolors22.default.yellow("not found")}`);
+      console.log(`${import_picocolors23.default.bold(phase)}: ${import_picocolors23.default.yellow("not found")}`);
     }
   }
 }
@@ -48830,10 +49121,10 @@ async function manageSkills(subcommand, args) {
       await listInstalledSkills();
       return;
     case "update":
-      console.log(import_picocolors22.default.dim("Community skills are pinned by source. Re-run install to update."));
+      console.log(import_picocolors23.default.dim("Community skills are pinned by source. Re-run install to update."));
       return;
     default:
-      console.error(import_picocolors22.default.red(`Unknown skills command: ${subcommand}`));
+      console.error(import_picocolors23.default.red(`Unknown skills command: ${subcommand}`));
       process.exit(1);
   }
 }
@@ -48841,52 +49132,52 @@ async function installSkill(source) {
   if (!source) throw new Error("Usage: bode skills install <repo>#<path>");
   const [, sourcePath] = source.split("#");
   if (!sourcePath) throw new Error("Skill source must use <repo>#<path>");
-  const localSource = (0, import_node_path28.join)(process.cwd(), sourcePath);
-  if (!(0, import_node_fs25.existsSync)(localSource))
+  const localSource = (0, import_node_path30.join)(process.cwd(), sourcePath);
+  if (!(0, import_node_fs26.existsSync)(localSource))
     throw new Error(`Only local fixture installs are supported here: ${localSource}`);
   const slug = sourcePath.split(/[\\/]/).filter(Boolean).pop() ?? "skill";
-  const dest = (0, import_node_path28.join)(getSkillsDir(), slug);
-  (0, import_node_fs25.mkdirSync)(getSkillsDir(), { recursive: true });
-  await (0, import_promises17.cp)(localSource, dest, { recursive: true, force: true });
-  (0, import_node_fs25.writeFileSync)(
-    (0, import_node_path28.join)(dest, ".install.json"),
+  const dest = (0, import_node_path30.join)(getSkillsDir(), slug);
+  (0, import_node_fs26.mkdirSync)(getSkillsDir(), { recursive: true });
+  await (0, import_promises18.cp)(localSource, dest, { recursive: true, force: true });
+  (0, import_node_fs26.writeFileSync)(
+    (0, import_node_path30.join)(dest, ".install.json"),
     JSON.stringify({ source, installed_at: (/* @__PURE__ */ new Date()).toISOString(), version: "local" }, null, 2)
   );
-  console.log(import_picocolors22.default.green(`Installed ${slug} to ${dest}`));
+  console.log(import_picocolors23.default.green(`Installed ${slug} to ${dest}`));
 }
 async function listInstalledSkills() {
-  if (!(0, import_node_fs25.existsSync)(getSkillsDir())) {
-    console.log(import_picocolors22.default.dim("No global skills installed."));
+  if (!(0, import_node_fs26.existsSync)(getSkillsDir())) {
+    console.log(import_picocolors23.default.dim("No global skills installed."));
     return;
   }
-  for (const entry of await (0, import_promises17.readdir)(getSkillsDir())) console.log(entry);
+  for (const entry of await (0, import_promises18.readdir)(getSkillsDir())) console.log(entry);
 }
 function removeSkill(slug) {
   if (!slug) throw new Error("Usage: bode skills remove <slug>");
-  (0, import_node_fs25.rmSync)((0, import_node_path28.join)(getSkillsDir(), slug), { recursive: true, force: true });
-  console.log(import_picocolors22.default.green(`Removed ${slug}`));
+  (0, import_node_fs26.rmSync)((0, import_node_path30.join)(getSkillsDir(), slug), { recursive: true, force: true });
+  console.log(import_picocolors23.default.green(`Removed ${slug}`));
 }
 async function searchSkills(query) {
-  const dir = (0, import_node_path28.join)(process.cwd(), "skills", "community");
-  if (!(0, import_node_fs25.existsSync)(dir)) return;
-  for (const entry of await (0, import_promises17.readdir)(dir)) {
-    const readme = (0, import_node_path28.join)(dir, entry, "README.md");
-    if (!(0, import_node_fs25.existsSync)(readme)) continue;
-    const text = await (0, import_promises17.readFile)(readme, "utf-8");
+  const dir = (0, import_node_path30.join)(process.cwd(), "skills", "community");
+  if (!(0, import_node_fs26.existsSync)(dir)) return;
+  for (const entry of await (0, import_promises18.readdir)(dir)) {
+    const readme = (0, import_node_path30.join)(dir, entry, "README.md");
+    if (!(0, import_node_fs26.existsSync)(readme)) continue;
+    const text = await (0, import_promises18.readFile)(readme, "utf-8");
     if (!query || text.toLowerCase().includes(query.toLowerCase())) console.log(entry);
   }
 }
-var import_node_fs25, import_promises17, import_node_path28, import_picocolors22, PHASES;
+var import_node_fs26, import_promises18, import_node_path30, import_picocolors23, PHASES;
 var init_skills = __esm({
   "src/cli/actions/skills.ts"() {
     "use strict";
     init_resolver();
     init_loader();
-    import_node_fs25 = require("node:fs");
-    import_promises17 = require("node:fs/promises");
-    import_node_path28 = require("node:path");
+    import_node_fs26 = require("node:fs");
+    import_promises18 = require("node:fs/promises");
+    import_node_path30 = require("node:path");
     init_defaults();
-    import_picocolors22 = __toESM(require_picocolors());
+    import_picocolors23 = __toESM(require_picocolors());
     PHASES = ["planning", "plan-review", "implementation", "review", "learn", "init-agents"];
   }
 });
@@ -48897,8 +49188,8 @@ __export(doctor_exports, {
   doctorAction: () => doctorAction
 });
 function fmt(c) {
-  const symbol2 = c.status === "ok" ? import_picocolors23.default.green("\u2713") : c.status === "warn" ? import_picocolors23.default.yellow("\u26A0") : import_picocolors23.default.red("\u2717");
-  return `${symbol2} ${import_picocolors23.default.bold(c.name.padEnd(28))} ${c.detail}`;
+  const symbol2 = c.status === "ok" ? import_picocolors24.default.green("\u2713") : c.status === "warn" ? import_picocolors24.default.yellow("\u26A0") : import_picocolors24.default.red("\u2717");
+  return `${symbol2} ${import_picocolors24.default.bold(c.name.padEnd(28))} ${c.detail}`;
 }
 async function checkNodeVersion() {
   const v = process.versions.node;
@@ -48929,7 +49220,7 @@ async function checkBinaryAvailable(name, binary) {
 }
 async function checkGlobalConfig() {
   const path3 = getGlobalConfigPath();
-  if (!(0, import_node_fs26.existsSync)(path3)) {
+  if (!(0, import_node_fs27.existsSync)(path3)) {
     return {
       name: "Global config",
       status: "warn",
@@ -48948,7 +49239,7 @@ async function checkGlobalConfig() {
 }
 async function checkRunsDir() {
   const dir = getRunsDir();
-  if (!(0, import_node_fs26.existsSync)(dir)) {
+  if (!(0, import_node_fs27.existsSync)(dir)) {
     return {
       name: "Runs directory",
       status: "warn",
@@ -48990,8 +49281,8 @@ async function checkNpmWindowsSymlink() {
 async function doctorAction(options = {}) {
   const workdir = process.cwd();
   console.log("");
-  console.log(import_picocolors23.default.bold(`bode doctor`) + import_picocolors23.default.dim(`  v${getVersion()}`));
-  console.log(import_picocolors23.default.dim("\u2500".repeat(64)));
+  console.log(import_picocolors24.default.bold(`bode doctor`) + import_picocolors24.default.dim(`  v${getVersion()}`));
+  console.log(import_picocolors24.default.dim("\u2500".repeat(64)));
   const checks = [];
   checks.push(await checkNodeVersion());
   checks.push(await checkGlobalConfig());
@@ -49010,7 +49301,7 @@ async function doctorAction(options = {}) {
     checks.push({
       name: "Git remote",
       status: env2.vcsProvider ? "ok" : "warn",
-      detail: `${env2.gitRemoteUrl}  ${import_picocolors23.default.dim(`(${provider})`)}`
+      detail: `${env2.gitRemoteUrl}  ${import_picocolors24.default.dim(`(${provider})`)}`
     });
   } else {
     checks.push({
@@ -49057,20 +49348,20 @@ async function doctorAction(options = {}) {
   if (options.report) {
     const target = typeof options.report === "string" ? options.report : "bode-doctor-report.md";
     await writeText(target, buildReport(checks, workdir));
-    console.log(import_picocolors23.default.dim(`Report: ${target}`));
+    console.log(import_picocolors24.default.dim(`Report: ${target}`));
   }
   const fails = checks.filter((c) => c.status === "fail").length;
   const warns = checks.filter((c) => c.status === "warn").length;
-  console.log(import_picocolors23.default.dim("\u2500".repeat(64)));
+  console.log(import_picocolors24.default.dim("\u2500".repeat(64)));
   if (fails === 0 && warns === 0) {
-    console.log(import_picocolors23.default.green(`All ${checks.length} checks passed.`));
+    console.log(import_picocolors24.default.green(`All ${checks.length} checks passed.`));
     process.exit(0);
   }
   if (fails === 0) {
-    console.log(import_picocolors23.default.yellow(`${warns} warning(s), no failures.`));
+    console.log(import_picocolors24.default.yellow(`${warns} warning(s), no failures.`));
     process.exit(0);
   }
-  console.log(import_picocolors23.default.red(`${fails} failure(s), ${warns} warning(s).`));
+  console.log(import_picocolors24.default.red(`${fails} failure(s), ${warns} warning(s).`));
   process.exit(1);
 }
 function buildReport(checks, workdir) {
@@ -49094,12 +49385,12 @@ function buildReport(checks, workdir) {
 function redact(value) {
   return value.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>");
 }
-var import_picocolors23, import_node_fs26, import_node_child_process9, import_node_util15, execFileAsync6;
+var import_picocolors24, import_node_fs27, import_node_child_process9, import_node_util15, execFileAsync6;
 var init_doctor = __esm({
   "src/cli/actions/doctor.ts"() {
     "use strict";
-    import_picocolors23 = __toESM(require_picocolors());
-    import_node_fs26 = require("node:fs");
+    import_picocolors24 = __toESM(require_picocolors());
+    import_node_fs27 = require("node:fs");
     import_node_child_process9 = require("node:child_process");
     import_node_util15 = require("node:util");
     init_auto_detect();
@@ -49143,7 +49434,7 @@ async function feedbackAction(options = {}) {
   const url2 = buildFeedbackUrl(options);
   console.log(url2);
   console.log(
-    import_picocolors24.default.dim("Bode never auto-submits feedback. Review and edit the issue before posting.")
+    import_picocolors25.default.dim("Bode never auto-submits feedback. Review and edit the issue before posting.")
   );
   if (options.open) openUrl(url2);
 }
@@ -49152,30 +49443,30 @@ function openUrl(url2) {
   const args = process.platform === "win32" ? ["/c", "start", "", url2] : [url2];
   (0, import_node_child_process10.execFile)(command, args, { windowsHide: true }, () => void 0);
 }
-var import_node_child_process10, import_node_os5, import_picocolors24;
+var import_node_child_process10, import_node_os5, import_picocolors25;
 var init_feedback = __esm({
   "src/cli/actions/feedback.ts"() {
     "use strict";
     import_node_child_process10 = require("node:child_process");
     import_node_os5 = require("node:os");
-    import_picocolors24 = __toESM(require_picocolors());
+    import_picocolors25 = __toESM(require_picocolors());
     init_version();
   }
 });
 
 // src/utils/telemetry.ts
 async function readState() {
-  if (!(0, import_node_fs27.existsSync)(STATE_FILE)) return null;
+  if (!(0, import_node_fs28.existsSync)(STATE_FILE)) return null;
   try {
-    const raw = await (0, import_promises18.readFile)(STATE_FILE, "utf-8");
+    const raw = await (0, import_promises19.readFile)(STATE_FILE, "utf-8");
     return JSON.parse(raw);
   } catch {
     return null;
   }
 }
 async function writeState(state) {
-  await (0, import_promises18.mkdir)(TELEMETRY_DIR, { recursive: true });
-  await (0, import_promises18.writeFile)(STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
+  await (0, import_promises19.mkdir)(TELEMETRY_DIR, { recursive: true });
+  await (0, import_promises19.writeFile)(STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
 }
 async function isTelemetryEnabled() {
   const state = await readState();
@@ -49195,8 +49486,8 @@ async function setTelemetryEnabled(enabled) {
   return next;
 }
 async function readRecentEvents(limit = 20) {
-  if (!(0, import_node_fs27.existsSync)(EVENTS_FILE)) return [];
-  const raw = await (0, import_promises18.readFile)(EVENTS_FILE, "utf-8");
+  if (!(0, import_node_fs28.existsSync)(EVENTS_FILE)) return [];
+  const raw = await (0, import_promises19.readFile)(EVENTS_FILE, "utf-8");
   const lines = raw.trim().split("\n").slice(-limit);
   return lines.filter((l) => l.length > 0).map((l) => {
     try {
@@ -49206,18 +49497,18 @@ async function readRecentEvents(limit = 20) {
     }
   }).filter((e) => e !== null);
 }
-var import_node_fs27, import_promises18, import_node_path29, import_node_os6, import_node_crypto4, TELEMETRY_DIR, STATE_FILE, EVENTS_FILE, __testing3;
+var import_node_fs28, import_promises19, import_node_path31, import_node_os6, import_node_crypto4, TELEMETRY_DIR, STATE_FILE, EVENTS_FILE, __testing3;
 var init_telemetry = __esm({
   "src/utils/telemetry.ts"() {
     "use strict";
-    import_node_fs27 = require("node:fs");
-    import_promises18 = require("node:fs/promises");
-    import_node_path29 = require("node:path");
+    import_node_fs28 = require("node:fs");
+    import_promises19 = require("node:fs/promises");
+    import_node_path31 = require("node:path");
     import_node_os6 = require("node:os");
     import_node_crypto4 = require("node:crypto");
-    TELEMETRY_DIR = (0, import_node_path29.join)((0, import_node_os6.homedir)(), ".bode", "telemetry");
-    STATE_FILE = (0, import_node_path29.join)(TELEMETRY_DIR, "state.json");
-    EVENTS_FILE = (0, import_node_path29.join)(TELEMETRY_DIR, "events.ndjson");
+    TELEMETRY_DIR = (0, import_node_path31.join)((0, import_node_os6.homedir)(), ".bode", "telemetry");
+    STATE_FILE = (0, import_node_path31.join)(TELEMETRY_DIR, "state.json");
+    EVENTS_FILE = (0, import_node_path31.join)(TELEMETRY_DIR, "events.ndjson");
     __testing3 = { TELEMETRY_DIR, STATE_FILE, EVENTS_FILE };
   }
 });
@@ -49233,61 +49524,61 @@ async function telemetryAction(subcommand) {
     case "on":
     case "enable": {
       const s = await setTelemetryEnabled(true);
-      console.log(import_picocolors25.default.green("\u2713 Telemetry enabled."));
-      console.log(import_picocolors25.default.dim(`  Machine ID: ${s.machineId}`));
-      console.log(import_picocolors25.default.dim(`  Events log: ${__testing3.EVENTS_FILE}`));
-      console.log(import_picocolors25.default.dim("  Default endpoint: none (local-only). Set telemetry.endpoint in"));
-      console.log(import_picocolors25.default.dim("  config to forward events to your own collector."));
+      console.log(import_picocolors26.default.green("\u2713 Telemetry enabled."));
+      console.log(import_picocolors26.default.dim(`  Machine ID: ${s.machineId}`));
+      console.log(import_picocolors26.default.dim(`  Events log: ${__testing3.EVENTS_FILE}`));
+      console.log(import_picocolors26.default.dim("  Default endpoint: none (local-only). Set telemetry.endpoint in"));
+      console.log(import_picocolors26.default.dim("  config to forward events to your own collector."));
       console.log("");
-      console.log(import_picocolors25.default.bold("What gets recorded:"));
-      console.log(import_picocolors25.default.dim("  command name, success/failure, duration, tracker kind, CLI adapter,"));
-      console.log(import_picocolors25.default.dim("  bode version, Node version, platform, machine UUID."));
-      console.log(import_picocolors25.default.bold("What never gets recorded:"));
-      console.log(import_picocolors25.default.dim("  task content, ticket IDs, code, paths, credentials, your identity."));
+      console.log(import_picocolors26.default.bold("What gets recorded:"));
+      console.log(import_picocolors26.default.dim("  command name, success/failure, duration, tracker kind, CLI adapter,"));
+      console.log(import_picocolors26.default.dim("  bode version, Node version, platform, machine UUID."));
+      console.log(import_picocolors26.default.bold("What never gets recorded:"));
+      console.log(import_picocolors26.default.dim("  task content, ticket IDs, code, paths, credentials, your identity."));
       break;
     }
     case "off":
     case "disable": {
       await setTelemetryEnabled(false);
-      console.log(import_picocolors25.default.yellow("Telemetry disabled. Recorded events remain on disk."));
-      console.log(import_picocolors25.default.dim(`  To delete them: rm -rf ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors26.default.yellow("Telemetry disabled. Recorded events remain on disk."));
+      console.log(import_picocolors26.default.dim(`  To delete them: rm -rf ${__testing3.TELEMETRY_DIR}`));
       break;
     }
     case "status": {
       const enabled = await isTelemetryEnabled();
-      console.log(enabled ? import_picocolors25.default.green("Telemetry: ENABLED") : import_picocolors25.default.dim("Telemetry: disabled"));
-      console.log(import_picocolors25.default.dim(`  Storage: ${__testing3.TELEMETRY_DIR}`));
-      console.log(import_picocolors25.default.dim(`  Toggle: bode telemetry on   |   bode telemetry off`));
-      console.log(import_picocolors25.default.dim(`  Preview: bode telemetry preview`));
+      console.log(enabled ? import_picocolors26.default.green("Telemetry: ENABLED") : import_picocolors26.default.dim("Telemetry: disabled"));
+      console.log(import_picocolors26.default.dim(`  Storage: ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors26.default.dim(`  Toggle: bode telemetry on   |   bode telemetry off`));
+      console.log(import_picocolors26.default.dim(`  Preview: bode telemetry preview`));
       break;
     }
     case "preview": {
       const events = await readRecentEvents(20);
       if (events.length === 0) {
-        console.log(import_picocolors25.default.dim("No telemetry events recorded yet."));
+        console.log(import_picocolors26.default.dim("No telemetry events recorded yet."));
         return;
       }
-      console.log(import_picocolors25.default.bold(`Last ${events.length} events:`));
+      console.log(import_picocolors26.default.bold(`Last ${events.length} events:`));
       for (const e of events) {
-        const status = e.success ? import_picocolors25.default.green("\u2713") : import_picocolors25.default.red("\u2717");
-        const dur = e.duration_ms ? import_picocolors25.default.dim(` (${e.duration_ms}ms)`) : "";
+        const status = e.success ? import_picocolors26.default.green("\u2713") : import_picocolors26.default.red("\u2717");
+        const dur = e.duration_ms ? import_picocolors26.default.dim(` (${e.duration_ms}ms)`) : "";
         console.log(
-          `  ${status} ${import_picocolors25.default.cyan(e.command.padEnd(12))} ${import_picocolors25.default.dim(e.ts)} ${import_picocolors25.default.dim(`v${e.bode_version}`)}${dur}`
+          `  ${status} ${import_picocolors26.default.cyan(e.command.padEnd(12))} ${import_picocolors26.default.dim(e.ts)} ${import_picocolors26.default.dim(`v${e.bode_version}`)}${dur}`
         );
       }
       break;
     }
     default:
-      console.error(import_picocolors25.default.red(`Unknown subcommand: ${cmd}`));
-      console.error(import_picocolors25.default.dim("Usage: bode telemetry [on|off|status|preview]"));
+      console.error(import_picocolors26.default.red(`Unknown subcommand: ${cmd}`));
+      console.error(import_picocolors26.default.dim("Usage: bode telemetry [on|off|status|preview]"));
       process.exit(1);
   }
 }
-var import_picocolors25;
+var import_picocolors26;
 var init_telemetry2 = __esm({
   "src/cli/actions/telemetry.ts"() {
     "use strict";
-    import_picocolors25 = __toESM(require_picocolors());
+    import_picocolors26 = __toESM(require_picocolors());
     init_telemetry();
   }
 });
@@ -49299,30 +49590,30 @@ __export(compare_exports, {
 });
 async function compareAction(taskKey, options) {
   if (options.show || options.diff || options.pick) {
-    console.log(import_picocolors26.default.dim("Compare reports live under ~/.bode/comparisons/."));
-    if (options.pick) console.log(import_picocolors26.default.green(`Selected agent recorded: ${options.pick}`));
+    console.log(import_picocolors27.default.dim("Compare reports live under ~/.bode/comparisons/."));
+    if (options.pick) console.log(import_picocolors27.default.green(`Selected agent recorded: ${options.pick}`));
     return;
   }
   const agentSpec = options.agents?.trim();
   if (!agentSpec) {
-    console.error(import_picocolors26.default.red("--agents <list> is required"));
-    console.error(import_picocolors26.default.dim("Example: --agents claude-code,codex"));
-    console.error(import_picocolors26.default.dim("         --agents claude-code:claude-opus-4-7,codex:gpt-5.5"));
+    console.error(import_picocolors27.default.red("--agents <list> is required"));
+    console.error(import_picocolors27.default.dim("Example: --agents claude-code,codex"));
+    console.error(import_picocolors27.default.dim("         --agents claude-code:claude-opus-4-7,codex:gpt-5.5"));
     process.exit(1);
   }
   const specs = agentSpec.split(",").map((s) => s.trim()).filter(Boolean);
   if (specs.length < 2) {
-    console.error(import_picocolors26.default.red("Need at least two agents to compare. Got: " + specs.length));
+    console.error(import_picocolors27.default.red("Need at least two agents to compare. Got: " + specs.length));
     process.exit(1);
   }
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors26.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors27.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const projectResult = await resolveProject(configResult.value, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors26.default.red(projectResult.error.message));
+    console.error(import_picocolors27.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
@@ -49335,7 +49626,7 @@ async function compareAction(taskKey, options) {
   });
   const issueResult = await tracker.adapter.fetchTask(taskKey);
   if (!issueResult.ok) {
-    console.error(import_picocolors26.default.red(`Tracker error: ${issueResult.error.message}`));
+    console.error(import_picocolors27.default.red(`Tracker error: ${issueResult.error.message}`));
     process.exit(1);
   }
   const phases = parsePhases(options.phases);
@@ -49345,14 +49636,14 @@ async function compareAction(taskKey, options) {
     cli: config2.phases.planning.cli
   });
   if (!skill.ok) {
-    console.error(import_picocolors26.default.red(`Skill load failed: ${skill.error.message}`));
+    console.error(import_picocolors27.default.red(`Skill load failed: ${skill.error.message}`));
     process.exit(1);
   }
   const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").replace(/T/, "_").slice(0, 19);
-  const outDir = (0, import_node_path30.join)((0, import_node_os7.homedir)(), ".bode", "comparisons", `${taskKey}-${timestamp}`);
-  await (0, import_promises19.mkdir)(outDir, { recursive: true });
-  console.log(import_picocolors26.default.cyan(`Comparing ${specs.length} agents on ${phases.join(", ")} for ${taskKey}`));
-  console.log(import_picocolors26.default.dim(`Output: ${outDir}`));
+  const outDir = (0, import_node_path32.join)((0, import_node_os7.homedir)(), ".bode", "comparisons", `${taskKey}-${timestamp}`);
+  await (0, import_promises20.mkdir)(outDir, { recursive: true });
+  console.log(import_picocolors27.default.cyan(`Comparing ${specs.length} agents on ${phases.join(", ")} for ${taskKey}`));
+  console.log(import_picocolors27.default.dim(`Output: ${outDir}`));
   console.log("");
   const results = [];
   for (const spec of specs) {
@@ -49360,7 +49651,7 @@ async function compareAction(taskKey, options) {
     const cliName = cli ?? "";
     const adapterR = getAdapter(cliName);
     if (!adapterR.ok) {
-      console.error(import_picocolors26.default.red(`\u2717 ${spec}: ${adapterR.error.message}`));
+      console.error(import_picocolors27.default.red(`\u2717 ${spec}: ${adapterR.error.message}`));
       continue;
     }
     const phaseConfig = config2.phases.planning;
@@ -49371,7 +49662,7 @@ async function compareAction(taskKey, options) {
       repoFileTree: void 0,
       priorArtifact: void 0
     });
-    console.log(import_picocolors26.default.dim(`Running ${spec}...`));
+    console.log(import_picocolors27.default.dim(`Running ${spec}...`));
     const start = Date.now();
     const invokeR = await adapterR.value.invoke(
       prompt,
@@ -49380,7 +49671,7 @@ async function compareAction(taskKey, options) {
     );
     const durationMs = Date.now() - start;
     if (!invokeR.ok) {
-      console.error(import_picocolors26.default.red(`  \u2717 ${spec} failed: ${invokeR.error.message}`));
+      console.error(import_picocolors27.default.red(`  \u2717 ${spec} failed: ${invokeR.error.message}`));
       results.push({
         spec,
         artifact: `(failed: ${invokeR.error.message})`,
@@ -49390,9 +49681,9 @@ async function compareAction(taskKey, options) {
       continue;
     }
     const safe = spec.replace(/[^a-z0-9]+/gi, "-");
-    const path3 = (0, import_node_path30.join)(outDir, `${safe}.md`);
-    await (0, import_promises19.writeFile)(path3, invokeR.value.stdout, "utf-8");
-    console.log(import_picocolors26.default.green(`  \u2713 ${spec} \u2192 ${path3} (${invokeR.value.durationMs}ms)`));
+    const path3 = (0, import_node_path32.join)(outDir, `${safe}.md`);
+    await (0, import_promises20.writeFile)(path3, invokeR.value.stdout, "utf-8");
+    console.log(import_picocolors27.default.green(`  \u2713 ${spec} \u2192 ${path3} (${invokeR.value.durationMs}ms)`));
     results.push({
       spec,
       artifact: invokeR.value.stdout,
@@ -49400,7 +49691,7 @@ async function compareAction(taskKey, options) {
       durationMs: invokeR.value.durationMs
     });
   }
-  const summaryPath = (0, import_node_path30.join)(outDir, "summary.md");
+  const summaryPath = (0, import_node_path32.join)(outDir, "summary.md");
   const summary = `# Agent comparison \u2014 ${taskKey}
 
 Date: ${(/* @__PURE__ */ new Date()).toISOString()}
@@ -49415,24 +49706,24 @@ PR each: ${options.prEach ? "requested" : "no"}
 - bytes: ${r.artifact.length}
 `
   ).join("\n");
-  await (0, import_promises19.writeFile)(summaryPath, summary, "utf-8");
+  await (0, import_promises20.writeFile)(summaryPath, summary, "utf-8");
   console.log("");
-  console.log(import_picocolors26.default.bold("Done."));
-  console.log(import_picocolors26.default.dim(`Summary: ${summaryPath}`));
-  console.log(import_picocolors26.default.dim(`Individual artifacts in ${outDir}/`));
+  console.log(import_picocolors27.default.bold("Done."));
+  console.log(import_picocolors27.default.dim(`Summary: ${summaryPath}`));
+  console.log(import_picocolors27.default.dim(`Individual artifacts in ${outDir}/`));
 }
 function parsePhases(raw) {
   if (!raw || raw === "planning") return ["planning"];
   if (raw === "all") return ["planning", "implementation", "review"];
   return raw.split(",").map((p) => p.trim()).filter(Boolean);
 }
-var import_picocolors26, import_promises19, import_node_path30, import_node_os7;
+var import_picocolors27, import_promises20, import_node_path32, import_node_os7;
 var init_compare = __esm({
   "src/cli/actions/compare.ts"() {
     "use strict";
-    import_picocolors26 = __toESM(require_picocolors());
-    import_promises19 = require("node:fs/promises");
-    import_node_path30 = require("node:path");
+    import_picocolors27 = __toESM(require_picocolors());
+    import_promises20 = require("node:fs/promises");
+    import_node_path32 = require("node:path");
     import_node_os7 = require("node:os");
     init_loader();
     init_project_resolver();
@@ -49451,12 +49742,12 @@ __export(setup_transitions_exports, {
 async function setupTransitionsAction(options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
-    console.error(import_picocolors27.default.red(`Configuration error: ${configResult.error.message}`));
+    console.error(import_picocolors28.default.red(`Configuration error: ${configResult.error.message}`));
     process.exit(1);
   }
   const projectResult = await resolveProject(configResult.value, { projectName: options.project });
   if (!projectResult.ok) {
-    console.error(import_picocolors27.default.red(projectResult.error.message));
+    console.error(import_picocolors28.default.red(projectResult.error.message));
     process.exit(1);
   }
   const { config: config2, projectConfig } = projectResult.value;
@@ -49468,13 +49759,13 @@ async function setupTransitionsAction(options) {
     ...config2.trello ? { trello: config2.trello } : {},
     ...projectConfig.tracker ? { tracker: projectConfig.tracker } : config2.tracker ? { tracker: config2.tracker } : {}
   });
-  console.log(import_picocolors27.default.bold(`Configuring transitions for project "${projectConfig.name}"`));
-  console.log(import_picocolors27.default.dim(`  Tracker: ${tracker.kind}`));
+  console.log(import_picocolors28.default.bold(`Configuring transitions for project "${projectConfig.name}"`));
+  console.log(import_picocolors28.default.dim(`  Tracker: ${tracker.kind}`));
   const sampleKey = tracker.kind === "jira" ? config2.jira.default_project ? `${config2.jira.default_project}-1` : void 0 : void 0;
   const transitionsResult = await tracker.adapter.listStatuses(sampleKey ?? "sample");
   if (!transitionsResult.ok || transitionsResult.value.length === 0) {
     console.log(
-      import_picocolors27.default.yellow(
+      import_picocolors28.default.yellow(
         `Could not load transitions from ${tracker.kind}. Falling back to manual config \u2014 edit .bode.yml by hand.`
       )
     );
@@ -49482,11 +49773,11 @@ async function setupTransitionsAction(options) {
   }
   const available = transitionsResult.value;
   console.log("");
-  console.log(import_picocolors27.default.dim("Available transitions:"));
+  console.log(import_picocolors28.default.dim("Available transitions:"));
   for (const t of available) {
     const label = t.toStatusName ?? t.name;
     const arrow = t.name !== label ? ` \u2192 ${label}` : "";
-    console.log(import_picocolors27.default.dim(`  - ${t.name}${arrow}`));
+    console.log(import_picocolors28.default.dim(`  - ${t.name}${arrow}`));
   }
   console.log("");
   const phases = [
@@ -49506,7 +49797,7 @@ async function setupTransitionsAction(options) {
     for (const phase of phases) {
       const choices = [
         {
-          name: import_picocolors27.default.dim("(skip \u2014 no Jira move at this event)"),
+          name: import_picocolors28.default.dim("(skip \u2014 no Jira move at this event)"),
           value: skipValue
         },
         ...available.map((t) => ({
@@ -49526,8 +49817,8 @@ async function setupTransitionsAction(options) {
     handlePromptError(err);
     process.exit(1);
   }
-  const target = (0, import_node_path31.join)(projectConfig.workdir, ".bode.yml");
-  const existing = (0, import_node_fs28.existsSync)(target) ? (0, import_yaml5.parse)(await (0, import_promises20.readFile)(target, "utf-8")) ?? {} : {};
+  const target = (0, import_node_path33.join)(projectConfig.workdir, ".bode.yml");
+  const existing = (0, import_node_fs29.existsSync)(target) ? (0, import_yaml5.parse)(await (0, import_promises21.readFile)(target, "utf-8")) ?? {} : {};
   const existingJira = existing["jira"] ?? {};
   const updated = {
     ...existing,
@@ -49536,25 +49827,25 @@ async function setupTransitionsAction(options) {
       transitions: picks
     }
   };
-  await (0, import_promises20.mkdir)((0, import_node_path31.dirname)(target), { recursive: true });
-  await (0, import_promises20.writeFile)(target, (0, import_yaml5.stringify)(updated), "utf-8");
+  await (0, import_promises21.mkdir)((0, import_node_path33.dirname)(target), { recursive: true });
+  await (0, import_promises21.writeFile)(target, (0, import_yaml5.stringify)(updated), "utf-8");
   console.log("");
-  console.log(import_picocolors27.default.green(`\u2713 Saved transitions to ${target}`));
+  console.log(import_picocolors28.default.green(`\u2713 Saved transitions to ${target}`));
   console.log("");
-  console.log(import_picocolors27.default.dim("Picks:"));
+  console.log(import_picocolors28.default.dim("Picks:"));
   for (const [k, v] of Object.entries(picks)) {
-    console.log(import_picocolors27.default.dim(`  ${k.padEnd(18)} ${v || "(skip)"}`));
+    console.log(import_picocolors28.default.dim(`  ${k.padEnd(18)} ${v || "(skip)"}`));
   }
 }
-var import_picocolors27, import_promises20, import_node_fs28, import_node_path31, import_yaml5;
+var import_picocolors28, import_promises21, import_node_fs29, import_node_path33, import_yaml5;
 var init_setup_transitions = __esm({
   "src/cli/actions/setup-transitions.ts"() {
     "use strict";
-    import_picocolors27 = __toESM(require_picocolors());
+    import_picocolors28 = __toESM(require_picocolors());
     init_dist17();
-    import_promises20 = require("node:fs/promises");
-    import_node_fs28 = require("node:fs");
-    import_node_path31 = require("node:path");
+    import_promises21 = require("node:fs/promises");
+    import_node_fs29 = require("node:fs");
+    import_node_path33 = require("node:path");
     import_yaml5 = __toESM(require_dist());
     init_loader();
     init_project_resolver();
@@ -49609,9 +49900,15 @@ function createCommands(program3) {
     const { setupAction: setupAction2 } = await Promise.resolve().then(() => (init_setup(), setup_exports));
     await setupAction2();
   });
-  program3.command("setup-project").description("Create or edit a project config (workdir, context, VCS, Jira overrides)").action(async () => {
+  program3.command("setup-project").description("Create or edit a project config (workdir, context, VCS, Jira overrides)").option(
+    "--shared-in-repo",
+    "Write PROJECT_CONTEXT.md into the workdir (committable, team-shared) instead of ~/.bode/projects/<name>/"
+  ).option(
+    "--refresh-context",
+    "Re-run only the project context investigation step on an existing project"
+  ).action(async (options) => {
     const { setupAction: setupAction2 } = await Promise.resolve().then(() => (init_setup(), setup_exports));
-    await setupAction2("project");
+    await setupAction2("project", options);
   });
   program3.command("start <taskKey>").description("Start a task. Creates branch, runs planning phase. Use --auto to run all phases.").option("--project <name>", "Project name from ~/.bode/projects/").option("--from-branch <branch>", "Base branch (default: project default_branch or main)").option("--auto", "Run all phases automatically until PR is created").option("--foreground", "Run in the foreground while still recording scheduler state").option("--no-budget", "Disable budget enforcement for this run").option(
     "--strict",

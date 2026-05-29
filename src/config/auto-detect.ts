@@ -29,7 +29,26 @@ const AI_CLI_PROBES: Array<{ name: 'claude-code' | 'opencode' | 'codex'; binary:
 	{ name: 'codex', binary: 'codex' },
 ];
 
-const CONTEXT_FILE_CANDIDATES = ['AGENTS.md', 'CLAUDE.md', '.claude/CLAUDE.md', 'CONTRIBUTING.md'];
+const CONTEXT_FILE_CANDIDATES = [
+	'CLAUDE.md',
+	'AGENTS.md',
+	'CODE_CONVENTIONS.md',
+	'CONVENTIONS.md',
+	'.cursorrules',
+	'GEMINI.md',
+	'.github/copilot-instructions.md',
+	'.claude/CLAUDE.md',
+	'CONTRIBUTING.md',
+];
+
+/**
+ * Auto-detect helper used by `bode setup-project` to pre-select context files
+ * that exist in a given workdir. Exposed separately from `detectEnv` so it
+ * can be invoked for additional repositories too.
+ */
+export function detectContextFilesIn(workdir: string): string[] {
+	return CONTEXT_FILE_CANDIDATES.filter((rel) => existsSync(join(workdir, rel)));
+}
 
 /**
  * Reads `git remote get-url origin` in the given workdir. This is the ONLY
@@ -82,7 +101,7 @@ async function detectAvailableCli(): Promise<DetectedEnv['availableAiCli']> {
 }
 
 function detectContextFiles(workdir: string): string[] {
-	return CONTEXT_FILE_CANDIDATES.filter((rel) => existsSync(join(workdir, rel)));
+	return detectContextFilesIn(workdir);
 }
 
 export async function detectEnv(

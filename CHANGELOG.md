@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-05-29
+
+Setup wizard overhaul. Single context-files question with `@` file picker and auto-detected defaults, optional AI-driven project context investigation written to `PROJECT_CONTEXT.md`, and uniform ESC=back / Ctrl+C=cancel keybindings across every prompt.
+
+### Added
+
+- `bode setup-project` now opens with an "Investigate & document project context" step that runs the chosen CLI/model against the workdir and writes `PROJECT_CONTEXT.md`. Cached at `~/.bode/projects/<name>/PROJECT_CONTEXT.md` by default.
+- `--shared-in-repo` flag on `setup-project`: write `PROJECT_CONTEXT.md` to the workdir instead (committable, team-shared). Prompts before overwriting an existing file.
+- `--refresh-context` flag on `setup-project`: re-run only the investigation step on an existing project, preserving everything else.
+- `@` trigger inside the context-files question opens a fuzzy file picker (`@inquirer/search`) over the workdir. Works for the primary workdir and each additional repository.
+- Auto-detected context-file defaults expanded to include `CLAUDE.md`, `AGENTS.md`, `CODE_CONVENTIONS.md`, `CONVENTIONS.md`, `.cursorrules`, `GEMINI.md`, `.github/copilot-instructions.md`, `.claude/CLAUDE.md`, `CONTRIBUTING.md`. Only files that exist on disk are pre-selected.
+- Each additional repository in `setup-project` now has its own context-files question with the same auto-detect + `@` picker behavior.
+- New project YAML fields: `project_context_path` (absolute path to PROJECT_CONTEXT.md) and `context_investigated_at` (ISO 8601 timestamp). Both are consumed by `gatherContext` and surfaced in `bode doctor`.
+
+### Changed
+
+- **Wizard keybindings:** single ESC now goes back to the previous question. Ctrl+C cancels the wizard cleanly (was: double-ESC). A dimmed footer hint `(esc to go back · ctrl+c to cancel)` is printed below every prompt. The very first step shows `(nothing to go back to)` if ESC is pressed there.
+- "← Back" choice items removed from every wizard select — ESC replaces them globally.
+- Context-files question now supports comma-separated input AND the `@` file picker in the same field.
+- `gatherContext` prepends `PROJECT_CONTEXT.md` content (when configured and present) to the AI's context block, ahead of `.bode/context.md`, project memory, and per-file context.
+
+### Removed
+
+- The "Context paths" wizard question is gone. Existing project YAMLs with `context_paths` continue to load without error; the field is now ignored at runtime and dropped on next save. A one-line dim warning is printed when loading a deprecated YAML for edit.
+- `PreflightIssue.source` no longer includes `'context_paths'`. Preflight checks the workdir and additional repos only.
+- The internal `generateFileTree(workdir, contextPaths)` signature simplified to `generateFileTree(workdir)` — the file tree always walks from the workdir root.
+
 ## [1.2.0] — 2026-05-29
 
 Wave 7 / milestone 8 adoption release. Adds qualitative feedback, reproducible replay/audit primitives, cost visibility refinements, Windows doctor diagnostics, and security/data-flow documentation.

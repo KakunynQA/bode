@@ -81,8 +81,8 @@ describe('gatherContext', () => {
 		assert.ok(!ctx.agentsMd!.includes('default content'));
 	});
 
-	it('respects context_paths to limit tree scope', async () => {
-		const dir = join(BASE, 'ctx-paths');
+	it('ignores deprecated context_paths field (loads, no effect on tree scope)', async () => {
+		const dir = join(BASE, 'ctx-paths-legacy');
 		await mkdir(join(dir, 'src'), { recursive: true });
 		await mkdir(join(dir, 'docs'), { recursive: true });
 		await writeFile(join(dir, 'src', 'app.ts'), '', 'utf-8');
@@ -94,8 +94,46 @@ describe('gatherContext', () => {
 		};
 		const ctx = await gatherContext(project);
 		assert.ok(ctx.fileTree);
+		// Both dirs are now in the tree — context_paths is deprecated and ignored.
 		assert.ok(ctx.fileTree!.includes('app.ts'));
-		assert.ok(!ctx.fileTree!.includes('docs'));
+		assert.ok(ctx.fileTree!.includes('docs'));
+	});
+
+	it('prepends project_context_path content to agentsMd when set', async () => {
+		const dir = join(BASE, 'project-context');
+		await mkdir(dir, { recursive: true });
+		const ctxPath = join(dir, 'PROJECT_CONTEXT.md');
+		await writeFile(ctxPath, 'Generated project summary.', 'utf-8');
+		await writeFile(join(dir, 'AGENTS.md'), 'Agent rules.', 'utf-8');
+		const project: ProjectConfig = {
+			name: 't',
+			workdir: dir,
+			project_context_path: ctxPath,
+		};
+		const ctx = await gatherContext(project);
+		assert.ok(ctx.agentsMd);
+		assert.ok(ctx.agentsMd!.includes('### PROJECT_CONTEXT.md'));
+		assert.ok(ctx.agentsMd!.includes('Generated project summary.'));
+		assert.ok(ctx.agentsMd!.includes('Agent rules.'));
+		// PROJECT_CONTEXT.md must come before AGENTS.md.
+		assert.ok(
+			ctx.agentsMd!.indexOf('Generated project summary.') < ctx.agentsMd!.indexOf('Agent rules.')
+		);
+	});
+
+	it('skips project_context_path when file does not exist', async () => {
+		const dir = join(BASE, 'project-context-missing');
+		await mkdir(dir, { recursive: true });
+		await writeFile(join(dir, 'AGENTS.md'), 'Agent rules.', 'utf-8');
+		const project: ProjectConfig = {
+			name: 't',
+			workdir: dir,
+			project_context_path: join(dir, 'does-not-exist.md'),
+		};
+		const ctx = await gatherContext(project);
+		assert.ok(ctx.agentsMd);
+		assert.ok(!ctx.agentsMd!.includes('PROJECT_CONTEXT.md'));
+		assert.ok(ctx.agentsMd!.includes('Agent rules.'));
 	});
 });
 
