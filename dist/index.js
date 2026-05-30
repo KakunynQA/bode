@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.0.0") {
-    return "2.0.0";
+  if ("2.0.3") {
+    return "2.0.3";
   }
   const base = moduleDir();
   if (base) {
@@ -66112,6 +66112,10 @@ function printFooterHint(firstStep) {
 }
 async function runWithBackSignal(fn, opts) {
   while (true) {
+    try {
+      process.stdin.ref?.();
+    } catch {
+    }
     const { signal, cleanup } = createBackSignal(opts.atTrigger ? { atTrigger: true } : {});
     try {
       return await fn(signal);
@@ -80914,15 +80918,10 @@ var InterceptedExitError = class extends Error {
 };
 async function runActionGuarded(invoke) {
   const originalExit = process.exit.bind(process);
-  const originalEmit = process.emit.bind(process);
   const originalReallyExit = process.reallyExit;
   process.exit = ((code) => {
     const n = typeof code === "number" ? code : code == null ? 0 : Number(code);
     throw new InterceptedExitError(Number.isFinite(n) ? n : 0);
-  });
-  process.emit = ((event, ...args2) => {
-    if (event === "exit") return false;
-    return originalEmit(event, ...args2);
   });
   process.reallyExit = (() => {
   });
@@ -80937,7 +80936,6 @@ async function runActionGuarded(invoke) {
     return { kind: "error", exitCode: 1, error: error52 };
   } finally {
     process.exit = originalExit;
-    process.emit = originalEmit;
     if (originalReallyExit) {
       process.reallyExit = originalReallyExit;
     }
@@ -81280,6 +81278,10 @@ async function renderShellOnce(state, lastExitCode) {
     })
   );
   await instance.waitUntilExit();
+  try {
+    process.stdin.ref?.();
+  } catch {
+  }
   await new Promise((r) => setImmediate(r));
   return submitted;
 }

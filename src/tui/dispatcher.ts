@@ -17,25 +17,22 @@ class InterceptedExitError extends Error {
 
 async function runActionGuarded(invoke: () => Promise<number>): Promise<DispatchResult> {
 	const originalExit = process.exit.bind(process);
-	const originalEmit = process.emit.bind(process);
 	const originalReallyExit = (process as unknown as { reallyExit?: (code: number) => void })
 		.reallyExit;
 	type ExitFn = typeof process.exit;
-	type EmitFn = typeof process.emit;
+	// Most action files call `process.exit(N)` for usage errors and dirty
+	// workdir prompts. Without interception the whole shell process would
+	// die when the action wants to "abort the command". Throw an internal
+	// error instead and translate it back to a DispatchResult so the shell
+	// loop survives.
 	process.exit = ((code?: number | string | null) => {
 		const n = typeof code === 'number' ? code : code == null ? 0 : Number(code);
 		throw new InterceptedExitError(Number.isFinite(n) ? n : 0);
 	}) as ExitFn;
-	// signal-exit (used by @inquirer/core to detect terminated prompts) wraps
-	// process.emit and fires its `exit` event for `process.emit('exit', ...)`
-	// or process.reallyExit. Across the Ink → inquirer handoff, that fires a
-	// spurious 'exit' event which inquirer interprets as Ctrl+C and reports as
-	// `User force closed the prompt with 0 null` even though the user never
-	// pressed anything. Block the emit + reallyExit during action runtime.
-	process.emit = ((event: string | symbol, ...args: unknown[]) => {
-		if (event === 'exit') return false;
-		return (originalEmit as (...a: unknown[]) => boolean)(event, ...args);
-	}) as EmitFn;
+	// Defence in depth: anything that bypasses process.exit and goes
+	// straight to process.reallyExit (signal-exit's wrapper, native Node
+	// fallback) would still kill the shell. No-op it for the duration of
+	// the action.
 	(process as unknown as { reallyExit: (code: number) => void }).reallyExit = (() => {
 		/* swallow during action — only our throw should be able to exit */
 	}) as (code: number) => void;
@@ -50,7 +47,6 @@ async function runActionGuarded(invoke: () => Promise<number>): Promise<Dispatch
 		return { kind: 'error', exitCode: 1, error: error as Error };
 	} finally {
 		process.exit = originalExit;
-		process.emit = originalEmit as typeof process.emit;
 		if (originalReallyExit) {
 			(process as unknown as { reallyExit: (code: number) => void }).reallyExit =
 				originalReallyExit;

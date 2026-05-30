@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] — 2026-05-30
+
+### Fixed
+
+- TUI shell exited cleanly with code 0 (and earlier with a `Cancelled.`
+  print) the instant any interactive wizard — `setup`, `setup-project`,
+  `setup-transitions` — rendered its first `@inquirer/prompts` question.
+  Real root cause: Ink's `componentWillUnmount` calls
+  `process.stdin.unref()` when it disables raw mode. Inquirer's
+  `readline.createInterface` then schedules its first render via
+  `setImmediate` without re-`ref()`-ing stdin, so between those two
+  ticks the Node event loop has nothing keeping it alive, fires
+  `beforeExit`, and the process exits — not from `process.exit`, not
+  from a signal, not from `signal-exit`. The fix re-refs stdin after
+  Ink unmounts (`src/tui/shell.ts`) and again before every prompt
+  (`src/utils/prompt.ts.runWithBackSignal`). Verified with a
+  deterministic PTY harness at `scripts/debug-bode-pty-single.mjs`.
+
+### Removed
+
+- `runActionGuarded` no longer monkey-patches `process.emit('exit', …)`
+  — that swallow was a 2.0.1/2.0.2 attempt to mute the symptom and is
+  dead with the real fix in place. `process.exit` and
+  `process.reallyExit` interception stay (they protect against the 70+
+  `process.exit(1)` calls action files still make on usage errors).
+
+## [2.0.2] — 2026-05-29
+
+### Fixed
+
+- Real fix for the "Cancelled." right after every wizard prompt — the
+  2.0.1 attempt only patched `process.emit` which `signal-exit` re-wraps
+  after us. Now the dispatcher eagerly imports `@inquirer/prompts` so
+  `signal-exit`'s singleton emitter exists at startup, then patches that
+  emitter's `emit` method directly while the action runs (and resets the
+  `emitted` flag so a previously-fired exit can't short-circuit it).
+
+## [2.0.1] — 2026-05-29
+
+### Fixed
+
+- TUI shell would print "Cancelled." and exit the moment any action that
+  used an `@inquirer/prompts` wizard rendered its first prompt — even
+  when the user never pressed Ctrl+C. Root cause: `signal-exit` (used by
+  inquirer to detect process termination) was firing a spurious `'exit'`
+  event during the Ink → inquirer handoff. The dispatcher now intercepts
+  `process.emit('exit', ...)`, `process.reallyExit`, and `process.exit`
+  for the duration of an action, then restores the originals.
+- Render loop now awaits Ink's `waitUntilExit()` and yields one
+  `setImmediate` tick before dispatching, so raw mode and stdin
+  listeners have fully drained before inquirer takes the terminal.
+- `handlePromptError` now throws `CancelledError` instead of calling
+  `process.exit(0)`, and the dispatcher recovers transparently so the
+  shell stays alive after a wizard cancel.
+
 ## [2.0.0] — 2026-05-29
 
 Breaking release. Bode is now an interactive TUI shell. Running `bode`

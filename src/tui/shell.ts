@@ -33,6 +33,19 @@ async function renderShellOnce(state: ShellState, lastExitCode: number | null): 
 	// Skipping this step left residual bytes / handlers around that inquirer
 	// interpreted as a Ctrl+C, instantly cancelling the first prompt.
 	await instance.waitUntilExit();
+	// Re-ref stdin. Ink's componentWillUnmount calls stdin.unref() when it
+	// disables raw mode. If we don't undo it before the dispatcher hands
+	// the terminal to @inquirer/prompts, the only handle keeping the event
+	// loop alive is gone — inquirer's readline.createInterface schedules
+	// its first render via setImmediate, the loop empties between those
+	// two ticks, Node fires 'beforeExit' and the process exits cleanly
+	// with code 0 (no error, no signal). That looks like the wizard
+	// "rendered Q1 then died on its own".
+	try {
+		(process.stdin as unknown as { ref?: () => void }).ref?.();
+	} catch {
+		/* not all stdin streams expose ref(); safe to ignore */
+	}
 	// Give Node one more tick so any pending stdin 'data' callbacks fire and
 	// drain before inquirer attaches its own listeners. Cheap insurance.
 	await new Promise((r) => setImmediate(r));

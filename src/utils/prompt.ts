@@ -106,6 +106,16 @@ async function runWithBackSignal<T>(
 	opts: WrapOptions
 ): Promise<T | typeof BACK | typeof AT_TRIGGER> {
 	while (true) {
+		// Re-ref stdin before every prompt. Each prior prompt's readline
+		// `output.end()` cleanup path (and Ink's earlier unmount) calls
+		// stdin.unref(); without re-reffing, Node fires 'beforeExit'
+		// between inquirer's createInterface and its first render tick,
+		// and the process exits cleanly with code 0.
+		try {
+			(process.stdin as unknown as { ref?: () => void }).ref?.();
+		} catch {
+			/* ignore — not all stdin streams expose ref() */
+		}
 		const { signal, cleanup } = createBackSignal(opts.atTrigger ? { atTrigger: true } : {});
 		try {
 			return await fn(signal);
