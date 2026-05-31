@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.1.1") {
-    return "2.1.1";
+  if ("2.1.2") {
+    return "2.1.2";
   }
   const base = moduleDir();
   if (base) {
@@ -80953,6 +80953,14 @@ function PromptInput({ history, onSubmit, onTerminate }) {
   use_input_default((input, key) => {
     if (key.ctrl && input === "c") {
       onTerminate();
+      return;
+    }
+    if (key.escape) {
+      if (buffer.length === 0 && historyIdx === history.length && draft === "") return;
+      setBuffer("");
+      setCursor(0);
+      setHistoryIdx(history.length);
+      setDraft("");
       return;
     }
     if (key.return) {

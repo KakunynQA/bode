@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] — 2026-05-31
+
+### Added
+
+- ESC at the idle TUI prompt now clears the in-progress command (buffer,
+  cursor, history pointer, and stashed draft). Pressing ↑ after clearing
+  starts from a clean slate at the newest history entry.
+
 ## [2.1.1] — 2026-05-31
 
 ### Changed

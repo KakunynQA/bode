@@ -44,6 +44,17 @@ export function PromptInput({ history, onSubmit, onTerminate }: Props): JSX.Elem
 			onTerminate();
 			return;
 		}
+		if (key.escape) {
+			// Idle-prompt ESC: clear the in-progress command. The buffer, cursor,
+			// history pointer, and stashed draft all reset so the next ↑ starts
+			// from a clean slate.
+			if (buffer.length === 0 && historyIdx === history.length && draft === '') return;
+			setBuffer('');
+			setCursor(0);
+			setHistoryIdx(history.length);
+			setDraft('');
+			return;
+		}
 		if (key.return) {
 			const submitted = buffer;
 			setBuffer('');
