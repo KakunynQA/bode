@@ -5,6 +5,7 @@ import { App } from './components/app.tsx';
 import { loadInitialState, type ShellState } from './state.ts';
 import { dispatch } from './dispatcher.ts';
 import { TerminateShellError } from '~/utils/prompt.ts';
+import { loadHistory, appendHistory } from './history.ts';
 
 declare const __GOAT_ART__: string;
 
@@ -13,21 +14,34 @@ function printBanner(state: ShellState): void {
 		console.log(__GOAT_ART__);
 	}
 	console.log(pc.bold(pc.cyan('bode')) + pc.dim(` v${state.version} — interactive shell`));
-	console.log(pc.dim("type 'help' for commands · 'exit' to quit"));
+	console.log(pc.dim("type 'help' for commands · ↑↓ history · tab completes · ctrl+c exits"));
 	console.log('');
 }
 
-async function renderShellOnce(state: ShellState, lastExitCode: number | null): Promise<string> {
+type RenderResult = { value: string; terminated: boolean };
+
+async function renderShellOnce(
+	state: ShellState,
+	lastExitCode: number | null,
+	history: string[]
+): Promise<RenderResult> {
 	let submitted = '';
+	let terminated = false;
 	const instance = render(
 		createElement(App, {
 			state,
 			lastExitCode,
+			history,
 			onSubmit: (value: string) => {
 				submitted = value;
 				instance.unmount();
 			},
-		})
+			onTerminate: () => {
+				terminated = true;
+				instance.unmount();
+			},
+		}),
+		{ exitOnCtrlC: false }
 	);
 	// Wait for Ink to finish unmounting (raw-mode toggle, listener removal,
 	// stdin pause) before handing the terminal to the dispatcher / inquirer.
@@ -50,20 +64,26 @@ async function renderShellOnce(state: ShellState, lastExitCode: number | null): 
 	// Give Node one more tick so any pending stdin 'data' callbacks fire and
 	// drain before inquirer attaches its own listeners. Cheap insurance.
 	await new Promise((r) => setImmediate(r));
-	return submitted;
+	return { value: submitted, terminated };
 }
 
 export async function runShell(): Promise<void> {
 	let lastExitCode: number | null = null;
 	let first = true;
+	let history = await loadHistory();
 	while (true) {
 		const state = await loadInitialState();
 		if (first) {
 			printBanner(state);
 			first = false;
 		}
-		const line = (await renderShellOnce(state, lastExitCode)).trim();
+		const { value, terminated } = await renderShellOnce(state, lastExitCode, history);
+		if (terminated) return;
+		const line = value.trim();
 		if (!line) continue;
+		// Persist before dispatch so the entry survives crashes / Ctrl+C.
+		await appendHistory(line);
+		history = await loadHistory();
 		let result;
 		try {
 			result = await dispatch(line);
