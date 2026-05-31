@@ -1,6 +1,7 @@
 import pc from 'picocolors';
 import ora from 'ora';
 import { existsSync } from 'node:fs';
+import { resolve as resolvePath } from 'node:path';
 import { getGlobalDir, getGlobalConfigPath } from '~/config/defaults.ts';
 import { ensureDir, writeText, chmodSensitive } from '~/utils/fs.ts';
 import { loadConfig } from '~/config/loader.ts';
@@ -101,14 +102,32 @@ function cliDescription(name: string): string {
 /**
  * Asks for a comma-separated list of context files with `@` triggering a
  * fuzzy file picker. Auto-detected defaults are pre-filled.
+ *
+ * `workdir` is normalised to an absolute path before any picker call so a
+ * relative or `.` workdir cannot leak the cwd of the launching shell into
+ * the picker (which would scan bode's own project folder when the TUI
+ * shell was launched from there).
  */
+/**
+ * Pins the workdir-normalisation contract for the `@` picker. Exposed via
+ * `__testing` for a regression test that asserts a relative path becomes
+ * absolute before any picker call, so the picker can't silently scan the
+ * launching shell's cwd (root cause of the v2.0.4 "@ scans bode's own
+ * folder" report).
+ */
+function resolveWorkdirForPicker(workdir: string): string {
+	return resolvePath(workdir);
+}
+
 async function askContextFiles(
 	workdir: string,
 	defaults: string[],
 	message: string
 ): Promise<string[] | typeof BACK> {
+	const absWorkdir = resolveWorkdirForPicker(workdir);
 	let selected = uniqueStrings(defaults);
 	const hint = pc.dim('Type @ to open file picker. Comma-separated for multiple files.');
+	console.log(pc.dim(`  Scanning ${pc.cyan(absWorkdir)} for candidate files`));
 	while (true) {
 		console.log(`  ${hint}`);
 		const raw = await askInputWithAtTrigger({
@@ -117,7 +136,7 @@ async function askContextFiles(
 		});
 		if (raw === BACK) return BACK;
 		if (raw === AT_TRIGGER) {
-			const picked = await pickContextFile(workdir, 'Pick a context file:');
+			const picked = await pickContextFile(absWorkdir, 'Pick a context file:');
 			if (picked === BACK) return BACK;
 			selected = uniqueStrings([...selected, picked]);
 			continue;
@@ -131,7 +150,7 @@ async function askContextFiles(
 		const expanded: string[] = [];
 		for (const entry of entries) {
 			if (entry.startsWith('@')) {
-				const picked = await pickContextFile(workdir, 'Pick a context file:', entry.slice(1));
+				const picked = await pickContextFile(absWorkdir, 'Pick a context file:', entry.slice(1));
 				if (picked === BACK) return BACK;
 				expanded.push(picked);
 			} else {
@@ -160,6 +179,8 @@ async function pickContextFile(
 function uniqueStrings(values: string[]): string[] {
 	return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
+
+export const __testing = { resolveWorkdirForPicker, uniqueStrings };
 
 export async function setupAction(
 	subcommand?: string,
