@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.0.3") {
-    return "2.0.3";
+  if ("2.0.4") {
+    return "2.0.4";
   }
   const base = moduleDir();
   if (base) {
@@ -66076,15 +66076,10 @@ var init_dist17 = __esm({
 });
 
 // src/utils/prompt.ts
-function createBackSignal(options = {}) {
+function createBackSignal() {
   const ac = new AbortController();
   let escTimer = null;
   function onData(chunk) {
-    if (options.atTrigger && chunk.length === 1 && chunk[0] === 64) {
-      ac.abort(new AtTriggerError());
-      cleanup();
-      return;
-    }
     if (chunk.length === 1 && chunk[0] === 27) {
       if (escTimer) clearTimeout(escTimer);
       escTimer = setTimeout(() => {
@@ -66110,13 +66105,16 @@ function createBackSignal(options = {}) {
 function printFooterHint(firstStep) {
   if (!firstStep) console.log(FOOTER_HINT);
 }
+function reRefStdin() {
+  try {
+    process.stdin.ref?.();
+  } catch {
+  }
+}
 async function runWithBackSignal(fn, opts) {
   while (true) {
-    try {
-      process.stdin.ref?.();
-    } catch {
-    }
-    const { signal, cleanup } = createBackSignal(opts.atTrigger ? { atTrigger: true } : {});
+    reRefStdin();
+    const { signal, cleanup } = createBackSignal();
     try {
       return await fn(signal);
     } catch (err) {
@@ -66128,21 +66126,11 @@ async function runWithBackSignal(fn, opts) {
         }
         return BACK;
       }
-      if (isAtTriggerAbort(err)) return AT_TRIGGER;
       throw err;
     } finally {
       cleanup();
     }
   }
-}
-function isAtTriggerAbort(err) {
-  if (err instanceof AtTriggerError) return true;
-  if (err instanceof AbortPromptError) {
-    const cause = err.cause;
-    if (cause instanceof AtTriggerError) return true;
-    return err.message.includes("__AT_TRIGGER__");
-  }
-  return false;
 }
 function isBackAbort(err) {
   if (err instanceof BackError) return true;
@@ -66155,14 +66143,7 @@ function isBackAbort(err) {
 }
 async function askInput(opts, wrap = {}) {
   printFooterHint(wrap.firstStep ?? false);
-  return runWithBackSignal((signal) => dist_default10(opts, { signal }), {
-    ...wrap,
-    atTrigger: false
-  });
-}
-async function askInputWithAtTrigger(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
-  return runWithBackSignal((signal) => dist_default10(opts, { signal }), { ...wrap, atTrigger: true });
+  return runWithBackSignal((signal) => dist_default10(opts, { signal }), wrap);
 }
 async function askSelect(opts, wrap = {}) {
   printFooterHint(wrap.firstStep ?? false);
@@ -66188,7 +66169,218 @@ function handlePromptError(err, cleanup) {
   }
   throw err;
 }
-var import_picocolors2, BACK, AT_TRIGGER, BackError, AtTriggerError, FOOTER_HINT, FIRST_STEP_NO_BACK, CancelledError;
+function reduceKeystroke(state, key) {
+  if (state.exit) return state;
+  switch (key.kind) {
+    case "at":
+      return { ...state, exit: "AT_TRIGGER" };
+    case "enter":
+      return { ...state, exit: "DONE" };
+    case "esc":
+      return { ...state, exit: "BACK" };
+    case "ctrlC":
+      return { ...state, exit: "CANCELLED" };
+    case "char": {
+      const before = state.buffer.slice(0, state.cursor);
+      const after = state.buffer.slice(state.cursor);
+      return { buffer: before + key.value + after, cursor: state.cursor + key.value.length };
+    }
+    case "backspace": {
+      if (state.cursor === 0) return state;
+      const before = state.buffer.slice(0, state.cursor - 1);
+      const after = state.buffer.slice(state.cursor);
+      return { buffer: before + after, cursor: state.cursor - 1 };
+    }
+    case "delete": {
+      if (state.cursor >= state.buffer.length) return state;
+      const before = state.buffer.slice(0, state.cursor);
+      const after = state.buffer.slice(state.cursor + 1);
+      return { buffer: before + after, cursor: state.cursor };
+    }
+    case "left":
+      return state.cursor === 0 ? state : { ...state, cursor: state.cursor - 1 };
+    case "right":
+      return state.cursor >= state.buffer.length ? state : { ...state, cursor: state.cursor + 1 };
+    case "home":
+      return state.cursor === 0 ? state : { ...state, cursor: 0 };
+    case "end":
+      return state.cursor >= state.buffer.length ? state : { ...state, cursor: state.buffer.length };
+  }
+}
+function parseChunk(chunk) {
+  const out = [];
+  let i = 0;
+  while (i < chunk.length) {
+    const c = chunk[i];
+    if (c === "\x1B") {
+      if (i + 1 < chunk.length && chunk[i + 1] === "[") {
+        let j = i + 2;
+        while (j < chunk.length && (chunk[j] < "@" || chunk[j] > "~")) j++;
+        const seq = chunk.slice(i, j + 1);
+        const evt = csiEvent(seq);
+        if (evt) out.push(evt);
+        i = j + 1;
+        continue;
+      }
+      if (i === chunk.length - 1) out.push({ kind: "esc" });
+      i++;
+      continue;
+    }
+    if (c === "\r" || c === "\n") {
+      out.push({ kind: "enter" });
+      i++;
+      continue;
+    }
+    if (c === "\x7F" || c === "\b") {
+      out.push({ kind: "backspace" });
+      i++;
+      continue;
+    }
+    if (c === "") {
+      out.push({ kind: "ctrlC" });
+      i++;
+      continue;
+    }
+    if (c === "@") {
+      out.push({ kind: "at" });
+      i++;
+      continue;
+    }
+    if (c < " ") {
+      i++;
+      continue;
+    }
+    out.push({ kind: "char", value: c });
+    i++;
+  }
+  return out;
+}
+function csiEvent(seq) {
+  switch (seq) {
+    case "\x1B[A":
+      return null;
+    // Up — unsupported, ignore
+    case "\x1B[B":
+      return null;
+    // Down — unsupported, ignore
+    case "\x1B[C":
+      return { kind: "right" };
+    case "\x1B[D":
+      return { kind: "left" };
+    case "\x1B[H":
+    case "\x1B[1~":
+    case "\x1B[7~":
+      return { kind: "home" };
+    case "\x1B[F":
+    case "\x1B[4~":
+    case "\x1B[8~":
+      return { kind: "end" };
+    case "\x1B[3~":
+      return { kind: "delete" };
+    default:
+      return null;
+  }
+}
+async function askInputWithAtTrigger(opts, wrap = {}) {
+  printFooterHint(wrap.firstStep ?? false);
+  reRefStdin();
+  return new Promise((resolve, reject) => {
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw === true;
+    const hadEncoding = stdin.readableEncoding;
+    const prefix = `? ${import_picocolors2.default.bold(opts.message)} `;
+    let state = {
+      buffer: opts.default ?? "",
+      cursor: (opts.default ?? "").length
+    };
+    let escTimer = null;
+    let closed = false;
+    function render2() {
+      const trailing = state.buffer.length - state.cursor;
+      process.stdout.write("\r\x1B[2K");
+      process.stdout.write(prefix);
+      process.stdout.write(state.buffer);
+      if (trailing > 0) process.stdout.write(`\x1B[${trailing}D`);
+    }
+    function cleanup() {
+      if (closed) return;
+      closed = true;
+      stdin.removeListener("data", onData);
+      if (escTimer) {
+        clearTimeout(escTimer);
+        escTimer = null;
+      }
+      if (typeof stdin.setRawMode === "function" && !wasRaw) {
+        try {
+          stdin.setRawMode(false);
+        } catch {
+        }
+      }
+      if (hadEncoding === null) {
+        try {
+          stdin.setEncoding(null);
+        } catch {
+        }
+      }
+      process.stdout.write("\n");
+    }
+    function finish(exit) {
+      cleanup();
+      switch (exit) {
+        case "DONE":
+          resolve(state.buffer);
+          return;
+        case "AT_TRIGGER":
+          resolve(AT_TRIGGER);
+          return;
+        case "BACK":
+          if (wrap.firstStep) {
+            console.log(FIRST_STEP_NO_BACK);
+            askInputWithAtTrigger(opts, wrap).then(resolve, reject);
+            return;
+          }
+          resolve(BACK);
+          return;
+        case "CANCELLED":
+          reject(new ExitPromptError("User cancelled prompt"));
+          return;
+      }
+    }
+    function onData(chunk) {
+      const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
+      if (text === "\x1B" && !escTimer) {
+        escTimer = setTimeout(() => {
+          escTimer = null;
+          finish("BACK");
+        }, ESC_DEBOUNCE_MS);
+        return;
+      }
+      if (escTimer) {
+        clearTimeout(escTimer);
+        escTimer = null;
+        const merged = "\x1B" + text;
+        return handleEvents(parseChunk(merged));
+      }
+      handleEvents(parseChunk(text));
+    }
+    function handleEvents(events) {
+      for (const evt of events) {
+        state = reduceKeystroke(state, evt);
+        if (state.exit) {
+          finish(state.exit);
+          return;
+        }
+      }
+      render2();
+    }
+    if (typeof stdin.setRawMode === "function") stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding("utf8");
+    stdin.on("data", onData);
+    render2();
+  });
+}
+var import_picocolors2, BACK, AT_TRIGGER, BackError, FOOTER_HINT, FIRST_STEP_NO_BACK, CancelledError, ESC_DEBOUNCE_MS;
 var init_prompt = __esm({
   "src/utils/prompt.ts"() {
     "use strict";
@@ -66203,12 +66395,6 @@ var init_prompt = __esm({
         this.name = "BackError";
       }
     };
-    AtTriggerError = class extends Error {
-      constructor() {
-        super("__AT_TRIGGER__");
-        this.name = "AtTriggerError";
-      }
-    };
     FOOTER_HINT = import_picocolors2.default.dim("  (esc to go back \xB7 ctrl+c to cancel)");
     FIRST_STEP_NO_BACK = import_picocolors2.default.dim("  (nothing to go back to)");
     CancelledError = class extends Error {
@@ -66217,6 +66403,7 @@ var init_prompt = __esm({
         this.name = "CancelledError";
       }
     };
+    ESC_DEBOUNCE_MS = 60;
   }
 });
 

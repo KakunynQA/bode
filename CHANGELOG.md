@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4] — 2026-05-31
+
+### Fixed
+
+- `setup` / `setup-project` context-files question: the `@` trigger now
+  reliably opens the fuzzy file picker on the first keystroke across
+  PowerShell, Windows Terminal, Git Bash, and POSIX TTYs. The previous
+  implementation raced an inquirer `input()` prompt against a stdin
+  byte listener checking for a single-byte 0x40 chunk and lost the race
+  on Windows, leaving `@` as a literal character in the input buffer.
+  Replaced with a small raw-mode keypress prompt that owns stdin for
+  the duration of the question, matching Claude Code's inline `@` file
+  mention behaviour. The line-editing state machine is a pure reducer
+  with unit-test coverage of every key transition.
+
 ## [2.0.3] — 2026-05-30
 
 ### Fixed
