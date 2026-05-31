@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] — 2026-05-31
+
+### Changed
+
+- TUI autocomplete is now **inline ghost text**, Claude-Code style. As the
+  user types at the idle prompt, the next-matching subcommand or flag is
+  appended in dim text after the cursor (the inverse-caret sits on the
+  first ghost character). When multiple candidates match, the first in
+  declaration order wins. Tab no longer prints a candidate list — it
+  accepts the visible ghost. Pressing Tab with no ghost is a no-op.
+- `completeBuffer` removed; replaced by `ghostCompletion(buffer, cursor) →
+string` (empty string = no ghost). Tests rewritten accordingly.
+
 ## [2.1.0] — 2026-05-31
 
 ### Added

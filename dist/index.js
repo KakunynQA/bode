@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.1.0") {
-    return "2.1.0";
+  if ("2.1.1") {
+    return "2.1.1";
   }
   const base = moduleDir();
   if (base) {
@@ -8044,7 +8044,7 @@ var require_react_reconciler_development = __commonJS({
         var HostPortal = 4;
         var HostComponent = 5;
         var HostText = 6;
-        var Fragment = 7;
+        var Fragment2 = 7;
         var Mode = 8;
         var ContextConsumer = 9;
         var ContextProvider = 10;
@@ -8184,7 +8184,7 @@ var require_react_reconciler_development = __commonJS({
               return "DehydratedFragment";
             case ForwardRef:
               return getWrappedName$1(type, type.render, "ForwardRef");
-            case Fragment:
+            case Fragment2:
               return "Fragment";
             case HostComponent:
               return type;
@@ -11318,7 +11318,7 @@ var require_react_reconciler_development = __commonJS({
             }
           }
           function updateFragment2(returnFiber, current2, fragment, lanes, key) {
-            if (current2 === null || current2.tag !== Fragment) {
+            if (current2 === null || current2.tag !== Fragment2) {
               var created = createFiberFromFragment(fragment, returnFiber.mode, lanes, key);
               created.return = returnFiber;
               return created;
@@ -11721,7 +11721,7 @@ var require_react_reconciler_development = __commonJS({
               if (child.key === key) {
                 var elementType = element.type;
                 if (elementType === REACT_FRAGMENT_TYPE) {
-                  if (child.tag === Fragment) {
+                  if (child.tag === Fragment2) {
                     deleteRemainingChildren(returnFiber, child.sibling);
                     var existing = useFiber(child, element.props.children);
                     existing.return = returnFiber;
@@ -17212,7 +17212,7 @@ var require_react_reconciler_development = __commonJS({
               var _resolvedProps2 = workInProgress2.elementType === type ? _unresolvedProps2 : resolveDefaultProps(type, _unresolvedProps2);
               return updateForwardRef(current2, workInProgress2, type, _resolvedProps2, renderLanes2);
             }
-            case Fragment:
+            case Fragment2:
               return updateFragment(current2, workInProgress2, renderLanes2);
             case Mode:
               return updateMode(current2, workInProgress2, renderLanes2);
@@ -17649,7 +17649,7 @@ var require_react_reconciler_development = __commonJS({
             case SimpleMemoComponent:
             case FunctionComponent:
             case ForwardRef:
-            case Fragment:
+            case Fragment2:
             case Mode:
             case Profiler:
             case ContextConsumer:
@@ -22417,7 +22417,7 @@ var require_react_reconciler_development = __commonJS({
           return fiber;
         }
         function createFiberFromFragment(elements, mode, lanes, key) {
-          var fiber = createFiber(Fragment, elements, key, mode);
+          var fiber = createFiber(Fragment2, elements, key, mode);
           fiber.lanes = lanes;
           return fiber;
         }
@@ -80909,14 +80909,15 @@ var COMMAND_FLAGS = {
   telemetry: [],
   memory: []
 };
-var BUILTIN_TOKENS = ["help", "?", "clear", "exit", "quit", ":q"];
-function completeBuffer(buffer, cursor) {
-  if (buffer.length === 0) return { kind: "noop" };
+var BUILTIN_TOKENS = ["help", "clear", "exit", "quit", "?", ":q"];
+function ghostCompletion(buffer, cursor) {
+  if (buffer.length === 0) return "";
+  if (cursor !== buffer.length) return "";
   const upToCursor = buffer.slice(0, cursor);
   const lastSpace = upToCursor.lastIndexOf(" ");
   const tokenStart = lastSpace + 1;
-  const tokenEnd = cursor;
-  const partial2 = buffer.slice(tokenStart, tokenEnd);
+  const partial2 = buffer.slice(tokenStart);
+  if (partial2.length === 0) return "";
   const beforeToken = buffer.slice(0, tokenStart);
   const isFirstToken = beforeToken.trim() === "";
   let pool;
@@ -80926,16 +80927,11 @@ function completeBuffer(buffer, cursor) {
     const firstToken = (buffer.match(/^\s*(\S+)/)?.[1] ?? "").toLowerCase();
     pool = COMMAND_FLAGS[firstToken] ?? [];
   } else {
-    return { kind: "noop" };
+    return "";
   }
-  const matches = pool.filter((c) => c.startsWith(partial2));
-  if (matches.length === 0) return { kind: "noop" };
-  if (matches.length === 1) {
-    const completed = matches[0];
-    const newBuffer = buffer.slice(0, tokenStart) + completed + buffer.slice(tokenEnd);
-    return { kind: "insert", buffer: newBuffer, cursor: tokenStart + completed.length };
-  }
-  return { kind: "candidates", candidates: matches.sort() };
+  const match = pool.find((c) => c.startsWith(partial2) && c.length > partial2.length);
+  if (!match) return "";
+  return match.slice(partial2.length);
 }
 
 // src/tui/components/prompt-input.tsx
@@ -80953,6 +80949,7 @@ function PromptInput({ history, onSubmit, onTerminate }) {
   const [cursor, setCursor] = (0, import_react22.useState)(0);
   const [historyIdx, setHistoryIdx] = (0, import_react22.useState)(history.length);
   const [draft, setDraft] = (0, import_react22.useState)("");
+  const ghost = ghostCompletion(buffer, cursor);
   use_input_default((input, key) => {
     if (key.ctrl && input === "c") {
       onTerminate();
@@ -81007,12 +81004,10 @@ function PromptInput({ history, onSubmit, onTerminate }) {
       return;
     }
     if (key.tab) {
-      const result = completeBuffer(buffer, cursor);
-      if (result.kind === "insert") {
-        setBuffer(result.buffer);
-        setCursor(result.cursor);
-      } else if (result.kind === "candidates") {
-        process.stdout.write("\n  " + result.candidates.join("  ") + "\n");
+      if (ghost) {
+        const next = buffer + ghost;
+        setBuffer(next);
+        setCursor(next.length);
       }
       return;
     }
@@ -81023,14 +81018,20 @@ function PromptInput({ history, onSubmit, onTerminate }) {
       setCursor(cursor + safe.length);
     }
   });
-  const before = buffer.slice(0, cursor);
-  const at = buffer[cursor] ?? " ";
-  const after = buffer.slice(cursor + 1);
+  const atEnd = cursor === buffer.length;
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { paddingX: 1, children: [
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "cyan", children: "> " }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: before }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { inverse: true, children: at }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: after })
+    atEnd ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: buffer }),
+      ghost ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { inverse: true, dimColor: true, children: ghost[0] }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { dimColor: true, children: ghost.slice(1) })
+      ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { inverse: true, children: " " })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: buffer.slice(0, cursor) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { inverse: true, children: buffer[cursor] ?? " " }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: buffer.slice(cursor + 1) })
+    ] })
   ] });
 }
 

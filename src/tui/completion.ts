@@ -2,12 +2,11 @@ import { ALL_SUBCOMMANDS } from './builtins.ts';
 
 /**
  * Per-subcommand flag set. Sourced from the COMMAND_HELP usage strings and
- * the dispatcher's KNOWN_STRING_FLAGS — kept as a flat list here so Tab
- * completion is a constant-time lookup with no parsing.
+ * the dispatcher's KNOWN_STRING_FLAGS — kept as a flat list so completion
+ * is a constant-time lookup with no parsing.
  *
- * Edits to this table should match the usage strings in `builtins.ts`. The
- * `none` entry exists so completion for a subcommand without flags returns
- * an empty list cleanly.
+ * Order matters: the first entry that extends the user's partial wins the
+ * ghost-completion slot.
  */
 export const COMMAND_FLAGS: Record<string, string[]> = {
 	setup: [],
@@ -44,44 +43,38 @@ export const COMMAND_FLAGS: Record<string, string[]> = {
 
 /**
  * Builtin tokens that the dispatcher resolves before any subcommand lookup.
- * Included in first-token completion so `h<Tab>` → `help`.
+ * Included in first-token completion so `h` shows ghost `elp`.
  */
-const BUILTIN_TOKENS = ['help', '?', 'clear', 'exit', 'quit', ':q'];
-
-export type CompletionResult =
-	| { kind: 'noop' }
-	| { kind: 'insert'; buffer: string; cursor: number }
-	| { kind: 'candidates'; candidates: string[] };
+const BUILTIN_TOKENS = ['help', 'clear', 'exit', 'quit', '?', ':q'];
 
 /**
- * Tab-completion for the TUI prompt buffer.
+ * Returns the suffix to render as dim ghost text after the user's buffer.
+ * Empty string means "no completion available right now". Tab accepts the
+ * ghost — the caller just concatenates `buffer + ghost`.
  *
- * - Empty buffer ⇒ noop.
- * - First-token completion: candidates = ALL_SUBCOMMANDS ∪ BUILTIN_TOKENS.
- * - Subsequent flag-shaped token (starts with `-`): candidates =
- *   COMMAND_FLAGS[firstToken] (or [] if the first token is unknown).
- * - Non-flag positionals are not completed (ticket keys, etc.).
- *
- * On a single match: returns `{ kind: 'insert', buffer, cursor }` — buffer
- * with the candidate substituted in place of the in-progress token,
- * cursor at the end of the inserted text.
- *
- * On multiple matches: returns `{ kind: 'candidates', candidates }`. The
- * caller is responsible for displaying them.
+ * Rules:
+ * - Buffer empty ⇒ no ghost.
+ * - Cursor not at the end of the buffer ⇒ no ghost (the user is editing
+ *   mid-text; offering a suffix would be confusing).
+ * - The token at the cursor is the partial we try to complete.
+ *   - First token ⇒ pool is ALL_SUBCOMMANDS ∪ BUILTIN_TOKENS.
+ *   - Token starts with `-` ⇒ pool is COMMAND_FLAGS[first-token].
+ *   - Otherwise (positional like a ticket key) ⇒ no ghost.
+ * - We pick the **first** pool entry that strictly extends the partial
+ *   (starts with it AND is longer). When the partial is already an exact
+ *   match for one entry, we keep scanning for a longer one — that way
+ *   `setup` (exact) still surfaces `-project` as the next ghost.
  */
-export function completeBuffer(buffer: string, cursor: number): CompletionResult {
-	if (buffer.length === 0) return { kind: 'noop' };
+export function ghostCompletion(buffer: string, cursor: number): string {
+	if (buffer.length === 0) return '';
+	if (cursor !== buffer.length) return '';
 
-	// Locate the token under the cursor. Tokens split on single spaces.
-	// We accept a trailing space (cursor sits at len) and treat it as
-	// "start a new empty token".
 	const upToCursor = buffer.slice(0, cursor);
 	const lastSpace = upToCursor.lastIndexOf(' ');
 	const tokenStart = lastSpace + 1;
-	const tokenEnd = cursor;
-	const partial = buffer.slice(tokenStart, tokenEnd);
+	const partial = buffer.slice(tokenStart);
+	if (partial.length === 0) return '';
 
-	// Determine if this is the first token of the line.
 	const beforeToken = buffer.slice(0, tokenStart);
 	const isFirstToken = beforeToken.trim() === '';
 
@@ -89,23 +82,13 @@ export function completeBuffer(buffer: string, cursor: number): CompletionResult
 	if (isFirstToken) {
 		pool = [...Array.from(ALL_SUBCOMMANDS), ...BUILTIN_TOKENS];
 	} else if (partial.startsWith('-')) {
-		// Flag completion. Find the first non-whitespace token.
 		const firstToken = (buffer.match(/^\s*(\S+)/)?.[1] ?? '').toLowerCase();
 		pool = COMMAND_FLAGS[firstToken] ?? [];
 	} else {
-		// Positional — no completion source.
-		return { kind: 'noop' };
+		return '';
 	}
 
-	const matches = pool.filter((c) => c.startsWith(partial));
-	if (matches.length === 0) return { kind: 'noop' };
-	if (matches.length === 1) {
-		const completed = matches[0]!;
-		const newBuffer = buffer.slice(0, tokenStart) + completed + buffer.slice(tokenEnd);
-		return { kind: 'insert', buffer: newBuffer, cursor: tokenStart + completed.length };
-	}
-	// Multiple matches — common prefix expansion is a nice touch but the
-	// plan explicitly asks for "list the candidates" on multi-match. Stay
-	// in spec.
-	return { kind: 'candidates', candidates: matches.sort() };
+	const match = pool.find((c) => c.startsWith(partial) && c.length > partial.length);
+	if (!match) return '';
+	return match.slice(partial.length);
 }
