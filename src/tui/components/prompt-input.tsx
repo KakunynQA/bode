@@ -1,11 +1,12 @@
 import { Box, Text, useInput } from 'ink';
 import { useState } from 'react';
+import { completeBuffer } from '../completion.ts';
 
 function stripControlChars(s: string): string {
 	let out = '';
 	for (const ch of s) {
 		const code = ch.charCodeAt(0);
-		if (code >= 32 || code === 9) out += ch; // keep tabs, drop other controls
+		if (code >= 32) out += ch; // drop all control bytes including tab (tab is handled separately)
 	}
 	return out;
 }
@@ -87,6 +88,18 @@ export function PromptInput({ history, onSubmit, onTerminate }: Props): JSX.Elem
 			if (cursor === 0) return;
 			setBuffer(buffer.slice(0, cursor - 1) + buffer.slice(cursor));
 			setCursor(cursor - 1);
+			return;
+		}
+		if (key.tab) {
+			const result = completeBuffer(buffer, cursor);
+			if (result.kind === 'insert') {
+				setBuffer(result.buffer);
+				setCursor(result.cursor);
+			} else if (result.kind === 'candidates') {
+				// Print candidates above the Ink prompt. Ink re-renders the
+				// component, which keeps the buffer visible underneath.
+				process.stdout.write('\n  ' + result.candidates.join('  ') + '\n');
+			}
 			return;
 		}
 		// Printable insertion. Filter out control bytes — anything below space.
