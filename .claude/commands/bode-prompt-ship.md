@@ -30,13 +30,14 @@ Before writing the final prompt, ask only the missing questions from this list. 
    - Create a new branch (`feat/`, `fix/`, `refactor/`, `chore/`, `docs/`, `test/`, `perf/`)
    - Keep the current branch
    - Work directly on `main` (mark as risky)
-2. Should the agent skip the Release Discipline gate? (only sensible for in-progress drafts)
+2. Should the agent run the Release Discipline gate? (default yes; answer `no` only for in-progress drafts)
 3. Should the agent run the global-install smoke test (`npm pack && npm i -g bode-*.tgz && bode --version`) after build?
 4. Should the agent open a PR when all gates pass?
 5. Should the agent generate an HTML visualization of the plan in `.local/docs`?
 6. Process watchdog timeout for long-running commands. Default: 30 minutes.
 7. Memory log mode. Default is `auto`: mandatory for multi-repo work, HIGH-risk phases, delegation, more than 4 phases, estimated work above 4 hours, or watchdog intervention.
 8. Plan-review strictness: `strict` (default for config schema / run-meta / adapter / CLI surface changes) or `pragmatic` (default for single-file fixes and docs-only)?
+9. Triviality: `trivial` (docs-only or single-script change — Phase 1.5 reviewer skipped; Phase 3 runs `npm run format:check` on changed files only, skips check/lint/test/build and Release Discipline; Phase 4 ship discipline unchanged) or `standard` (default)?
 
 Group all unanswered questions in a single message.
 
@@ -51,7 +52,7 @@ The generated prompt must instruct the target agent to execute these phases in s
 1. Read `AGENTS.md`, `CLAUDE.md`, `CONVENTIONS.md`, `SPEC.md`, `TESTING.md`, `README.md`.
 2. Inspect relevant code before proposing anything (`glob` + `grep`; do not load whole repo).
 3. Identify affected files, tests, docs, Release Discipline impact, and risk.
-4. Write the plan to `.local/docs/planning/<task-slug>-plan.md`. **Every phase MUST open with a YAML frontmatter block** per `/bode-prompt-planning` §Task YAML Frontmatter (objective, depends_on, files, watchdog, validation, expected_output, release, risk, optional reporting.memory_log).
+4. Write the plan to `.local/docs/planning/<task-slug>-plan.md`. **Every phase MUST open with a YAML frontmatter block** — see `/bode-prompt-planning §Task YAML Frontmatter` for the canonical contract. That section is the single source of truth; do not re-list fields here.
 5. Move the completed plan to `.local/docs/to-implement/<task-slug>-plan.md`.
 6. If HTML visualization was requested, also write `.local/docs/to-implement/<task-slug>-plan.html`.
 7. **Checkpoint:** summarize the plan and continue automatically — do not wait for user approval unless a HIGH risk is found.
@@ -59,6 +60,10 @@ The generated prompt must instruct the target agent to execute these phases in s
 ---
 
 ### Phase 1.5 — PLAN REVIEW (APM-inspired)
+
+Skip when Question 9 = `trivial`; proceed directly to Phase 2.
+
+Otherwise:
 
 1. Invoke `/bode-prompt-review-plan` against the plan markdown with the chosen strictness.
 2. Write verdict to `.local/docs/to-implement/<task-slug>-review.md`.
@@ -86,7 +91,9 @@ The generated prompt must instruct the target agent to execute these phases in s
 
 ### Phase 3 — REVIEW (validation gate)
 
-Run from the repo root, in order:
+If Question 9 = `trivial`: run `npx --yes prettier --check` (or `npm run format:check`) on the changed files only; skip check/lint/test/build and the Release Discipline check. STOP on formatting failure; otherwise continue.
+
+Otherwise — run from the repo root, in order:
 
 ```bash
 npm run check
@@ -97,12 +104,14 @@ npm run build
 ```
 
 Then verify Release Discipline (unless skipped):
+
 - `package.json` version bumped vs base branch.
 - `CHANGELOG.md` has a new dated section matching the version.
 - `dist/index.js` was rebuilt (its embedded version matches `package.json`).
 - Docs touched as required.
 
 If global-install smoke test was requested:
+
 ```bash
 npm pack
 npm i -g bode-*.tgz
@@ -123,7 +132,7 @@ bode --version    # must print the bumped version
 4. If PR was requested: open a PR with body following AGENTS.md (Definition of Done checklist, what / why / how to test).
 5. Monitor CI with `gh pr checks <pr-number>` every 60 s until all checks pass.
 6. Resolve actionable review comments; dismiss false positives with a one-sentence rationale.
-7. Move plan + `*-review.md` + any `*-phase-<n>-memory.md` from `.local/docs/implementing/` to `.local/docs/done/`.
+7. Move every `<task-slug>*.{md,html}` file under `.local/docs/implementing/` to `.local/docs/done/` — covers the plan, the HTML sibling, the review verdict, every phase memory log, and any debug-session document produced via delegation.
 8. Deliver: commit SHA (+ PR link if opened), CI status, list of files changed, new version + CHANGELOG entry, smoke-test result.
 
 ---
@@ -144,13 +153,14 @@ Repository workflow
 
 User delivery preferences
 - Branch strategy: <choice>
-- Skip Release Discipline gate: <yes/no>
+- Run Release Discipline gate: <yes/no>
 - Run global-install smoke test: <yes/no>
 - Open PR when gates pass: <yes/no>
 - Generate HTML plan: <yes/no>
 - Process watchdog timeout: <minutes>
 - Memory log mode: <auto | forced-on | optional>
 - Plan-review strictness: <strict/pragmatic>
+- Triviality: <trivial/standard>
 
 Phase 1 — Plan
 <what to inspect and decide, artifact paths, mandatory YAML frontmatter per phase>
