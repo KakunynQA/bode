@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] — 2026-05-31
+
+### Fixed
+
+- ESC at the idle TUI prompt (added in 2.1.2) did not actually fire on
+  some terminal + Node combinations because Ink's `useInput` does not
+  always set `key.escape` for a standalone ESC press — the raw 0x1B byte
+  lands in `input` instead. PromptInput now accepts both forms.
+
 ## [2.1.2] — 2026-05-31
 
 ### Added

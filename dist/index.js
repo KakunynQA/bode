@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.1.2") {
-    return "2.1.2";
+  if ("2.1.3") {
+    return "2.1.3";
   }
   const base = moduleDir();
   if (base) {
@@ -80955,7 +80955,8 @@ function PromptInput({ history, onSubmit, onTerminate }) {
       onTerminate();
       return;
     }
-    if (key.escape) {
+    const isEscape = key.escape || input.length === 1 && input.charCodeAt(0) === 27;
+    if (isEscape) {
       if (buffer.length === 0 && historyIdx === history.length && draft === "") return;
       setBuffer("");
       setCursor(0);

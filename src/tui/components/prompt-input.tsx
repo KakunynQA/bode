@@ -22,6 +22,7 @@ type Props = {
  *   - Ctrl+C → onTerminate (Phase 2 contract)
  *   - ↑/↓ history navigation (Phase 3)
  *   - Tab accepts the inline ghost suggestion (Phase 4 — Claude-style)
+ *   - ESC clears the in-progress command (v2.1.2)
  *
  * Single-line buffer with a flat string + integer cursor. Long pasted
  * commands wrap visually; the model stays flat.
@@ -44,10 +45,13 @@ export function PromptInput({ history, onSubmit, onTerminate }: Props): JSX.Elem
 			onTerminate();
 			return;
 		}
-		if (key.escape) {
-			// Idle-prompt ESC: clear the in-progress command. The buffer, cursor,
-			// history pointer, and stashed draft all reset so the next ↑ starts
-			// from a clean slate.
+		// Ink's useInput does not always fire `key.escape` for a standalone
+		// ESC press — across terminals + Node versions the raw ESC byte (0x1B)
+		// sometimes lands in `input` instead. Accept both forms. We do NOT
+		// match on `input === ''` because Ink also fires that for arrow /
+		// function keys.
+		const isEscape = key.escape || (input.length === 1 && input.charCodeAt(0) === 0x1b);
+		if (isEscape) {
 			if (buffer.length === 0 && historyIdx === history.length && draft === '') return;
 			setBuffer('');
 			setCursor(0);
@@ -119,7 +123,6 @@ export function PromptInput({ history, onSubmit, onTerminate }: Props): JSX.Elem
 		}
 	});
 
-	// Render
 	const atEnd = cursor === buffer.length;
 	return (
 		<Box paddingX={1}>
