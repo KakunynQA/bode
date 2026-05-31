@@ -4,6 +4,7 @@ import pc from 'picocolors';
 import { App } from './components/app.tsx';
 import { loadInitialState, type ShellState } from './state.ts';
 import { dispatch } from './dispatcher.ts';
+import { TerminateShellError } from '~/utils/prompt.ts';
 
 declare const __GOAT_ART__: string;
 
@@ -63,7 +64,16 @@ export async function runShell(): Promise<void> {
 		}
 		const line = (await renderShellOnce(state, lastExitCode)).trim();
 		if (!line) continue;
-		const result = await dispatch(line);
+		let result;
+		try {
+			result = await dispatch(line);
+		} catch (err) {
+			// Ctrl+C inside an action propagates as TerminateShellError —
+			// shut the shell down cleanly. Any other error here is genuinely
+			// unexpected; rethrow so it surfaces.
+			if (err instanceof TerminateShellError) return;
+			throw err;
+		}
 		if (result.kind === 'exit') return;
 		if (result.kind === 'error' && result.error) {
 			console.error(pc.red(`error: ${result.error.message}`));

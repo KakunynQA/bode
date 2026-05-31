@@ -1,5 +1,5 @@
 import pc from 'picocolors';
-import { CancelledError } from '~/utils/prompt.ts';
+import { CancelledError, TerminateShellError } from '~/utils/prompt.ts';
 import { ALL_SUBCOMMANDS, KEY_REQUIRED_SUBCOMMANDS, clearScreen, renderHelp } from './builtins.ts';
 
 /**
@@ -43,6 +43,10 @@ async function runActionGuarded(invoke: () => Promise<number>): Promise<Dispatch
 		if (error instanceof InterceptedExitError) {
 			return { kind: error.code === 0 ? 'ok' : 'error', exitCode: error.code };
 		}
+		// TerminateShellError must escape — it is the Ctrl+C signal that
+		// tells runShell to exit the whole process. CancelledError stays
+		// per-action: the dispatcher returns to the shell prompt.
+		if (error instanceof TerminateShellError) throw error;
 		if (error instanceof CancelledError) return { kind: 'ok', exitCode: 0 };
 		return { kind: 'error', exitCode: 1, error: error as Error };
 	} finally {
@@ -411,3 +415,5 @@ export async function dispatch(line: string): Promise<DispatchResult> {
 			return runActionGuarded(() => fallbackToFast(decision.line, decision.options));
 	}
 }
+
+export const __testing = { runActionGuarded };

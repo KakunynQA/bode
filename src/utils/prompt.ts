@@ -21,8 +21,7 @@ export class BackError extends Error {
 	}
 }
 
-const FOOTER_HINT = pc.dim('  (esc to go back · ctrl+c to cancel)');
-const FIRST_STEP_NO_BACK = pc.dim('  (nothing to go back to)');
+const FOOTER_HINT = pc.dim('  (esc to go back · ctrl+c to exit bode)');
 
 type WrapOptions = {
 	/**
@@ -107,8 +106,11 @@ async function runWithBackSignal<T>(
 			cleanup();
 			if (isBackAbort(err)) {
 				if (opts.firstStep) {
-					console.log(FIRST_STEP_NO_BACK);
-					continue;
+					// v2.1 contract: ESC at the first wizard step cancels the
+					// whole wizard. Pre-v2.1 behaviour was a "(nothing to go
+					// back to)" line + re-prompt loop; that was a UX dead end.
+					console.log(pc.dim('  Cancelled.'));
+					throw new CancelledError();
 				}
 				return BACK;
 			}
@@ -167,9 +169,14 @@ export async function askSearch<T>(
 }
 
 /**
- * Thrown by `handlePromptError` when a Ctrl+C or non-back AbortPromptError
- * escapes a wrapper helper. The TUI dispatcher catches this and keeps the
- * shell alive instead of exiting the whole process.
+ * Thrown by `handlePromptError` for a non-Ctrl+C abort (e.g. an
+ * AbortPromptError that is not a BACK). The TUI dispatcher catches this
+ * and returns the user to the shell prompt without exiting the shell.
+ *
+ * **NOT used for Ctrl+C** since v2.1 — Ctrl+C now produces
+ * `TerminateShellError` so the whole shell process shuts down. The
+ * per-action cancel role moves to ESC (BACK in wizards, future-proofed
+ * for non-wizard actions).
  */
 export class CancelledError extends Error {
 	constructor() {
@@ -179,17 +186,33 @@ export class CancelledError extends Error {
 }
 
 /**
- * Handles errors that escape the wrapper helpers — primarily Ctrl+C
- * (`ExitPromptError`). On Ctrl+C we print "Cancelled." and throw a
- * CancelledError so the TUI shell can recover. In one-shot use the
- * top-level catch in src/index.ts (or the caller's own error handling)
- * decides what to do with it.
+ * Thrown by `handlePromptError` on Ctrl+C. The TUI dispatcher's
+ * `runActionGuarded` re-throws it so it escapes back to `runShell`,
+ * which catches it and exits the bode process cleanly. In one-shot
+ * (non-TUI) use, the top-level catch in `src/index.ts` translates it
+ * to an exit code 0.
+ */
+export class TerminateShellError extends Error {
+	constructor() {
+		super('__TERMINATE_SHELL__');
+		this.name = 'TerminateShellError';
+	}
+}
+
+/**
+ * Handles errors that escape the wrapper helpers.
+ *
+ * - `ExitPromptError` (Ctrl+C from inquirer) → throw `TerminateShellError`
+ *   so the shell process shuts down. v2.1 contract: Ctrl+C *always* exits
+ *   the TUI, even mid-action.
+ * - `AbortPromptError` that is not a BACK → throw `CancelledError` so the
+ *   dispatcher returns the user to the shell prompt.
  */
 export function handlePromptError(err: unknown, cleanup?: () => void): void {
 	cleanup?.();
 	if (err instanceof ExitPromptError) {
-		console.log(pc.dim('\nCancelled.\n'));
-		throw new CancelledError();
+		console.log(pc.dim('\nExited.\n'));
+		throw new TerminateShellError();
 	}
 	if (err instanceof AbortPromptError && !isBackAbort(err)) {
 		console.log(pc.dim('\nCancelled.\n'));
@@ -461,9 +484,10 @@ export async function askInputWithAtTrigger(
 					return;
 				case 'BACK':
 					if (wrap.firstStep) {
-						console.log(FIRST_STEP_NO_BACK);
-						// Re-enter the prompt for first-step behaviour.
-						askInputWithAtTrigger(opts, wrap).then(resolve, reject);
+						// v2.1 contract — same as runWithBackSignal: ESC at the
+						// first step cancels the wizard.
+						console.log(pc.dim('  Cancelled.'));
+						reject(new CancelledError());
 						return;
 					}
 					resolve(BACK);

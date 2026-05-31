@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { decideRoute, parseTokens, tokenize } from '~/tui/dispatcher.ts';
+import { decideRoute, parseTokens, tokenize, __testing } from '~/tui/dispatcher.ts';
+import { CancelledError, TerminateShellError } from '~/utils/prompt.ts';
+
+const { runActionGuarded } = __testing;
 
 describe('tokenize', () => {
 	it('splits bare words on whitespace', () => {
@@ -145,5 +148,55 @@ describe('decideRoute', () => {
 	it('routes an unknown first token to fast', () => {
 		const d = decideRoute('bogus-subcommand whatever');
 		assert.equal(d.kind, 'fast');
+	});
+});
+
+describe('runActionGuarded — Ctrl+C / cancel semantics (v2.1 contract)', () => {
+	it('re-throws TerminateShellError so the shell loop can exit', async () => {
+		await assert.rejects(
+			runActionGuarded(async () => {
+				throw new TerminateShellError();
+			}),
+			(err: unknown) => err instanceof TerminateShellError
+		);
+	});
+
+	it('returns kind=ok on CancelledError (per-action cancel)', async () => {
+		const result = await runActionGuarded(async () => {
+			throw new CancelledError();
+		});
+		assert.equal(result.kind, 'ok');
+		assert.equal(result.exitCode, 0);
+	});
+
+	it('translates process.exit(0) into kind=ok', async () => {
+		const result = await runActionGuarded(async () => {
+			process.exit(0);
+		});
+		assert.equal(result.kind, 'ok');
+		assert.equal(result.exitCode, 0);
+	});
+
+	it('translates process.exit(1) into kind=error with exitCode=1', async () => {
+		const result = await runActionGuarded(async () => {
+			process.exit(1);
+		});
+		assert.equal(result.kind, 'error');
+		assert.equal(result.exitCode, 1);
+	});
+
+	it('returns kind=ok and exitCode=0 for a clean async return of 0', async () => {
+		const result = await runActionGuarded(async () => 0);
+		assert.equal(result.kind, 'ok');
+		assert.equal(result.exitCode, 0);
+	});
+
+	it('returns kind=error with the original error for unexpected throws', async () => {
+		const result = await runActionGuarded(async () => {
+			throw new Error('boom');
+		});
+		assert.equal(result.kind, 'error');
+		assert.equal(result.exitCode, 1);
+		assert.equal(result.error?.message, 'boom');
 	});
 });
