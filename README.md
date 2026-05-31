@@ -37,6 +37,8 @@
 ---
 
 > **v2.0.0 — Interactive TUI shell.** Running `bode` now launches a persistent shell with a header (version + project + tracker), a prompt in the middle, and a footer (active run + last exit code). Every command is typed inside the shell **without** the `bode ` prefix: `setup`, `start KD-1 --auto`, `"fix the dashboard bug"`. Only `bode --version` and `bode --help` remain headless. The one-shot CLI form (`bode setup`, `bode start KD-1`, …) is gone. See the [v2.0.0 CHANGELOG](CHANGELOG.md#200--2026-05-29) for full details.
+>
+> **v2.1.0 — TUI polish.** The shell now supports persistent ↑/↓ command history (`~/.bode/history`, capped at 250 entries) and Tab autocomplete for subcommands and flags. `Ctrl+C` exits the shell from anywhere (including mid-action); `ESC` cancels the active wizard one step at a time and cancels the whole wizard at the first step.
 
 ---
 
@@ -116,8 +118,8 @@ bode                  # launches the TUI shell
 - **Node.js** >= 20 (only for the npm install method — SEA binaries embed their runtime)
 - **Git** installed and configured
 - At least one **AI CLI**: [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`npm i -g @anthropic-ai/claude-code`), [OpenCode](https://opencode.ai), or [Codex](https://github.com/openai/codex). To route any of these through Z.AI's GLM models, run [`npx @z_ai/coding-helper init`](https://docs.z.ai/devpack/extension/coding-tool-helper).
-- *(Optional)* `gh` CLI for GitHub PRs or `glab` for GitLab MRs
-- *(Optional)* An issue tracker — Jira, GitHub Issues, Linear, Notion, or Trello. Without one, bode uses local markdown tasks under `.bode/tasks/`.
+- _(Optional)_ `gh` CLI for GitHub PRs or `glab` for GitLab MRs
+- _(Optional)_ An issue tracker — Jira, GitHub Issues, Linear, Notion, or Trello. Without one, bode uses local markdown tasks under `.bode/tasks/`.
 
 ---
 
@@ -198,14 +200,14 @@ bode fetches the ticket, creates the branch (`feat/`, `fix/`, `chore/`, or `refa
 
 ## Trackers
 
-| Tracker | Config key | Auth | Status |
-|---|---|---|---|
-| Jira | `tracker: jira` + `jira.{site, email, api_token}` | Basic auth | Production |
-| GitHub Issues | `tracker: github-issues` | uses `gh` CLI auth | Production |
-| Linear | `tracker: linear` + `linear.api_key` | API key | Beta |
-| Notion | `tracker: notion` + `notion.{api_token, database_id}` | Integration token | Beta |
-| Trello | `tracker: trello` + `trello.{api_key, token}` | Key + token | Beta |
-| Local / plain-markdown | `tracker: local` *(default)* | none | Production |
+| Tracker                | Config key                                            | Auth               | Status     |
+| ---------------------- | ----------------------------------------------------- | ------------------ | ---------- |
+| Jira                   | `tracker: jira` + `jira.{site, email, api_token}`     | Basic auth         | Production |
+| GitHub Issues          | `tracker: github-issues`                              | uses `gh` CLI auth | Production |
+| Linear                 | `tracker: linear` + `linear.api_key`                  | API key            | Beta       |
+| Notion                 | `tracker: notion` + `notion.{api_token, database_id}` | Integration token  | Beta       |
+| Trello                 | `tracker: trello` + `trello.{api_key, token}`         | Key + token        | Beta       |
+| Local / plain-markdown | `tracker: local` _(default)_                          | none               | Production |
 
 Selection priority:
 
@@ -222,43 +224,43 @@ All trackers implement the same `IssueTrackerStrategy` interface — same comman
 
 All commands are typed **inside the shell** without the `bode ` prefix. The only forms that run headless are `bode --version` and `bode --help`.
 
-| Command (inside shell) | Description |
-|---|---|
-| `<prompt-or-key>` | Fast path. Ticket key (e.g. `KD-312`) or freeform prompt. |
-| `help` / `?` | Print the command menu. |
-| `clear` | Clear the scrollback. |
-| `exit` / `quit` / `:q` | Exit the shell. |
-| `new <summary>` | Create a local task without invoking the AI. |
-| `setup` | Interactive wizard. Tracker, AI CLIs, VCS provider. |
-| `setup-project` | Per-project config (workdir, context files, AI-driven project context investigation, overrides). Supports `--shared-in-repo` and `--refresh-context`. |
-| `setup-transitions` | Map bode phases to your tracker's workflow states. |
-| `start <KEY>` | Start a task. Creates branch, runs planning phase. |
-| `continue <KEY>` | Advance to next phase. Creates PR at awaiting-merge. |
-| `status <KEY>` | Show current phase, branch, PR link, conflict status. |
-| `show <artifact> <KEY>` | Print artifact (`plan`, `implementation`, `review`) with a cost-so-far header. |
-| `replay <KEY>` | Replay a saved phase prompt, or export/import a `.bode-run` bundle. |
-| `log <KEY>` | Show the log of the current or last phase. |
-| `list` | List all tracked tasks. |
-| `abort <KEY>` | Cancel execution, clean up branch, reset tracker state. |
-| `done <KEY>` | Mark done. Switch to base. Optionally merge PR. |
-| `skills` | Show resolved skill paths and prompts. |
-| `doctor [--report]` | Diagnose env, config, AI CLIs, VCS tooling, Windows gotchas. |
-| `feedback [--open]` | Create a pre-filled GitHub feedback issue URL; never auto-submits. |
-| `telemetry [on\|off\|status\|preview]` | Opt-in anonymous telemetry. |
-| `compare <KEY> --agents <list>` | Run planning across multiple agents and compare. |
+| Command (inside shell)                 | Description                                                                                                                                           |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<prompt-or-key>`                      | Fast path. Ticket key (e.g. `KD-312`) or freeform prompt.                                                                                             |
+| `help` / `?`                           | Print the command menu.                                                                                                                               |
+| `clear`                                | Clear the scrollback.                                                                                                                                 |
+| `exit` / `quit` / `:q`                 | Exit the shell.                                                                                                                                       |
+| `new <summary>`                        | Create a local task without invoking the AI.                                                                                                          |
+| `setup`                                | Interactive wizard. Tracker, AI CLIs, VCS provider.                                                                                                   |
+| `setup-project`                        | Per-project config (workdir, context files, AI-driven project context investigation, overrides). Supports `--shared-in-repo` and `--refresh-context`. |
+| `setup-transitions`                    | Map bode phases to your tracker's workflow states.                                                                                                    |
+| `start <KEY>`                          | Start a task. Creates branch, runs planning phase.                                                                                                    |
+| `continue <KEY>`                       | Advance to next phase. Creates PR at awaiting-merge.                                                                                                  |
+| `status <KEY>`                         | Show current phase, branch, PR link, conflict status.                                                                                                 |
+| `show <artifact> <KEY>`                | Print artifact (`plan`, `implementation`, `review`) with a cost-so-far header.                                                                        |
+| `replay <KEY>`                         | Replay a saved phase prompt, or export/import a `.bode-run` bundle.                                                                                   |
+| `log <KEY>`                            | Show the log of the current or last phase.                                                                                                            |
+| `list`                                 | List all tracked tasks.                                                                                                                               |
+| `abort <KEY>`                          | Cancel execution, clean up branch, reset tracker state.                                                                                               |
+| `done <KEY>`                           | Mark done. Switch to base. Optionally merge PR.                                                                                                       |
+| `skills`                               | Show resolved skill paths and prompts.                                                                                                                |
+| `doctor [--report]`                    | Diagnose env, config, AI CLIs, VCS tooling, Windows gotchas.                                                                                          |
+| `feedback [--open]`                    | Create a pre-filled GitHub feedback issue URL; never auto-submits.                                                                                    |
+| `telemetry [on\|off\|status\|preview]` | Opt-in anonymous telemetry.                                                                                                                           |
+| `compare <KEY> --agents <list>`        | Run planning across multiple agents and compare.                                                                                                      |
 
 ### Key flags
 
-| Flag | Command(s) | Description |
-|---|---|---|
-| `--project <name>` | start, continue, fast path | Project name from `~/.bode/projects/` |
-| `--from-branch <branch>` | start | Base branch (default: project `default_branch` or `main`) |
-| `--auto` | start, fast path | Run all phases sequentially until PR created |
-| `--dangerously-auto-merge` | start, fast path | Run all phases + merge PR + mark done (with warning) |
-| `--dangerously-approve-all` | start, continue, fast path | Inject each CLI's bypass-approvals flag |
-| `--auto-approve-pr-merge` | done | Automatically merge PR before cleanup |
-| `--agents <list>` | compare | Comma-separated agents (e.g. `claude-code,codex`) |
-| `-y, --yes` | abort, done | Skip confirmation |
+| Flag                        | Command(s)                 | Description                                               |
+| --------------------------- | -------------------------- | --------------------------------------------------------- |
+| `--project <name>`          | start, continue, fast path | Project name from `~/.bode/projects/`                     |
+| `--from-branch <branch>`    | start                      | Base branch (default: project `default_branch` or `main`) |
+| `--auto`                    | start, fast path           | Run all phases sequentially until PR created              |
+| `--dangerously-auto-merge`  | start, fast path           | Run all phases + merge PR + mark done (with warning)      |
+| `--dangerously-approve-all` | start, continue, fast path | Inject each CLI's bypass-approvals flag                   |
+| `--auto-approve-pr-merge`   | done                       | Automatically merge PR before cleanup                     |
+| `--agents <list>`           | compare                    | Comma-separated agents (e.g. `claude-code,codex`)         |
+| `-y, --yes`                 | abort, done                | Skip confirmation                                         |
 
 ---
 
@@ -319,7 +321,7 @@ Non-zero exit aborts the phase unless `non_blocking: true`.
 ### Global `~/.bode/config.yml`
 
 ```yaml
-tracker: jira           # or: github-issues | linear | notion | trello | local
+tracker: jira # or: github-issues | linear | notion | trello | local
 
 jira:
   site: mycompany.atlassian.net
@@ -328,7 +330,7 @@ jira:
   api_token: your-api-token
 
 linear:
-  api_key: lin_api_xxx  # or set LINEAR_API_KEY env var
+  api_key: lin_api_xxx # or set LINEAR_API_KEY env var
 
 notion:
   api_token: secret_xxx
@@ -339,7 +341,7 @@ trello:
   token: xxx
 
 vcs:
-  provider: github      # or "gitlab"
+  provider: github # or "gitlab"
 
 github:
   default_org: myorg
@@ -373,7 +375,7 @@ name: grid
 workdir: /home/user/projects/grid-stack
 default_branch: main
 
-tracker: github-issues   # this repo uses Issues even though global is Jira
+tracker: github-issues # this repo uses Issues even though global is Jira
 
 context_files:
   - AGENTS.md
@@ -386,7 +388,7 @@ context_investigated_at: 2026-05-29T12:34:56.000Z
 
 phases:
   implementation:
-    model: claude-opus-4-7   # opus for impl on this repo
+    model: claude-opus-4-7 # opus for impl on this repo
 ```
 
 ### Local storage
@@ -433,11 +435,11 @@ First match wins. Copy a bundled skill to `~/.bode/skills/` and edit it.
 
 ### Bundled skills
 
-| Skill | Phase | Purpose |
-|---|---|---|
-| `planning.md` | Planning | Produces an actionable plan from the ticket |
-| `implementation.md` | Implementation | Executes the plan, runs validation, commits |
-| `review.md` | Review | Critical code review with verdict (APPROVE / REQUEST_CHANGES) |
+| Skill               | Phase          | Purpose                                                       |
+| ------------------- | -------------- | ------------------------------------------------------------- |
+| `planning.md`       | Planning       | Produces an actionable plan from the ticket                   |
+| `implementation.md` | Implementation | Executes the plan, runs validation, commits                   |
+| `review.md`         | Review         | Critical code review with verdict (APPROVE / REQUEST_CHANGES) |
 
 ---
 
@@ -471,6 +473,7 @@ See `AGENTS.md` for full workflow rules and `CONVENTIONS.md` for code standards.
 ### Existing run detected
 
 If a task already has a run, bode asks:
+
 - **Abort and restart** — discards the previous run
 - **Continue** — picks up where it left off
 - **Cancel** — exits
@@ -539,6 +542,7 @@ When the AI exits without producing `~/.bode/runs/<KEY>/<phase>.md`, bode shows 
 ### Dirty workdir on `bode start`
 
 bode prompts:
+
 - **Stash** — auto-stash with `git stash push -m "bode:auto-stash:<TASK>"` and continue
 - **Retry** — exits so you can handle it manually
 - **Abort** — cancels

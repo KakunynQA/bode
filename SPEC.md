@@ -80,11 +80,11 @@ bode continue KD-312 --dangerously-approve-all
 
 Passes each AI CLI's bypass-approvals/sandbox flag automatically. Per-adapter mapping:
 
-| Adapter | Flag injected |
-|---|---|
-| `claude-code` | `--dangerously-skip-permissions` |
-| `codex` | `--dangerously-bypass-approvals-and-sandbox` |
-| `opencode` | (none — bode warns upfront) |
+| Adapter       | Flag injected                                |
+| ------------- | -------------------------------------------- |
+| `claude-code` | `--dangerously-skip-permissions`             |
+| `codex`       | `--dangerously-bypass-approvals-and-sandbox` |
+| `opencode`    | (none — bode warns upfront)                  |
 
 ## Tech Stack
 
@@ -113,6 +113,7 @@ Three strategy layers form the public extensibility surface. Each can absorb new
 Interface: `src/types/cli-adapter.ts`. Implementations: `ClaudeCodeAdapter`, `OpenCodeAdapter`, `CodexAdapter`. Registry: `src/adapters/cli/registry.ts`. Models per CLI: `src/adapters/cli/models.ts`.
 
 Contract:
+
 - `invoke(prompt, config, options)` — interactive or headless; optional `dangerousBypass` and `workdir`
 - `isAvailable()` — feature-detection during `setup`
 - `dangerousFlags()` — the CLI's bypass-approvals flag, or `null`
@@ -127,15 +128,15 @@ Since v0.16.0 the AI creates the PR itself. This layer is used by `bode done` (m
 
 Interface: `src/types/issue-tracker.ts` (canonical) / `src/types/jira.ts` (deprecated alias kept through v0.29.x). Implementations:
 
-| Adapter | File | Notes |
-|---|---|---|
-| `MockJiraAdapter` | `src/adapters/jira/mock.ts` | No-op for tests / unconfigured |
-| `RealJiraAdapter` | `src/adapters/jira/rest.ts` | Jira REST v3, ADF body, 30 s timeout |
-| `GitHubIssuesAdapter` | `src/adapters/tracker/github-issues.ts` | Uses `gh` CLI auth |
-| `LinearAdapter` | `src/adapters/tracker/linear.ts` | GraphQL via `fetch`, API key |
-| `NotionAdapter` | `src/adapters/tracker/notion.ts` | REST, integration token, database-backed |
-| `TrelloAdapter` | `src/adapters/tracker/trello.ts` | REST, key + token, board-backed |
-| `LocalTrackerAdapter` | `src/adapters/tracker/local.ts` | Markdown files at `<repo>/.bode/tasks/` |
+| Adapter               | File                                    | Notes                                    |
+| --------------------- | --------------------------------------- | ---------------------------------------- |
+| `MockJiraAdapter`     | `src/adapters/jira/mock.ts`             | No-op for tests / unconfigured           |
+| `RealJiraAdapter`     | `src/adapters/jira/rest.ts`             | Jira REST v3, ADF body, 30 s timeout     |
+| `GitHubIssuesAdapter` | `src/adapters/tracker/github-issues.ts` | Uses `gh` CLI auth                       |
+| `LinearAdapter`       | `src/adapters/tracker/linear.ts`        | GraphQL via `fetch`, API key             |
+| `NotionAdapter`       | `src/adapters/tracker/notion.ts`        | REST, integration token, database-backed |
+| `TrelloAdapter`       | `src/adapters/tracker/trello.ts`        | REST, key + token, board-backed          |
+| `LocalTrackerAdapter` | `src/adapters/tracker/local.ts`         | Markdown files at `<repo>/.bode/tasks/`  |
 
 **Canonical method names (v0.25.0+):** `fetchTask`, `postComment`, `setStatus`, `addTag`, `removeTag`, `listStatuses`, `attachFile`. Old Jira-flavored names (`getIssue`, `addComment`, `transitionStatus`, `addLabel`, `removeLabel`, `getTransitions`) still work; removal in v0.30.0.
 
@@ -197,38 +198,38 @@ Defined in `src/config/schema.ts` (Zod).
 ### `~/.bode/config.yml` (global)
 
 ```yaml
-tracker: jira                 # jira | github-issues | linear | notion | trello | local | plain-markdown | mock
+tracker: jira # jira | github-issues | linear | notion | trello | local | plain-markdown | mock
 
 jira:
   site: mycompany.atlassian.net
   default_project: KD
   email: you@company.com
   api_token: your-api-token
-  transitions:                # optional — bode setup-transitions writes these
-    planning: "In Progress"
-    implementation: "In Review"
-    review: "Code Review"
-    awaiting_merge: "Awaiting Merge"
-    done: "Done"
+  transitions: # optional — bode setup-transitions writes these
+    planning: 'In Progress'
+    implementation: 'In Review'
+    review: 'Code Review'
+    awaiting_merge: 'Awaiting Merge'
+    done: 'Done'
 
 linear:
-  api_key: lin_api_xxx        # or set LINEAR_API_KEY
+  api_key: lin_api_xxx # or set LINEAR_API_KEY
 
 notion:
-  api_token: secret_xxx       # or set NOTION_TOKEN
+  api_token: secret_xxx # or set NOTION_TOKEN
   database_id: 00000000-0000-0000-0000-000000000000
-  properties:                 # optional — override defaults
-    title: "Name"
-    status: "Status"
-    tags: "Tags"
+  properties: # optional — override defaults
+    title: 'Name'
+    status: 'Status'
+    tags: 'Tags'
 
 trello:
-  api_key: xxx                # or set TRELLO_KEY
-  token: xxx                  # or set TRELLO_TOKEN
-  board_id: xxx               # optional pin
+  api_key: xxx # or set TRELLO_KEY
+  token: xxx # or set TRELLO_TOKEN
+  board_id: xxx # optional pin
 
 vcs:
-  provider: github            # github | gitlab
+  provider: github # github | gitlab
 
 github:
   default_org: kakunyn
@@ -257,7 +258,7 @@ gates:
 defaults:
   project: grid
 
-jira_labels:                  # historical name; applies to any tracker that supports tags
+jira_labels: # historical name; applies to any tracker that supports tags
   planning: bode:planning
   planned: bode:planned
   implementing: bode:implementing
@@ -284,7 +285,7 @@ name: grid
 workdir: /home/user/projects/grid-stack
 default_branch: main
 
-tracker: github-issues         # override global tracker for this project
+tracker: github-issues # override global tracker for this project
 
 jira:
   site: mycompany.atlassian.net
@@ -307,13 +308,13 @@ phases:
   implementation:
     model: claude-opus-4-7
 
-repos:                          # multi-repo support
+repos: # multi-repo support
   - workdir: /home/user/projects/grid-api
     name: api
   - workdir: /home/user/projects/grid-ui
     name: ui
 
-branch_tool: gh                 # rarely overridden
+branch_tool: gh # rarely overridden
 
 hooks:
   pre_planning:
@@ -332,23 +333,38 @@ hooks:
 `bode` (no args, any args other than `--version` / `--help`) launches the interactive TUI shell. The shell renders:
 
 - **Header:** `bode v<version>` and `project: <name> (<tracker>)`.
-- **Prompt:** `> ` text input; submit with Enter.
-- **Footer:** `→ <KEY> · <phase> · last exit <code>` plus the keybinding hint `(↵ run · ctrl+c exit · type 'help')`.
+- **Prompt:** `> ` text input with line editing, ↑/↓ history navigation, and Tab autocomplete.
+- **Footer:** `→ <KEY> · <phase> · last exit <code>` plus the keybinding hint `(↵ run · ↑↓ history · tab complete · ctrl+c exit)`.
 
-Built-in commands handled before action dispatch:
+### Keybindings (v2.1.0+)
 
-| Command | Behavior |
-|---|---|
-| `help` / `?` | Print the command list grouped by category. |
-| `clear` | Clear the scrollback. |
-| `exit` / `quit` / `:q` | Exit the shell. |
+| Key                                                 | At idle prompt                                                                                                                                    | Inside an active action                                                                                                                                                          |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `↵` (Enter)                                         | Submit the command.                                                                                                                               | (per-prompt) Submit the current answer.                                                                                                                                          |
+| `↑` / `↓`                                           | Cycle through previously submitted commands (persistent history).                                                                                 | n/a — actions use inquirer or the raw-mode prompt, neither supports per-prompt history.                                                                                          |
+| `Tab`                                               | Autocomplete the in-progress token (subcommand or flag). Single match inserts inline; multiple matches print the candidate list above the prompt. | n/a.                                                                                                                                                                             |
+| `←` / `→` / `Home` / `End` / `Backspace` / `Delete` | Standard single-line editing.                                                                                                                     | Standard.                                                                                                                                                                        |
+| `Esc`                                               | n/a — Esc has no special meaning at the idle prompt.                                                                                              | Wizard: step back one question; at the first step, cancel the entire wizard and return to the idle prompt. Non-wizard actions: not yet honoured (the spawned AI CLI owns stdin). |
+| `Ctrl+C`                                            | Exit the bode process cleanly.                                                                                                                    | Exit the bode process cleanly — including mid-wizard and mid-AI-CLI.                                                                                                             |
+
+### Persistent command history
+
+The shell stores submitted commands in `~/.bode/history`, one entry per line, chronological (oldest first), capped at the 250 most recent entries. Identical consecutive entries are collapsed (bash `HISTCONTROL=ignoredups`). The file is written atomically (tmp + rename); concurrent shells use last-writer-wins (no locking, acceptable for this use case).
+
+### Built-in commands handled before action dispatch
+
+| Command                | Behavior                                                     |
+| ---------------------- | ------------------------------------------------------------ |
+| `help` / `?`           | Print the command list grouped by category.                  |
+| `clear`                | Clear the scrollback.                                        |
+| `exit` / `quit` / `:q` | Exit the shell. (Equivalent to `Ctrl+C` at the idle prompt.) |
 
 Headless escape hatches (the only forms that work without a TTY):
 
-| Form | Output |
-|---|---|
-| `bode --version` / `-V` | Prints the version and exits 0. |
-| `bode --help` / `-h` | Prints a compact header plus the same `help` listing and exits 0. |
+| Form                    | Output                                                            |
+| ----------------------- | ----------------------------------------------------------------- |
+| `bode --version` / `-V` | Prints the version and exits 0.                                   |
+| `bode --help` / `-h`    | Prints a compact header plus the same `help` listing and exits 0. |
 
 If `bode` is launched without a TTY (piped or backgrounded stdin), it exits 2 with a friendly message pointing at the two headless forms.
 
@@ -356,46 +372,46 @@ Inside the shell, the command table below is the menu — typed without the `bod
 
 ## CLI Commands
 
-| Command | What it does |
-|---|---|
-| `<prompt-or-key>` | Fast path. Routes to `start` for ticket keys; creates a local task for freeform prompts. |
-| `new <summary>` | Create local task at `.bode/tasks/<key>.md` without invoking the AI. |
-| `setup` | Interactive global wizard (tracker, AI CLIs, VCS). |
-| `setup-project` | Per-project wizard (workdir, default branch, context, overrides). |
-| `setup-transitions` | Map bode phases to your tracker's workflow states. |
-| `start <KEY>` | Start a task. Creates branch, runs planning phase. Add `--strict` for Wave 6 gates. |
-| `init` | Scaffold `AGENTS.md` for the current repo via the configured AI CLI. |
-| `learn` | Generate `<repo>/.bode/context.md` for future phase prompts. |
-| `continue <KEY>` | Advance to next phase. Creates PR at awaiting-merge. |
-| `status <KEY>` | Show current phase, branch, PR link, conflict status, and task/phase cost. |
-| `show <artifact> <KEY>` | Print artifact (`plan` / `implementation` / `review`) to stdout with cost header. |
-| `replay <KEY>` | Replay a saved phase prompt, or export/import a portable `.bode-run` bundle. |
-| `log <KEY>` | Show the log of the current or last phase. |
-| `list` | List all locally tracked tasks. |
-| `abort <KEY>` | Cancel execution, clean up branch, reset tracker state. |
-| `done <KEY>` | Mark done. Switch to base. Optionally merge PR. |
-| `skills` | Show resolved skill paths and prompts. |
-| `doctor [--report]` | Diagnose env, config, AI CLIs, VCS tooling, and Windows gotchas; optionally write a redacted local report. |
-| `feedback [--open]` | Create a pre-filled GitHub feedback issue URL. Never auto-submits. |
-| `telemetry [on\|off\|status\|preview]` | Opt-in anonymous telemetry control. |
-| `compare <KEY> --agents <list>` | Run planning across multiple agents headlessly and compare. |
+| Command                                | What it does                                                                                               |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `<prompt-or-key>`                      | Fast path. Routes to `start` for ticket keys; creates a local task for freeform prompts.                   |
+| `new <summary>`                        | Create local task at `.bode/tasks/<key>.md` without invoking the AI.                                       |
+| `setup`                                | Interactive global wizard (tracker, AI CLIs, VCS).                                                         |
+| `setup-project`                        | Per-project wizard (workdir, default branch, context, overrides).                                          |
+| `setup-transitions`                    | Map bode phases to your tracker's workflow states.                                                         |
+| `start <KEY>`                          | Start a task. Creates branch, runs planning phase. Add `--strict` for Wave 6 gates.                        |
+| `init`                                 | Scaffold `AGENTS.md` for the current repo via the configured AI CLI.                                       |
+| `learn`                                | Generate `<repo>/.bode/context.md` for future phase prompts.                                               |
+| `continue <KEY>`                       | Advance to next phase. Creates PR at awaiting-merge.                                                       |
+| `status <KEY>`                         | Show current phase, branch, PR link, conflict status, and task/phase cost.                                 |
+| `show <artifact> <KEY>`                | Print artifact (`plan` / `implementation` / `review`) to stdout with cost header.                          |
+| `replay <KEY>`                         | Replay a saved phase prompt, or export/import a portable `.bode-run` bundle.                               |
+| `log <KEY>`                            | Show the log of the current or last phase.                                                                 |
+| `list`                                 | List all locally tracked tasks.                                                                            |
+| `abort <KEY>`                          | Cancel execution, clean up branch, reset tracker state.                                                    |
+| `done <KEY>`                           | Mark done. Switch to base. Optionally merge PR.                                                            |
+| `skills`                               | Show resolved skill paths and prompts.                                                                     |
+| `doctor [--report]`                    | Diagnose env, config, AI CLIs, VCS tooling, and Windows gotchas; optionally write a redacted local report. |
+| `feedback [--open]`                    | Create a pre-filled GitHub feedback issue URL. Never auto-submits.                                         |
+| `telemetry [on\|off\|status\|preview]` | Opt-in anonymous telemetry control.                                                                        |
+| `compare <KEY> --agents <list>`        | Run planning across multiple agents headlessly and compare.                                                |
 
 ### Flags
 
-| Flag | Command(s) | Description |
-|---|---|---|
-| `--project <name>` | start, continue, fast path, compare, setup-transitions | Project name from `~/.bode/projects/` |
-| `--from-branch <branch>` | start | Base branch (default: project's `default_branch` or `main`) |
-| `--auto` | start, fast path | Run all phases sequentially until PR created |
-| `--strict` | start, fast path | Enable plan-review contract checks, validation gate, and release gate |
-| `--dangerously-auto-merge` | start, fast path | Run all phases + merge PR + mark done |
-| `--dangerously-approve-all` | start, continue, fast path | Pass each CLI its bypass-approvals/sandbox flag |
-| `--auto-approve-pr-merge` | done | Automatically merge PR before cleanup |
-| `--agents <list>` | compare | Comma-separated agents (e.g. `claude-code,codex` or `claude-code:claude-opus-4-7,codex:gpt-5.5`) |
-| `--phase <name>` | replay | Replay a specific saved phase prompt. |
-| `--with-cli <name>` / `--with-model <name>` | replay | Replay the saved prompt with another CLI/model. |
-| `--export [path]` / `--import <path>` | replay | Export/import a portable `.bode-run` JSON bundle. |
-| `-y, --yes` | abort, done | Skip confirmation |
+| Flag                                        | Command(s)                                             | Description                                                                                      |
+| ------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `--project <name>`                          | start, continue, fast path, compare, setup-transitions | Project name from `~/.bode/projects/`                                                            |
+| `--from-branch <branch>`                    | start                                                  | Base branch (default: project's `default_branch` or `main`)                                      |
+| `--auto`                                    | start, fast path                                       | Run all phases sequentially until PR created                                                     |
+| `--strict`                                  | start, fast path                                       | Enable plan-review contract checks, validation gate, and release gate                            |
+| `--dangerously-auto-merge`                  | start, fast path                                       | Run all phases + merge PR + mark done                                                            |
+| `--dangerously-approve-all`                 | start, continue, fast path                             | Pass each CLI its bypass-approvals/sandbox flag                                                  |
+| `--auto-approve-pr-merge`                   | done                                                   | Automatically merge PR before cleanup                                                            |
+| `--agents <list>`                           | compare                                                | Comma-separated agents (e.g. `claude-code,codex` or `claude-code:claude-opus-4-7,codex:gpt-5.5`) |
+| `--phase <name>`                            | replay                                                 | Replay a specific saved phase prompt.                                                            |
+| `--with-cli <name>` / `--with-model <name>` | replay                                                 | Replay the saved prompt with another CLI/model.                                                  |
+| `--export [path]` / `--import <path>`       | replay                                                 | Export/import a portable `.bode-run` JSON bundle.                                                |
+| `-y, --yes`                                 | abort, done                                            | Skip confirmation                                                                                |
 
 ## Phase Execution Detail
 
@@ -427,11 +443,11 @@ Each phase follows the same pattern (in `src/orchestrator/phase-runner.ts`):
 
 ### CLI invocation matrix
 
-| CLI | Interactive | Headless |
-|---|---|---|
-| claude-code | `claude --model <model> "<prompt>"` | `claude --print --model <model> < prompt.txt` |
-| opencode | `opencode --model <model> "<prompt>"` | `opencode run --model <model> --prompt-file /dev/stdin` |
-| codex | `codex --model <model> "<prompt>"` | `codex exec --model <model> --prompt-file /dev/stdin` |
+| CLI         | Interactive                           | Headless                                                |
+| ----------- | ------------------------------------- | ------------------------------------------------------- |
+| claude-code | `claude --model <model> "<prompt>"`   | `claude --print --model <model> < prompt.txt`           |
+| opencode    | `opencode --model <model> "<prompt>"` | `opencode run --model <model> --prompt-file /dev/stdin` |
+| codex       | `codex --model <model> "<prompt>"`    | `codex exec --model <model> --prompt-file /dev/stdin`   |
 
 All adapters implement `CliAdapter` via `BaseCliAdapter` (`src/adapters/cli/base.ts`).
 
@@ -447,20 +463,24 @@ Each skill file is markdown with this shape:
 # Skill: Planning
 
 ## Role
+
 You are a senior engineer planning the implementation of a task.
 
 ## Context (injected by bode)
+
 <task description>
 <project AGENTS.md / CLAUDE.md if present>
 <repo file tree>
 <prior artifacts>
 
 ## Instructions
+
 - Output a plan as markdown with sections: Goal, Approach, Files to modify, Risks, Tests needed
 - Do not write code in this phase
 - If ambiguous, list questions instead of guessing
 
 ## Output format
+
 Pure markdown.
 ```
 
@@ -541,14 +561,14 @@ See [Strategy Architecture](#strategy-architecture) → IssueTrackerStrategy.
 
 ### Status mapping per tracker
 
-| Tracker | "In Progress" | "Code Review" | "Done" |
-|---|---|---|---|
-| Jira | Jira transition (configurable via `setup-transitions`) | Jira transition | Jira transition |
-| GitHub Issues | Open + `bode:implementing` label | Open + `bode:reviewing` label | Closed |
-| Linear | Linear workflow state (by name) | Linear workflow state | Linear workflow state |
-| Notion | Status property value | Status property value | Status property value |
-| Trello | Card moves between lists named like the status | Card moves between lists | Card moves between lists |
-| Local | YAML frontmatter `status:` | YAML frontmatter `status:` | YAML frontmatter `status:` |
+| Tracker       | "In Progress"                                          | "Code Review"                 | "Done"                     |
+| ------------- | ------------------------------------------------------ | ----------------------------- | -------------------------- |
+| Jira          | Jira transition (configurable via `setup-transitions`) | Jira transition               | Jira transition            |
+| GitHub Issues | Open + `bode:implementing` label                       | Open + `bode:reviewing` label | Closed                     |
+| Linear        | Linear workflow state (by name)                        | Linear workflow state         | Linear workflow state      |
+| Notion        | Status property value                                  | Status property value         | Status property value      |
+| Trello        | Card moves between lists named like the status         | Card moves between lists      | Card moves between lists   |
+| Local         | YAML frontmatter `status:`                             | YAML frontmatter `status:`    | YAML frontmatter `status:` |
 
 ### Summary comments
 
@@ -562,23 +582,23 @@ A summary comment is posted to the tracker on every phase boundary (planning, im
 
 ### Providers
 
-| Provider | CLI | Adapter |
-|---|---|---|
-| GitHub | `gh` | `src/adapters/vcs/github.ts` |
-| GitLab | `glab` | `src/adapters/vcs/gitlab.ts` |
+| Provider | CLI    | Adapter                      |
+| -------- | ------ | ---------------------------- |
+| GitHub   | `gh`   | `src/adapters/vcs/github.ts` |
+| GitLab   | `glab` | `src/adapters/vcs/gitlab.ts` |
 
 Factory: `src/adapters/vcs/factory.ts`. Resolution: project `vcs_provider` > global `vcs.provider` > default `github`.
 
 ### Branch naming by issue type
 
-| Tracker issue type | Branch prefix | Example |
-|---|---|---|
-| Story | `feat/` | `feat/kd-312` |
-| Bug | `fix/` | `fix/kd-100` |
-| Task | `chore/` | `chore/kd-200` |
-| Improvement | `refactor/` | `refactor/kd-300` |
-| Sub-task | `feat/` | `feat/kd-500` |
-| Unknown | `feat/` | `feat/kd-400` |
+| Tracker issue type | Branch prefix | Example           |
+| ------------------ | ------------- | ----------------- |
+| Story              | `feat/`       | `feat/kd-312`     |
+| Bug                | `fix/`        | `fix/kd-100`      |
+| Task               | `chore/`      | `chore/kd-200`    |
+| Improvement        | `refactor/`   | `refactor/kd-300` |
+| Sub-task           | `feat/`       | `feat/kd-500`     |
+| Unknown            | `feat/`       | `feat/kd-400`     |
 
 For local tasks (no tracker), the key is auto-generated as `local-<short-hash>` and the prefix defaults to `feat/`.
 
@@ -620,19 +640,19 @@ If two devs run `bode start` on the same task simultaneously, second one detects
 
 ## Failure Modes
 
-| Failure | Behavior |
-|---|---|
-| Tracker unreachable | Exit with clear error. No state changes. |
-| AI CLI not installed | Exit with install instructions for that CLI (`errorChecklist`). |
-| AI CLI exits non-zero | Phase marked failed regardless of artifact (v0.20.0 exit-code gate). Comment failure on tracker with last 50 lines of log. Reset label. |
-| Phase timeout | Abort CLI process. Comment on tracker. User can `bode continue` to retry. |
-| Network drop mid-phase | Local log preserved. User can `bode continue` to retry or `bode abort` to cancel. |
-| Conflicting labels | Exit with diagnostic. User runs `bode abort` to reset. |
-| Branch conflict with base | Stop before PR creation. Warn user to resolve manually. |
-| Workdir / repos[] unreadable | Preflight aborts the phase with structured error listing every offender (v0.12.0; `context_paths` deprecated in v1.3.0). |
-| AI session exits without writing the artifact | Bode shows a yellow warning and asks `[retry \| continue \| abort]` (v0.13.0). |
-| Hook command exits non-zero | Phase aborts unless hook has `non_blocking: true`. |
-| Two concurrent runs on same task | Second invocation refuses on the lockfile (v0.19.0). |
+| Failure                                       | Behavior                                                                                                                                |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Tracker unreachable                           | Exit with clear error. No state changes.                                                                                                |
+| AI CLI not installed                          | Exit with install instructions for that CLI (`errorChecklist`).                                                                         |
+| AI CLI exits non-zero                         | Phase marked failed regardless of artifact (v0.20.0 exit-code gate). Comment failure on tracker with last 50 lines of log. Reset label. |
+| Phase timeout                                 | Abort CLI process. Comment on tracker. User can `bode continue` to retry.                                                               |
+| Network drop mid-phase                        | Local log preserved. User can `bode continue` to retry or `bode abort` to cancel.                                                       |
+| Conflicting labels                            | Exit with diagnostic. User runs `bode abort` to reset.                                                                                  |
+| Branch conflict with base                     | Stop before PR creation. Warn user to resolve manually.                                                                                 |
+| Workdir / repos[] unreadable                  | Preflight aborts the phase with structured error listing every offender (v0.12.0; `context_paths` deprecated in v1.3.0).                |
+| AI session exits without writing the artifact | Bode shows a yellow warning and asks `[retry \| continue \| abort]` (v0.13.0).                                                          |
+| Hook command exits non-zero                   | Phase aborts unless hook has `non_blocking: true`.                                                                                      |
+| Two concurrent runs on same task              | Second invocation refuses on the lockfile (v0.19.0).                                                                                    |
 
 ## Telemetry
 
@@ -686,18 +706,18 @@ Every phase writes the exact prompt sent to the AI CLI as `<phase>.prompt.md` an
 
 ## Data Flow
 
-| Data | Source | Destination | Network by default? | Notes |
-|---|---|---|---|---|
-| Config | `~/.bode/config.yml`, `.bode.yml` | Process memory | No | Tokens stay local and must not be logged. |
-| Task content | Tracker adapter or `.bode/tasks/*.md` | AI prompt, run artifacts | Yes, to configured AI CLI only | Wrapped as untrusted input before prompt injection. |
-| Repo context | `AGENTS.md`, `.bode/context.md`, file tree | AI prompt, run manifest hash | Yes, to configured AI CLI only | Context paths are preflighted before use. |
-| Skill prompts | bundled/project/global skill files | AI prompt, manifest hash | Yes, to configured AI CLI only | Skill hash stored in `manifest.json`. |
-| AI prompts | `phase-runner` generated prompt | `<phase>.prompt.md`, AI CLI stdin | Yes, to configured AI CLI only | Replay uses the saved prompt byte-for-byte. |
-| AI output | AI CLI stdout/stderr and artifact files | `~/.bode/runs/<KEY>/` | No additional network | Interactive sessions may not capture stdout. |
-| Cost usage | CLI usage extraction / budget tracker | `~/.bode/usage/<date>.json` | No | Best-effort; currently display-only unless budget config is set. |
-| Telemetry | Local command events | `~/.bode/telemetry/events.ndjson` | No | Endpoint is unset by default; opt-in only. |
-| Feedback | User-edited GitHub issue URL | Browser / GitHub Issues | Only if user submits | `bode feedback` prints/opens only. |
-| Doctor report | Local diagnostics | User-chosen markdown file | No | User reviews/redacts before sharing. |
+| Data          | Source                                     | Destination                       | Network by default?            | Notes                                                            |
+| ------------- | ------------------------------------------ | --------------------------------- | ------------------------------ | ---------------------------------------------------------------- |
+| Config        | `~/.bode/config.yml`, `.bode.yml`          | Process memory                    | No                             | Tokens stay local and must not be logged.                        |
+| Task content  | Tracker adapter or `.bode/tasks/*.md`      | AI prompt, run artifacts          | Yes, to configured AI CLI only | Wrapped as untrusted input before prompt injection.              |
+| Repo context  | `AGENTS.md`, `.bode/context.md`, file tree | AI prompt, run manifest hash      | Yes, to configured AI CLI only | Context paths are preflighted before use.                        |
+| Skill prompts | bundled/project/global skill files         | AI prompt, manifest hash          | Yes, to configured AI CLI only | Skill hash stored in `manifest.json`.                            |
+| AI prompts    | `phase-runner` generated prompt            | `<phase>.prompt.md`, AI CLI stdin | Yes, to configured AI CLI only | Replay uses the saved prompt byte-for-byte.                      |
+| AI output     | AI CLI stdout/stderr and artifact files    | `~/.bode/runs/<KEY>/`             | No additional network          | Interactive sessions may not capture stdout.                     |
+| Cost usage    | CLI usage extraction / budget tracker      | `~/.bode/usage/<date>.json`       | No                             | Best-effort; currently display-only unless budget config is set. |
+| Telemetry     | Local command events                       | `~/.bode/telemetry/events.ndjson` | No                             | Endpoint is unset by default; opt-in only.                       |
+| Feedback      | User-edited GitHub issue URL               | Browser / GitHub Issues           | Only if user submits           | `bode feedback` prints/opens only.                               |
+| Doctor report | Local diagnostics                          | User-chosen markdown file         | No                             | User reviews/redacts before sharing.                             |
 
 ## Definition of Done (current)
 
@@ -758,19 +778,19 @@ See `ROADMAP.md` for the full Waves 6–9 plan.
 
 ## Risks and Mitigations
 
-| Risk | Mitigation |
-|---|---|
-| Tracker API changes (Jira / Linear / Notion / Trello / Github Issues) | Per-adapter integration tests with recorded fixtures; pinned API versions where supported (Notion: `2022-06-28`) |
-| Native CLI changes headless interface | `CliAdapter` abstraction; per-CLI smoke tests |
-| Plans of poor quality due to weak skill prompts | Skills versioned in repo, iterate based on real usage; users can override per project |
-| Two devs working same task | Label/tag detection + assignee check + lockfile + explicit `--force` |
-| Plans grow too large for tracker comments | Auto-truncation at `plan_inline_max_chars` (default 3000) |
-| Token cost from AI CLIs | Each phase has timeout; failures don't auto-retry; logs preserve full output for manual audit; cost tracking is Wave 8 |
-| Prompt injection from tracker content | Wrapped in `<untrusted>` markers; bundled skills include defensive instructions |
-| AI CLI exits without artifact | Interactive `[retry \| continue \| abort]` prompt; exit-code gate marks phase failed on non-zero |
-| Concurrent runs clobber state | Atomic meta writes + per-task lockfiles |
-| npm install from GitHub fails on Windows | Tarball install workaround documented; SEA binary alternative |
-| Tracker credentials in plaintext config | Documented preference for env vars (`LINEAR_API_KEY`, `NOTION_TOKEN`, `TRELLO_KEY`/`TRELLO_TOKEN`) over storing in YAML |
+| Risk                                                                  | Mitigation                                                                                                              |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Tracker API changes (Jira / Linear / Notion / Trello / Github Issues) | Per-adapter integration tests with recorded fixtures; pinned API versions where supported (Notion: `2022-06-28`)        |
+| Native CLI changes headless interface                                 | `CliAdapter` abstraction; per-CLI smoke tests                                                                           |
+| Plans of poor quality due to weak skill prompts                       | Skills versioned in repo, iterate based on real usage; users can override per project                                   |
+| Two devs working same task                                            | Label/tag detection + assignee check + lockfile + explicit `--force`                                                    |
+| Plans grow too large for tracker comments                             | Auto-truncation at `plan_inline_max_chars` (default 3000)                                                               |
+| Token cost from AI CLIs                                               | Each phase has timeout; failures don't auto-retry; logs preserve full output for manual audit; cost tracking is Wave 8  |
+| Prompt injection from tracker content                                 | Wrapped in `<untrusted>` markers; bundled skills include defensive instructions                                         |
+| AI CLI exits without artifact                                         | Interactive `[retry \| continue \| abort]` prompt; exit-code gate marks phase failed on non-zero                        |
+| Concurrent runs clobber state                                         | Atomic meta writes + per-task lockfiles                                                                                 |
+| npm install from GitHub fails on Windows                              | Tarball install workaround documented; SEA binary alternative                                                           |
+| Tracker credentials in plaintext config                               | Documented preference for env vars (`LINEAR_API_KEY`, `NOTION_TOKEN`, `TRELLO_KEY`/`TRELLO_TOKEN`) over storing in YAML |
 
 ## Out of Scope (still)
 

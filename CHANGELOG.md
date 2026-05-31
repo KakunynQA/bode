@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] — 2026-05-31
+
+### Added
+
+- Interactive shell now supports **persistent command history**. ↑/↓ cycle
+  through previously submitted commands; history is stored in
+  `~/.bode/history` (one command per line, chronological, capped at 250
+  entries) and shared across sessions. Identical consecutive entries are
+  collapsed (bash `HISTCONTROL=ignoredups`). Writes are atomic via
+  tmp-file + rename; concurrent shells are last-writer-wins.
+- Interactive shell now supports **Tab autocomplete** on the first token
+  (subcommands + builtins) and on flag-shaped tokens (per-subcommand
+  flag list). Single matches insert inline; multiple matches print a
+  candidate list above the prompt. Positional tokens (ticket keys,
+  file paths) are not completed in 2.1 — possible future work.
+
+### Changed
+
+- **Ctrl+C semantics.** In the interactive shell, Ctrl+C now _always_
+  terminates the bode process — including mid-wizard and during a
+  spawned AI CLI. Previously Ctrl+C only cancelled the active prompt
+  and returned to the shell prompt. The per-action cancel role moves to
+  ESC, which now also cancels the entire wizard when pressed at the
+  first step (was: "(nothing to go back to)" + re-prompt loop).
+  Implemented via a new `TerminateShellError` that escapes
+  `runActionGuarded` so `runShell` can exit cleanly.
+- TUI prompt rewritten as a custom Ink `useInput` component (replaces
+  `ink-text-input`). It owns the line buffer + cursor + history pointer
+  and intercepts Ctrl+C / Tab / ↑↓ before any default Ink handler. Ink
+  is now mounted with `exitOnCtrlC: false`.
+- TUI footer keybinding hint updated to
+  `(↵ run · ↑↓ history · tab complete · ctrl+c exit)`.
+- SPEC.md §Shell Mode and README.md v2.0.0 callout updated to document
+  the new keybindings + history file format.
+
+### Fixed
+
+- `setup-project` `@` file picker now reliably scans the workdir the
+  user typed in the "Working directory (absolute path):" question. The
+  workdir is normalised to an absolute path via `path.resolve()` before
+  any picker call, so a relative or `.` workdir cannot leak the cwd of
+  the launching shell into the scan (root cause of the report: "@ scans
+  bode's own folder when the TUI is launched from there"). A new
+  `Scanning <abs path> for candidate files` diagnostic line is printed
+  above each context-files question so the user can confirm the scope
+  before opening the picker.
+
 ## [2.0.4] — 2026-05-31
 
 ### Fixed
@@ -85,7 +132,7 @@ keybinding hint). Every command is typed inside the shell without the
 ### Breaking
 
 - `bode <subcommand>` (`bode setup`, `bode start KD-1`, `bode "fix the
-  bug"`, etc.) no longer runs as a one-shot CLI. Launch the shell with
+bug"`, etc.) no longer runs as a one-shot CLI. Launch the shell with
   `bode`, then type `setup`, `start KD-1`, or `"fix the bug"` at the
   prompt.
 - `--auto`, `--strict`, `--dangerously-auto-merge`, `--dangerously-approve-all`,
@@ -447,15 +494,15 @@ Total: 176 → 203 (+27).
 
 ### Rename map
 
-| Old (deprecated) | New (canonical) |
-|---|---|
-| `getIssue` | `fetchTask` |
-| `addComment` | `postComment` |
-| `transitionStatus` | `setStatus` |
-| `addLabel` | `addTag` |
-| `removeLabel` | `removeTag` |
-| `getTransitions` | `listStatuses` |
-| `attachFile` | `attachFile` *(unchanged)* |
+| Old (deprecated)   | New (canonical)            |
+| ------------------ | -------------------------- |
+| `getIssue`         | `fetchTask`                |
+| `addComment`       | `postComment`              |
+| `transitionStatus` | `setStatus`                |
+| `addLabel`         | `addTag`                   |
+| `removeLabel`      | `removeTag`                |
+| `getTransitions`   | `listStatuses`             |
+| `attachFile`       | `attachFile` _(unchanged)_ |
 
 ### Changed
 
@@ -752,10 +799,10 @@ Wave 0 hardening pass — addresses 6 of the open hardening issues at once.
   ```yaml
   jira:
     transitions:
-      planning: "In Progress"
-      implementation: "In Development"
-      review: "QA"          # or whatever your team calls it
-      done: "Done"
+      planning: 'In Progress'
+      implementation: 'In Development'
+      review: 'QA' # or whatever your team calls it
+      done: 'Done'
   ```
   Resolution order: project YAML > global YAML > built-in defaults (`In Progress` / `In Review` / `Code Review` / `Done`). Fixes the common `Transition to "Code Review" not found` error on Jira workflows that use different status names.
 - **Per-phase artifact paths printed to the terminal.** After each successful phase, bode prints the absolute paths of the log + markdown artifact so you can grep/open them directly.
@@ -783,11 +830,11 @@ Wave 0 hardening pass — addresses 6 of the open hardening issues at once.
 - **Flags renamed to the `--dangerously-*` family** for consistency with claude/codex conventions:
   - `--approve-all-dangerous` → `--dangerously-approve-all`
   - `--auto-and-merge-dangerously` → `--dangerously-auto-merge`
-  Old names are not aliased. Update your scripts.
+    Old names are not aliased. Update your scripts.
 
 ### Removed
 
-- **`ZaiAdapter` removed.** Investigation showed that Z.AI's `coding-helper` (a.k.a. `chelper`) is **not** an AI coding agent — it's a config wizard that installs/configures *other* CLIs (claude-code, opencode, crush, factory-droid) to route through Z.AI's GLM models. The `zai-coding` command this adapter shelled out to does not exist.
+- **`ZaiAdapter` removed.** Investigation showed that Z.AI's `coding-helper` (a.k.a. `chelper`) is **not** an AI coding agent — it's a config wizard that installs/configures _other_ CLIs (claude-code, opencode, crush, factory-droid) to route through Z.AI's GLM models. The `zai-coding` command this adapter shelled out to does not exist.
 - GLM models removed from `models.ts` under a dedicated `zai` entry. They remain listed under `opencode` (which can route to GLM via Z.AI configuration).
 
 ### Documentation
@@ -809,7 +856,7 @@ Wave 0 hardening pass — addresses 6 of the open hardening issues at once.
   - `codex` → `--dangerously-bypass-approvals-and-sandbox`
   - `opencode` → null (no equivalent flag exists)
   - `zai` → null (no equivalent flag exists)
-  When the configured CLI returns `null`, bode warns upfront and asks whether to proceed (the user will need to approve actions interactively during those phases).
+    When the configured CLI returns `null`, bode warns upfront and asks whether to proceed (the user will need to approve actions interactively during those phases).
 - `src/cli/dangerous-check.ts#planDangerousMode()` — checks every phase's CLI, warns about unsupported ones, asks for confirmation.
 - `src/cli/missing-artifact.ts#handleMissingArtifact()` — interactive prompt when the AI session exits without writing the artifact.
 - `CliInvocationOptions` type — adapter `invoke()` now takes `{ signal, interactive, dangerousBypass }`.

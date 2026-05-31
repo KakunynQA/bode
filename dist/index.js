@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.0.4") {
-    return "2.0.4";
+  if ("2.1.0") {
+    return "2.1.0";
   }
   const base = moduleDir();
   if (base) {
@@ -1483,7 +1483,7 @@ var require_react_development = __commonJS({
           }
           return dispatcher.useContext(Context);
         }
-        function useState5(initialState) {
+        function useState4(initialState) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useState(initialState);
         }
@@ -1495,7 +1495,7 @@ var require_react_development = __commonJS({
           var dispatcher = resolveDispatcher();
           return dispatcher.useRef(initialValue);
         }
-        function useEffect5(create2, deps) {
+        function useEffect4(create2, deps) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useEffect(create2, deps);
         }
@@ -2278,7 +2278,7 @@ var require_react_development = __commonJS({
         exports.useContext = useContext7;
         exports.useDebugValue = useDebugValue;
         exports.useDeferredValue = useDeferredValue;
-        exports.useEffect = useEffect5;
+        exports.useEffect = useEffect4;
         exports.useId = useId;
         exports.useImperativeHandle = useImperativeHandle;
         exports.useInsertionEffect = useInsertionEffect;
@@ -2286,7 +2286,7 @@ var require_react_development = __commonJS({
         exports.useMemo = useMemo4;
         exports.useReducer = useReducer;
         exports.useRef = useRef2;
-        exports.useState = useState5;
+        exports.useState = useState4;
         exports.useSyncExternalStore = useSyncExternalStore;
         exports.useTransition = useTransition;
         exports.version = ReactVersion;
@@ -7978,9 +7978,9 @@ var require_react_reconciler_development = __commonJS({
       module.exports = function $$$reconciler($$$hostConfig) {
         var exports2 = {};
         "use strict";
-        var React11 = require_react();
+        var React10 = require_react();
         var Scheduler = require_scheduler();
-        var ReactSharedInternals = React11.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+        var ReactSharedInternals = React10.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
         var suppressWarning = false;
         function setSuppressWarning(newSuppressWarning) {
           {
@@ -28083,7 +28083,7 @@ var require_react_jsx_runtime_development = __commonJS({
     if (process.env.NODE_ENV !== "production") {
       (function() {
         "use strict";
-        var React11 = require_react();
+        var React10 = require_react();
         var REACT_ELEMENT_TYPE = Symbol.for("react.element");
         var REACT_PORTAL_TYPE = Symbol.for("react.portal");
         var REACT_FRAGMENT_TYPE = Symbol.for("react.fragment");
@@ -28109,7 +28109,7 @@ var require_react_jsx_runtime_development = __commonJS({
           }
           return null;
         }
-        var ReactSharedInternals = React11.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
+        var ReactSharedInternals = React10.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
         function error52(format2) {
           {
             {
@@ -53600,7 +53600,7 @@ import { AsyncResource as AsyncResource2 } from "node:async_hooks";
 function isFactory(value) {
   return typeof value === "function";
 }
-function useState4(defaultValue) {
+function useState3(defaultValue) {
   return withPointer((pointer) => {
     const setState = AsyncResource2.bind(function setState2(newValue) {
       if (pointer.get() !== newValue) {
@@ -53623,7 +53623,7 @@ var init_use_state = __esm({
 });
 
 // node_modules/@inquirer/core/dist/lib/use-effect.js
-function useEffect4(cb, depArray) {
+function useEffect3(cb, depArray) {
   withPointer((pointer) => {
     const oldDeps = pointer.get();
     const hasChanged = !Array.isArray(oldDeps) || depArray.some((dep, i) => !Object.is(dep, oldDeps[i]));
@@ -54008,10 +54008,10 @@ var init_make_theme = __esm({
 
 // node_modules/@inquirer/core/dist/lib/use-prefix.js
 function usePrefix({ status = "idle", theme }) {
-  const [showLoader, setShowLoader] = useState4(false);
-  const [tick, setTick] = useState4(0);
+  const [showLoader, setShowLoader] = useState3(false);
+  const [tick, setTick] = useState3(0);
   const { prefix, spinner } = makeTheme(theme);
-  useEffect4(() => {
+  useEffect3(() => {
     if (status === "loading") {
       let tickInterval;
       let inc = -1;
@@ -54064,7 +54064,7 @@ var init_use_memo = __esm({
 
 // node_modules/@inquirer/core/dist/lib/use-ref.js
 function useRef(val) {
-  return useState4({ current: val })[0];
+  return useState3({ current: val })[0];
 }
 var init_use_ref = __esm({
   "node_modules/@inquirer/core/dist/lib/use-ref.js"() {
@@ -54076,7 +54076,7 @@ var init_use_ref = __esm({
 function useKeypress(userHandler) {
   const signal = useRef(userHandler);
   signal.current = userHandler;
-  useEffect4((rl) => {
+  useEffect3((rl) => {
     let ignore = false;
     const handler = withUpdates((_input, event) => {
       if (ignore)
@@ -55352,9 +55352,9 @@ var init_dist6 = __esm({
       const shortcuts = { all: "a", invert: "i", ...config2.shortcuts };
       const theme = makeTheme(checkboxTheme, config2.theme);
       const { keybindings: keybindings2 } = theme;
-      const [status, setStatus] = useState4("idle");
+      const [status, setStatus] = useState3("idle");
       const prefix = usePrefix({ status, theme });
-      const [items, setItems] = useState4(normalizeChoices(config2.choices));
+      const [items, setItems] = useState3(normalizeChoices(config2.choices));
       const bounds = useMemo3(() => {
         const first = items.findIndex(isNavigable);
         const last = items.findLastIndex(isNavigable);
@@ -55363,8 +55363,8 @@ var init_dist6 = __esm({
         }
         return { first, last };
       }, [items]);
-      const [active, setActive] = useState4(bounds.first);
-      const [errorMsg, setError] = useState4();
+      const [active, setActive] = useState3(bounds.first);
+      const [errorMsg, setError] = useState3();
       useKeypress(async (key) => {
         if (isEnterKey(key)) {
           const selection = items.filter(isChecked);
@@ -65099,9 +65099,9 @@ var init_dist8 = __esm({
     dist_default8 = createPrompt((config2, done) => {
       const { waitForUserInput = true, file: { postfix = config2.postfix ?? ".txt", ...fileProps } = {}, validate: validate2 = () => true } = config2;
       const theme = makeTheme(editorTheme, config2.theme);
-      const [status, setStatus] = useState4("idle");
-      const [value = "", setValue] = useState4(config2.default);
-      const [errorMsg, setError] = useState4();
+      const [status, setStatus] = useState3("idle");
+      const [value = "", setValue] = useState3(config2.default);
+      const [errorMsg, setError] = useState3();
       const prefix = usePrefix({ status, theme });
       async function startEditor(rl) {
         rl.pause();
@@ -65128,7 +65128,7 @@ var init_dist8 = __esm({
           setError(String(error53));
         }
       }
-      useEffect4((rl) => {
+      useEffect3((rl) => {
         if (!waitForUserInput) {
           void startEditor(rl);
         }
@@ -65176,8 +65176,8 @@ var init_dist9 = __esm({
     init_dist5();
     dist_default9 = createPrompt((config2, done) => {
       const { transformer = boolToString } = config2;
-      const [status, setStatus] = useState4("idle");
-      const [value, setValue] = useState4("");
+      const [status, setStatus] = useState3("idle");
+      const [value, setValue] = useState3("");
       const theme = makeTheme(config2.theme);
       const prefix = usePrefix({ status, theme });
       useKeypress((key, rl) => {
@@ -65221,10 +65221,10 @@ var init_dist10 = __esm({
     dist_default10 = createPrompt((config2, done) => {
       const { prefill = "tab" } = config2;
       const theme = makeTheme(inputTheme, config2.theme);
-      const [status, setStatus] = useState4("idle");
-      const [defaultValue, setDefaultValue] = useState4(String(config2.default ?? ""));
-      const [errorMsg, setError] = useState4();
-      const [value, setValue] = useState4("");
+      const [status, setStatus] = useState3("idle");
+      const [defaultValue, setDefaultValue] = useState3(String(config2.default ?? ""));
+      const [errorMsg, setError] = useState3();
+      const [value, setValue] = useState3("");
       const prefix = usePrefix({ status, theme });
       async function validate2(value2) {
         const { required: required2, pattern, patternError = "Invalid input" } = config2;
@@ -65272,7 +65272,7 @@ var init_dist10 = __esm({
           setError(void 0);
         }
       });
-      useEffect4((rl) => {
+      useEffect3((rl) => {
         if (prefill === "editable" && defaultValue) {
           rl.write(defaultValue);
           setValue(defaultValue);
@@ -65325,11 +65325,11 @@ var init_dist11 = __esm({
     dist_default11 = createPrompt((config2, done) => {
       const { validate: validate2 = () => true, min = -Infinity, max = Infinity, step = 1, required: required2 = false } = config2;
       const theme = makeTheme(config2.theme);
-      const [status, setStatus] = useState4("idle");
-      const [value, setValue] = useState4("");
+      const [status, setStatus] = useState3("idle");
+      const [value, setValue] = useState3("");
       const validDefault = validateNumber(config2.default, { min, max, step }) === true ? config2.default?.toString() : void 0;
-      const [defaultValue = "", setDefaultValue] = useState4(validDefault);
-      const [errorMsg, setError] = useState4();
+      const [defaultValue = "", setDefaultValue] = useState3(validDefault);
+      const [errorMsg, setError] = useState3();
       const prefix = usePrefix({ status, theme });
       useKeypress(async (key, rl) => {
         if (status !== "idle") {
@@ -65417,10 +65417,10 @@ var init_dist12 = __esm({
     expand = createPrompt((config2, done) => {
       const { default: defaultKey = "h" } = config2;
       const choices = useMemo3(() => normalizeChoices2(config2.choices), [config2.choices]);
-      const [status, setStatus] = useState4("idle");
-      const [value, setValue] = useState4("");
-      const [expanded, setExpanded] = useState4(config2.expanded ?? false);
-      const [errorMsg, setError] = useState4();
+      const [status, setStatus] = useState3("idle");
+      const [value, setValue] = useState3("");
+      const [expanded, setExpanded] = useState3(config2.expanded ?? false);
+      const [errorMsg, setError] = useState3();
       const theme = makeTheme(config2.theme);
       const prefix = usePrefix({ theme, status });
       useKeypress((event, rl) => {
@@ -65545,12 +65545,12 @@ var init_dist13 = __esm({
     dist_default13 = createPrompt((config2, done) => {
       const { loop = true } = config2;
       const choices = useMemo3(() => normalizeChoices3(config2.choices), [config2.choices]);
-      const [status, setStatus] = useState4("idle");
-      const [value, setValue] = useState4(() => {
+      const [status, setStatus] = useState3("idle");
+      const [value, setValue] = useState3(() => {
         const defaultChoice = config2.default == null ? void 0 : choices.find((choice) => isSelectableChoice(choice) && choice.value === config2.default);
         return defaultChoice?.key ?? "";
       });
-      const [errorMsg, setError] = useState4();
+      const [errorMsg, setError] = useState3();
       const theme = makeTheme(rawlistTheme, config2.theme);
       const { keybindings: keybindings2 } = theme;
       const prefix = usePrefix({ status, theme });
@@ -65640,9 +65640,9 @@ var init_dist14 = __esm({
     dist_default14 = createPrompt((config2, done) => {
       const { validate: validate2 = () => true } = config2;
       const theme = makeTheme(passwordTheme, config2.theme);
-      const [status, setStatus] = useState4("idle");
-      const [errorMsg, setError] = useState4();
-      const [value, setValue] = useState4("");
+      const [status, setStatus] = useState3("idle");
+      const [errorMsg, setError] = useState3();
+      const [value, setValue] = useState3("");
       const prefix = usePrefix({ status, theme });
       useKeypress(async (key, rl) => {
         if (status !== "idle") {
@@ -65735,10 +65735,10 @@ var init_dist15 = __esm({
     dist_default15 = createPrompt((config2, done) => {
       const { pageSize = 7, validate: validate2 = () => true } = config2;
       const theme = makeTheme(searchTheme, config2.theme);
-      const [status, setStatus] = useState4("loading");
-      const [searchTerm, setSearchTerm] = useState4("");
-      const [searchResults, setSearchResults] = useState4([]);
-      const [searchError, setSearchError] = useState4();
+      const [status, setStatus] = useState3("loading");
+      const [searchTerm, setSearchTerm] = useState3("");
+      const [searchResults, setSearchResults] = useState3([]);
+      const [searchError, setSearchError] = useState3();
       const defaultApplied = useRef(false);
       const prefix = usePrefix({ status, theme });
       const bounds = useMemo3(() => {
@@ -65746,8 +65746,8 @@ var init_dist15 = __esm({
         const last = searchResults.findLastIndex(isSelectable2);
         return { first, last };
       }, [searchResults]);
-      const [active = bounds.first, setActive] = useState4();
-      useEffect4(() => {
+      const [active = bounds.first, setActive] = useState3();
+      useEffect3(() => {
         const controller = new AbortController();
         setStatus("loading");
         setSearchError(void 0);
@@ -65919,7 +65919,7 @@ var init_dist16 = __esm({
       const { loop = true, pageSize = 7 } = config2;
       const theme = makeTheme(selectTheme, config2.theme);
       const { keybindings: keybindings2 } = theme;
-      const [status, setStatus] = useState4("idle");
+      const [status, setStatus] = useState3("idle");
       const prefix = usePrefix({ status, theme });
       const searchTimeoutRef = useRef();
       const searchEnabled = !keybindings2.includes("vim");
@@ -65937,12 +65937,12 @@ var init_dist16 = __esm({
           return -1;
         return items.findIndex((item) => isSelectable3(item) && item.value === config2.default);
       }, [config2.default, items]);
-      const [active, setActive] = useState4(defaultItemIndex === -1 ? bounds.first : defaultItemIndex);
+      const [active, setActive] = useState3(defaultItemIndex === -1 ? bounds.first : defaultItemIndex);
       const selectedChoice = items[active];
       if (selectedChoice == null || Separator.isSeparator(selectedChoice)) {
         throw new Error("Active index does not point to a choice");
       }
-      const [errorMsg, setError] = useState4();
+      const [errorMsg, setError] = useState3();
       useKeypress((key, rl) => {
         clearTimeout(searchTimeoutRef.current);
         if (errorMsg) {
@@ -65998,7 +65998,7 @@ var init_dist16 = __esm({
           }, 700);
         }
       });
-      useEffect4(() => () => {
+      useEffect3(() => () => {
         clearTimeout(searchTimeoutRef.current);
       }, []);
       const message = theme.style.message(config2.message, status);
@@ -66121,8 +66121,8 @@ async function runWithBackSignal(fn, opts) {
       cleanup();
       if (isBackAbort(err)) {
         if (opts.firstStep) {
-          console.log(FIRST_STEP_NO_BACK);
-          continue;
+          console.log(import_picocolors2.default.dim("  Cancelled."));
+          throw new CancelledError();
         }
         return BACK;
       }
@@ -66160,8 +66160,8 @@ async function askSearch(opts, wrap = {}) {
 function handlePromptError(err, cleanup) {
   cleanup?.();
   if (err instanceof ExitPromptError) {
-    console.log(import_picocolors2.default.dim("\nCancelled.\n"));
-    throw new CancelledError();
+    console.log(import_picocolors2.default.dim("\nExited.\n"));
+    throw new TerminateShellError();
   }
   if (err instanceof AbortPromptError && !isBackAbort(err)) {
     console.log(import_picocolors2.default.dim("\nCancelled.\n"));
@@ -66335,8 +66335,8 @@ async function askInputWithAtTrigger(opts, wrap = {}) {
           return;
         case "BACK":
           if (wrap.firstStep) {
-            console.log(FIRST_STEP_NO_BACK);
-            askInputWithAtTrigger(opts, wrap).then(resolve, reject);
+            console.log(import_picocolors2.default.dim("  Cancelled."));
+            reject(new CancelledError());
             return;
           }
           resolve(BACK);
@@ -66380,7 +66380,7 @@ async function askInputWithAtTrigger(opts, wrap = {}) {
     render2();
   });
 }
-var import_picocolors2, BACK, AT_TRIGGER, BackError, FOOTER_HINT, FIRST_STEP_NO_BACK, CancelledError, ESC_DEBOUNCE_MS;
+var import_picocolors2, BACK, AT_TRIGGER, BackError, FOOTER_HINT, CancelledError, TerminateShellError, ESC_DEBOUNCE_MS;
 var init_prompt = __esm({
   "src/utils/prompt.ts"() {
     "use strict";
@@ -66395,12 +66395,17 @@ var init_prompt = __esm({
         this.name = "BackError";
       }
     };
-    FOOTER_HINT = import_picocolors2.default.dim("  (esc to go back \xB7 ctrl+c to cancel)");
-    FIRST_STEP_NO_BACK = import_picocolors2.default.dim("  (nothing to go back to)");
+    FOOTER_HINT = import_picocolors2.default.dim("  (esc to go back \xB7 ctrl+c to exit bode)");
     CancelledError = class extends Error {
       constructor() {
         super("__CANCELLED__");
         this.name = "CancelledError";
+      }
+    };
+    TerminateShellError = class extends Error {
+      constructor() {
+        super("__TERMINATE_SHELL__");
+        this.name = "TerminateShellError";
       }
     };
     ESC_DEBOUNCE_MS = 60;
@@ -72609,9 +72614,11 @@ var init_setup_project_investigate = __esm({
 // src/cli/actions/setup.ts
 var setup_exports = {};
 __export(setup_exports, {
+  __testing: () => __testing3,
   setupAction: () => setupAction
 });
 import { existsSync as existsSync23 } from "node:fs";
+import { resolve as resolvePath } from "node:path";
 async function runWizard(steps, results) {
   let cursor = 0;
   while (cursor < steps.length) {
@@ -72672,9 +72679,14 @@ function cliDescription(name) {
       return "";
   }
 }
+function resolveWorkdirForPicker(workdir) {
+  return resolvePath(workdir);
+}
 async function askContextFiles(workdir, defaults, message) {
+  const absWorkdir = resolveWorkdirForPicker(workdir);
   let selected = uniqueStrings(defaults);
   const hint = import_picocolors12.default.dim("Type @ to open file picker. Comma-separated for multiple files.");
+  console.log(import_picocolors12.default.dim(`  Scanning ${import_picocolors12.default.cyan(absWorkdir)} for candidate files`));
   while (true) {
     console.log(`  ${hint}`);
     const raw = await askInputWithAtTrigger({
@@ -72683,7 +72695,7 @@ async function askContextFiles(workdir, defaults, message) {
     });
     if (raw === BACK) return BACK;
     if (raw === AT_TRIGGER) {
-      const picked = await pickContextFile(workdir, "Pick a context file:");
+      const picked = await pickContextFile(absWorkdir, "Pick a context file:");
       if (picked === BACK) return BACK;
       selected = uniqueStrings([...selected, picked]);
       continue;
@@ -72692,7 +72704,7 @@ async function askContextFiles(workdir, defaults, message) {
     const expanded = [];
     for (const entry of entries) {
       if (entry.startsWith("@")) {
-        const picked = await pickContextFile(workdir, "Pick a context file:", entry.slice(1));
+        const picked = await pickContextFile(absWorkdir, "Pick a context file:", entry.slice(1));
         if (picked === BACK) return BACK;
         expanded.push(picked);
       } else {
@@ -73317,7 +73329,7 @@ async function setupProjectAction(options) {
     handlePromptError(err);
   }
 }
-var import_picocolors12;
+var import_picocolors12, __testing3;
 var init_setup = __esm({
   "src/cli/actions/setup.ts"() {
     "use strict";
@@ -73336,6 +73348,7 @@ var init_setup = __esm({
     init_rest();
     init_version();
     init_setup_project_investigate();
+    __testing3 = { resolveWorkdirForPicker, uniqueStrings };
   }
 });
 
@@ -74134,7 +74147,7 @@ __export(log_exports, {
 });
 async function logAction(taskKey) {
   const { readdir: readdir8 } = await import("node:fs/promises");
-  const { join: join32 } = await import("node:path");
+  const { join: join33 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
     const files = await readdir8(runDir);
@@ -74148,7 +74161,7 @@ async function logAction(taskKey) {
       console.error(import_picocolors23.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join32(runDir, latest));
+    const content = await readText(join33(runDir, latest));
     if (content) {
       console.log(content);
     }
@@ -74663,14 +74676,14 @@ async function readRecentEvents(limit = 20) {
     }
   }).filter((e) => e !== null);
 }
-var TELEMETRY_DIR, STATE_FILE, EVENTS_FILE, __testing3;
+var TELEMETRY_DIR, STATE_FILE, EVENTS_FILE, __testing4;
 var init_telemetry = __esm({
   "src/utils/telemetry.ts"() {
     "use strict";
     TELEMETRY_DIR = join29(homedir2(), ".bode", "telemetry");
     STATE_FILE = join29(TELEMETRY_DIR, "state.json");
     EVENTS_FILE = join29(TELEMETRY_DIR, "events.ndjson");
-    __testing3 = { TELEMETRY_DIR, STATE_FILE, EVENTS_FILE };
+    __testing4 = { TELEMETRY_DIR, STATE_FILE, EVENTS_FILE };
   }
 });
 
@@ -74687,7 +74700,7 @@ async function telemetryAction(subcommand) {
       const s = await setTelemetryEnabled(true);
       console.log(import_picocolors28.default.green("\u2713 Telemetry enabled."));
       console.log(import_picocolors28.default.dim(`  Machine ID: ${s.machineId}`));
-      console.log(import_picocolors28.default.dim(`  Events log: ${__testing3.EVENTS_FILE}`));
+      console.log(import_picocolors28.default.dim(`  Events log: ${__testing4.EVENTS_FILE}`));
       console.log(import_picocolors28.default.dim("  Default endpoint: none (local-only). Set telemetry.endpoint in"));
       console.log(import_picocolors28.default.dim("  config to forward events to your own collector."));
       console.log("");
@@ -74702,13 +74715,13 @@ async function telemetryAction(subcommand) {
     case "disable": {
       await setTelemetryEnabled(false);
       console.log(import_picocolors28.default.yellow("Telemetry disabled. Recorded events remain on disk."));
-      console.log(import_picocolors28.default.dim(`  To delete them: rm -rf ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors28.default.dim(`  To delete them: rm -rf ${__testing4.TELEMETRY_DIR}`));
       break;
     }
     case "status": {
       const enabled = await isTelemetryEnabled();
       console.log(enabled ? import_picocolors28.default.green("Telemetry: ENABLED") : import_picocolors28.default.dim("Telemetry: disabled"));
-      console.log(import_picocolors28.default.dim(`  Storage: ${__testing3.TELEMETRY_DIR}`));
+      console.log(import_picocolors28.default.dim(`  Storage: ${__testing4.TELEMETRY_DIR}`));
       console.log(import_picocolors28.default.dim(`  Toggle: bode telemetry on   |   bode telemetry off`));
       console.log(import_picocolors28.default.dim(`  Preview: bode telemetry preview`));
       break;
@@ -75106,7 +75119,7 @@ function clearScreen() {
 }
 
 // src/tui/shell.ts
-var import_react24 = __toESM(require_react(), 1);
+var import_react23 = __toESM(require_react(), 1);
 
 // node_modules/ink/build/render.js
 import { Stream } from "node:stream";
@@ -80860,118 +80873,173 @@ function Footer({ state, lastExitCode }) {
   ] });
 }
 
-// node_modules/ink-text-input/build/index.js
+// src/tui/components/prompt-input.tsx
 var import_react22 = __toESM(require_react(), 1);
-init_source();
-function TextInput({ value: originalValue, placeholder = "", focus = true, mask, highlightPastedText = false, showCursor = true, onChange, onSubmit }) {
-  const [state, setState] = (0, import_react22.useState)({
-    cursorOffset: (originalValue || "").length,
-    cursorWidth: 0
-  });
-  const { cursorOffset, cursorWidth } = state;
-  (0, import_react22.useEffect)(() => {
-    setState((previousState) => {
-      if (!focus || !showCursor) {
-        return previousState;
-      }
-      const newValue = originalValue || "";
-      if (previousState.cursorOffset > newValue.length - 1) {
-        return {
-          cursorOffset: newValue.length,
-          cursorWidth: 0
-        };
-      }
-      return previousState;
-    });
-  }, [originalValue, focus, showCursor]);
-  const cursorActualWidth = highlightPastedText ? cursorWidth : 0;
-  const value = mask ? mask.repeat(originalValue.length) : originalValue;
-  let renderedValue = value;
-  let renderedPlaceholder = placeholder ? source_default.grey(placeholder) : void 0;
-  if (showCursor && focus) {
-    renderedPlaceholder = placeholder.length > 0 ? source_default.inverse(placeholder[0]) + source_default.grey(placeholder.slice(1)) : source_default.inverse(" ");
-    renderedValue = value.length > 0 ? "" : source_default.inverse(" ");
-    let i = 0;
-    for (const char of value) {
-      renderedValue += i >= cursorOffset - cursorActualWidth && i <= cursorOffset ? source_default.inverse(char) : char;
-      i++;
-    }
-    if (value.length > 0 && cursorOffset === value.length) {
-      renderedValue += source_default.inverse(" ");
-    }
+
+// src/tui/completion.ts
+var COMMAND_FLAGS = {
+  setup: [],
+  "setup-project": ["--shared-in-repo", "--refresh-context"],
+  "setup-transitions": ["--project"],
+  init: ["--overwrite", "--from"],
+  learn: ["--refresh", "--detailed"],
+  start: [
+    "--auto",
+    "--strict",
+    "--dangerously-approve-all",
+    "--project",
+    "--with-cli",
+    "--with-model",
+    "--from-branch"
+  ],
+  continue: ["--dangerously-approve-all", "--phase"],
+  done: ["--auto-approve-pr-merge", "-y"],
+  abort: ["-y"],
+  new: ["--title"],
+  cancel: [],
+  status: [],
+  show: ["--diff", "--html"],
+  log: [],
+  list: ["--watch"],
+  skills: [],
+  doctor: ["--report"],
+  replay: ["--phase", "--with-cli", "--with-model", "--export", "--import", "--from", "--pick"],
+  compare: ["--agents"],
+  feedback: ["--title", "--open"],
+  telemetry: [],
+  memory: []
+};
+var BUILTIN_TOKENS = ["help", "?", "clear", "exit", "quit", ":q"];
+function completeBuffer(buffer, cursor) {
+  if (buffer.length === 0) return { kind: "noop" };
+  const upToCursor = buffer.slice(0, cursor);
+  const lastSpace = upToCursor.lastIndexOf(" ");
+  const tokenStart = lastSpace + 1;
+  const tokenEnd = cursor;
+  const partial2 = buffer.slice(tokenStart, tokenEnd);
+  const beforeToken = buffer.slice(0, tokenStart);
+  const isFirstToken = beforeToken.trim() === "";
+  let pool;
+  if (isFirstToken) {
+    pool = [...Array.from(ALL_SUBCOMMANDS), ...BUILTIN_TOKENS];
+  } else if (partial2.startsWith("-")) {
+    const firstToken = (buffer.match(/^\s*(\S+)/)?.[1] ?? "").toLowerCase();
+    pool = COMMAND_FLAGS[firstToken] ?? [];
+  } else {
+    return { kind: "noop" };
   }
+  const matches = pool.filter((c) => c.startsWith(partial2));
+  if (matches.length === 0) return { kind: "noop" };
+  if (matches.length === 1) {
+    const completed = matches[0];
+    const newBuffer = buffer.slice(0, tokenStart) + completed + buffer.slice(tokenEnd);
+    return { kind: "insert", buffer: newBuffer, cursor: tokenStart + completed.length };
+  }
+  return { kind: "candidates", candidates: matches.sort() };
+}
+
+// src/tui/components/prompt-input.tsx
+var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
+function stripControlChars(s) {
+  let out = "";
+  for (const ch of s) {
+    const code = ch.charCodeAt(0);
+    if (code >= 32) out += ch;
+  }
+  return out;
+}
+function PromptInput({ history, onSubmit, onTerminate }) {
+  const [buffer, setBuffer] = (0, import_react22.useState)("");
+  const [cursor, setCursor] = (0, import_react22.useState)(0);
+  const [historyIdx, setHistoryIdx] = (0, import_react22.useState)(history.length);
+  const [draft, setDraft] = (0, import_react22.useState)("");
   use_input_default((input, key) => {
-    if (key.upArrow || key.downArrow || key.ctrl && input === "c" || key.tab || key.shift && key.tab) {
+    if (key.ctrl && input === "c") {
+      onTerminate();
       return;
     }
     if (key.return) {
-      if (onSubmit) {
-        onSubmit(originalValue);
+      const submitted = buffer;
+      setBuffer("");
+      setCursor(0);
+      setHistoryIdx(history.length);
+      setDraft("");
+      onSubmit(submitted);
+      return;
+    }
+    if (key.upArrow) {
+      if (history.length === 0) return;
+      const newIdx = Math.max(0, historyIdx - 1);
+      if (newIdx === historyIdx) return;
+      if (historyIdx === history.length) setDraft(buffer);
+      const entry = history[newIdx] ?? "";
+      setHistoryIdx(newIdx);
+      setBuffer(entry);
+      setCursor(entry.length);
+      return;
+    }
+    if (key.downArrow) {
+      if (historyIdx === history.length) return;
+      const newIdx = historyIdx + 1;
+      setHistoryIdx(newIdx);
+      if (newIdx === history.length) {
+        setBuffer(draft);
+        setCursor(draft.length);
+      } else {
+        const entry = history[newIdx] ?? "";
+        setBuffer(entry);
+        setCursor(entry.length);
       }
       return;
     }
-    let nextCursorOffset = cursorOffset;
-    let nextValue = originalValue;
-    let nextCursorWidth = 0;
     if (key.leftArrow) {
-      if (showCursor) {
-        nextCursorOffset--;
-      }
-    } else if (key.rightArrow) {
-      if (showCursor) {
-        nextCursorOffset++;
-      }
-    } else if (key.backspace || key.delete) {
-      if (cursorOffset > 0) {
-        nextValue = originalValue.slice(0, cursorOffset - 1) + originalValue.slice(cursorOffset, originalValue.length);
-        nextCursorOffset--;
-      }
-    } else {
-      nextValue = originalValue.slice(0, cursorOffset) + input + originalValue.slice(cursorOffset, originalValue.length);
-      nextCursorOffset += input.length;
-      if (input.length > 1) {
-        nextCursorWidth = input.length;
-      }
+      if (cursor > 0) setCursor(cursor - 1);
+      return;
     }
-    if (cursorOffset < 0) {
-      nextCursorOffset = 0;
+    if (key.rightArrow) {
+      if (cursor < buffer.length) setCursor(cursor + 1);
+      return;
     }
-    if (cursorOffset > originalValue.length) {
-      nextCursorOffset = originalValue.length;
+    if (key.delete || key.backspace) {
+      if (cursor === 0) return;
+      setBuffer(buffer.slice(0, cursor - 1) + buffer.slice(cursor));
+      setCursor(cursor - 1);
+      return;
     }
-    setState({
-      cursorOffset: nextCursorOffset,
-      cursorWidth: nextCursorWidth
-    });
-    if (nextValue !== originalValue) {
-      onChange(nextValue);
+    if (key.tab) {
+      const result = completeBuffer(buffer, cursor);
+      if (result.kind === "insert") {
+        setBuffer(result.buffer);
+        setCursor(result.cursor);
+      } else if (result.kind === "candidates") {
+        process.stdout.write("\n  " + result.candidates.join("  ") + "\n");
+      }
+      return;
     }
-  }, { isActive: focus });
-  return import_react22.default.createElement(Text, null, placeholder ? value.length > 0 ? renderedValue : renderedPlaceholder : renderedValue);
-}
-var build_default = TextInput;
-
-// src/tui/components/prompt-input.tsx
-var import_react23 = __toESM(require_react(), 1);
-var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
-function PromptInput({ onSubmit }) {
-  const [value, setValue] = (0, import_react23.useState)("");
-  function handleSubmit(submitted) {
-    setValue("");
-    onSubmit(submitted);
-  }
+    if (input && !key.ctrl && !key.meta) {
+      const safe = stripControlChars(input);
+      if (!safe) return;
+      setBuffer(buffer.slice(0, cursor) + safe + buffer.slice(cursor));
+      setCursor(cursor + safe.length);
+    }
+  });
+  const before = buffer.slice(0, cursor);
+  const at = buffer[cursor] ?? " ";
+  const after = buffer.slice(cursor + 1);
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { paddingX: 1, children: [
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "cyan", children: "> " }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(build_default, { value, onChange: setValue, onSubmit: handleSubmit })
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: before }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { inverse: true, children: at }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: after })
   ] });
 }
 
 // src/tui/components/app.tsx
 var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
-function App2({ state, lastExitCode, onSubmit }) {
+function App2({ state, lastExitCode, history, onSubmit, onTerminate }) {
   return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", children: [
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Header, { state }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(PromptInput, { onSubmit }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(PromptInput, { history, onSubmit, onTerminate }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Footer, { state, lastExitCode })
   ] });
 }
@@ -81119,6 +81187,7 @@ async function runActionGuarded(invoke) {
     if (error52 instanceof InterceptedExitError) {
       return { kind: error52.code === 0 ? "ok" : "error", exitCode: error52.code };
     }
+    if (error52 instanceof TerminateShellError) throw error52;
     if (error52 instanceof CancelledError) return { kind: "ok", exitCode: 0 };
     return { kind: "error", exitCode: 1, error: error52 };
   } finally {
@@ -81444,25 +81513,65 @@ async function dispatch(line) {
 }
 
 // src/tui/shell.ts
+init_prompt();
+
+// src/tui/history.ts
+init_defaults();
+import { existsSync as existsSync31 } from "node:fs";
+import { readFile as readFile17, writeFile as writeFile10, rename as rename2, mkdir as mkdir10 } from "node:fs/promises";
+import { dirname as dirname6, join as join32 } from "node:path";
+var HISTORY_MAX = 250;
+function defaultHistoryPath() {
+  return join32(getGlobalDir(), "history");
+}
+async function loadHistory(path3 = defaultHistoryPath()) {
+  if (!existsSync31(path3)) return [];
+  try {
+    const text = await readFile17(path3, "utf8");
+    return text.split("\n").map((s) => s.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+async function appendHistory(line, path3 = defaultHistoryPath()) {
+  const trimmed = line.trim();
+  if (!trimmed) return;
+  const current = await loadHistory(path3);
+  if (current[current.length - 1] === trimmed) return;
+  const next = [...current, trimmed].slice(-HISTORY_MAX);
+  await mkdir10(dirname6(path3), { recursive: true });
+  const tmp = `${path3}.tmp`;
+  await writeFile10(tmp, next.join("\n") + "\n", "utf8");
+  await rename2(tmp, path3);
+}
+
+// src/tui/shell.ts
 function printBanner(state) {
   if ("\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28A0\u28E4\u28C0\u2800\u2800\u2800\u28B0\u2876\u28E6\u2800\u2800\u2800\u28F0\u28FE\u28FF\u2844\u2800\u2800\u28E0\u28F4\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2800\u2800\u2800\u2800\u2880\u28FF\u2809\u28BB\u28F7\u2844\u2880\u28FF\u2837\u283B\u28FF\u2801\u2838\u280B\u2809\u28B9\u2847\u2800\u287E\u281B\u28BB\u287F\u2800\u28E4\u287E\u28FB\u2807\u2800\u2800\u28A0\u2876\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E0\u28E4\u28E4\u28E4\u28E4\u2840\u2800\u2800\u2800\u28FF\u287F\u28E6\u28C4\u2840\u28F4\u287F\u281F\u280B\u2819\u283F\u2819\u2809\u2800\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2801\u281B\u2809\u28BB\u285F\u2800\u2820\u28F4\u28FF\u2840\u28E0\u285E\u2801\u2880\u28F4\u2806\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F4\u28FF\u280B\u2801\u2800\u28E0\u285F\u2801\u2800\u2800\u2800\u28FD\u28FF\u281F\u283B\u2876\u2808\u2817\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u28F4\u28EA\u28E1\u28FE\u28F7\u287F\u28F7\u28FE\u28FF\u28FF\u28DF\u28C3\u2800\u2800\u2800\u2808\u2800\u2800\u28FE\u280F\u28E8\u28FF\u280B\u2880\u28F4\u281F\u2801\u28C0\u28F4\u281E\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u283B\u28F7\u28F4\u283F\u281B\u281B\u281B\u281B\u28F7\u2844\u2838\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28A7\u28FF\u28FF\u281B\u28DF\u28FF\u28CF\u28E4\u283E\u283F\u283E\u2837\u28F6\u28CC\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u281F\u2801\u2800\u281B\u2801\u28E0\u287E\u280B\u2801\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u28FF\u2844\u2800\u2800\u2800\u2800\u28FC\u285F\u2800\u2801\u2800\u2800\u2800\u2800\u2880\u28E4\u2874\u2836\u281B\u281B\u280B\u2809\u2809\u2800\u2800\u2800\u2800\u2811\u2804\u2880\u2800\u2800\u2809\u28B3\u28C4\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2810\u281F\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BF\u28FF\u28C0\u28C0\u28E0\u28FC\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u2803\u2880\u2840\u28C0\u28E4\u2824\u2824\u28A4\u28C0\u2800\u2800\u2800\u28C0\u287F\u28A7\u2824\u28C4\u281B\u281B\u281B\u281B\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u281B\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2830\u283E\u283F\u281B\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u28B0\u28FF\u28C3\u28F4\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2808\u2818\u28A6\u2848\u2801\u2800\u2800\u2810\u2812\u2800\u2820\u28F4\u2813\u281B\u281B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B6\u28FF\u2847\u2801\u2801\u2864\u2890\u28F4\u28E6\u28E4\u2840\u2800\u2800\u2800\u2808\u283B\u28C4\u2800\u2800\u2800\u2800\u2801\u2800\u2808\u28BB\u285F\u28BB\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u28E4\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2874\u281E\u28BB\u2847\u2800\u2800\u28F4\u28E1\u28E4\u28E4\u28EE\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u28B9\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28BE\u2877\u2866\u28E4\u28C4\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u2864\u281E\u2809\u28FB\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28C0\u28E0\u28E4\u2824\u2836\u281A\u281B\u2809\u2800\u2800\u2800\u28B8\u2847\u2800\u2820\u28FF\u281B\u281B\u281B\u2889\u28F8\u2807\u2800\u2800\u2800\u2800\u2800\u2800\u2838\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28AE\u280A\u2800\u2809\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u28F0\u2847\n\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u28E4\u28E4\u2864\u2834\u2836\u281A\u281B\u280B\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28B7\u2800\u2800\u2808\u28BB\u28D2\u28D2\u28EB\u280F\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2876\u281B\u281B\u281B\u281B\u28BF\u281B\u2809\u28F7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F8\u280B\u2800\n\u28ED\u28FF\u280D\u2809\u2809\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2840\u2804\u2810\u282B\u2800\u28B8\u2847\u2800\u283B\u283D\u2801\u2808\u2801\u2800\u2800\u2800\u2800\u2880\u2876\u2826\u2800\u2838\u28E4\u281E\u28FB\u2806\u2800\u2808\u2840\u28F4\u281F\u28B3\u28C0\u28C0\u2800\u2800\u2880\u28E0\u281C\u2803\u2800\u2800\n\u287C\u283B\u28E6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E4\u28BE\u2865\u2824\u28E4\u28C0\u2800\u2800\u2818\u28E7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28DE\u2801\u2800\u2800\u2800\u2800\u2808\u2819\u28A6\u28C0\u28C0\u28E1\u280F\u2800\u28A8\u2807\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u2800\u2800\n\u2800\u2800\u2808\u281B\u28A6\u28C0\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2834\u280B\u2801\u2800\u2800\u2800\u28FF\u2808\u2800\u2800\u2800\u2800\u2809\u281B\u28E6\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28C0\u28C0\u2800\u2800\u2800\u2800\u2809\u28BD\u2801\u2800\u28E0\u281E\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2808\u2809\u281B\u281B\u281B\u281B\u281B\u281B\u281B\u280B\u2809\u2809\u2801\u2800\u2800\u2800\u2800\u2800\u28B8\u28FF\u2800\u2800\u2800\u28B0\u2840\u2800\u2800\u280F\u282B\u2800\u2800\u2800\u2800\u2880\u2800\u28F4\u28CB\u28FD\u28FF\u28C9\u28F9\u285F\u2812\u2836\u2824\u28A4\u2836\u28FA\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u287F\u2800\u2800\u2800\u2800\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u285E\u28F8\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28F7\u28F6\u28F6\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u28FF\u2807\u2800\u2800\u2800\u2800\u2839\u28F7\u2840\u2800\u2800\u2800\u2800\u28A0\u28CE\u2800\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u2843\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FB\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u2840\u2800\u2800\u2800\u2800\u2819\u2846\u28BF\u287F\u28BF\u28FB\u288D\u2809\u2809\u2819\u2832\u28C4\u2809\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28B8\u28E7\u285F\u28B9\u28E6\u2860\u2800\u2800\u2800\u2808\u28A3\u2800\u2819\u28A6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FD\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28A3\u28F3\u28DE\u2880\u285F\u28A7\u2844\u2800\u2800\u2800\u281B\u2842\u2800\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28BF\u28E6\u2840\u2800\u2800\u2800\u2800\u2819\u28BF\u28FF\u2867\u28EF\u28D9\u287E\u28D7\u2864\u2824\u28C0\u28C0\u28C0\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28E7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FF\u28FF\u28E6\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28B3\u28EE\u28E5\u28E5\u28ED\u28FF\u28FF\u28FF\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28F7\u28E6\u2840\u2880\u28C0\u2880\u2880\u28F4\u28BE\u28F7\u2876\u281E\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FB\u2886\u281E\u2830\u28FD\u28BF\u28CD\u28A2\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u283B\u28C6\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u287F\u28BF\u28FF\u28FF\u2819\u28FF\u287E\u2846\u2803\u2808\u28A7\u285F\u2847\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28A7\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u281E\u2801\u2800\u28B8\u287F\u2803\u2800\u284F\u2887\u285F\u2844\u28A0\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u2833\u28A4\u28C0\u2800\u2800\u2830\u280A\u2800\u2800\u2800\u28A0\u287F\u2803\u2800\u2818\u2800\u287F\u28F8\u2843\u283B\u28B7\u28F6\u28D2\u2832\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2811\u2822\u28C4\u2800\u2800\u2800\u28A0\u285F\u2801\u2800\u2800\u2800\u2800\u2837\u28FF\u28F7\u28F6\u28D6\u2852\u28FF\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u2810\u28F0\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u280B\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n") {
     console.log("\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28A0\u28E4\u28C0\u2800\u2800\u2800\u28B0\u2876\u28E6\u2800\u2800\u2800\u28F0\u28FE\u28FF\u2844\u2800\u2800\u28E0\u28F4\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2800\u2800\u2800\u2800\u2880\u28FF\u2809\u28BB\u28F7\u2844\u2880\u28FF\u2837\u283B\u28FF\u2801\u2838\u280B\u2809\u28B9\u2847\u2800\u287E\u281B\u28BB\u287F\u2800\u28E4\u287E\u28FB\u2807\u2800\u2800\u28A0\u2876\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E0\u28E4\u28E4\u28E4\u28E4\u2840\u2800\u2800\u2800\u28FF\u287F\u28E6\u28C4\u2840\u28F4\u287F\u281F\u280B\u2819\u283F\u2819\u2809\u2800\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2801\u281B\u2809\u28BB\u285F\u2800\u2820\u28F4\u28FF\u2840\u28E0\u285E\u2801\u2880\u28F4\u2806\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F4\u28FF\u280B\u2801\u2800\u28E0\u285F\u2801\u2800\u2800\u2800\u28FD\u28FF\u281F\u283B\u2876\u2808\u2817\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u28F4\u28EA\u28E1\u28FE\u28F7\u287F\u28F7\u28FE\u28FF\u28FF\u28DF\u28C3\u2800\u2800\u2800\u2808\u2800\u2800\u28FE\u280F\u28E8\u28FF\u280B\u2880\u28F4\u281F\u2801\u28C0\u28F4\u281E\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u283B\u28F7\u28F4\u283F\u281B\u281B\u281B\u281B\u28F7\u2844\u2838\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28A7\u28FF\u28FF\u281B\u28DF\u28FF\u28CF\u28E4\u283E\u283F\u283E\u2837\u28F6\u28CC\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u281F\u2801\u2800\u281B\u2801\u28E0\u287E\u280B\u2801\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u28FF\u2844\u2800\u2800\u2800\u2800\u28FC\u285F\u2800\u2801\u2800\u2800\u2800\u2800\u2880\u28E4\u2874\u2836\u281B\u281B\u280B\u2809\u2809\u2800\u2800\u2800\u2800\u2811\u2804\u2880\u2800\u2800\u2809\u28B3\u28C4\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2810\u281F\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BF\u28FF\u28C0\u28C0\u28E0\u28FC\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u2803\u2880\u2840\u28C0\u28E4\u2824\u2824\u28A4\u28C0\u2800\u2800\u2800\u28C0\u287F\u28A7\u2824\u28C4\u281B\u281B\u281B\u281B\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u281B\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2830\u283E\u283F\u281B\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u28B0\u28FF\u28C3\u28F4\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2808\u2818\u28A6\u2848\u2801\u2800\u2800\u2810\u2812\u2800\u2820\u28F4\u2813\u281B\u281B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B6\u28FF\u2847\u2801\u2801\u2864\u2890\u28F4\u28E6\u28E4\u2840\u2800\u2800\u2800\u2808\u283B\u28C4\u2800\u2800\u2800\u2800\u2801\u2800\u2808\u28BB\u285F\u28BB\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u28E4\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2874\u281E\u28BB\u2847\u2800\u2800\u28F4\u28E1\u28E4\u28E4\u28EE\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u28B9\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28BE\u2877\u2866\u28E4\u28C4\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u2864\u281E\u2809\u28FB\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28C0\u28E0\u28E4\u2824\u2836\u281A\u281B\u2809\u2800\u2800\u2800\u28B8\u2847\u2800\u2820\u28FF\u281B\u281B\u281B\u2889\u28F8\u2807\u2800\u2800\u2800\u2800\u2800\u2800\u2838\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28AE\u280A\u2800\u2809\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u28F0\u2847\n\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u28E4\u28E4\u2864\u2834\u2836\u281A\u281B\u280B\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28B7\u2800\u2800\u2808\u28BB\u28D2\u28D2\u28EB\u280F\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2876\u281B\u281B\u281B\u281B\u28BF\u281B\u2809\u28F7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F8\u280B\u2800\n\u28ED\u28FF\u280D\u2809\u2809\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2840\u2804\u2810\u282B\u2800\u28B8\u2847\u2800\u283B\u283D\u2801\u2808\u2801\u2800\u2800\u2800\u2800\u2880\u2876\u2826\u2800\u2838\u28E4\u281E\u28FB\u2806\u2800\u2808\u2840\u28F4\u281F\u28B3\u28C0\u28C0\u2800\u2800\u2880\u28E0\u281C\u2803\u2800\u2800\n\u287C\u283B\u28E6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E4\u28BE\u2865\u2824\u28E4\u28C0\u2800\u2800\u2818\u28E7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28DE\u2801\u2800\u2800\u2800\u2800\u2808\u2819\u28A6\u28C0\u28C0\u28E1\u280F\u2800\u28A8\u2807\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u2800\u2800\n\u2800\u2800\u2808\u281B\u28A6\u28C0\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2834\u280B\u2801\u2800\u2800\u2800\u28FF\u2808\u2800\u2800\u2800\u2800\u2809\u281B\u28E6\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28C0\u28C0\u2800\u2800\u2800\u2800\u2809\u28BD\u2801\u2800\u28E0\u281E\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2808\u2809\u281B\u281B\u281B\u281B\u281B\u281B\u281B\u280B\u2809\u2809\u2801\u2800\u2800\u2800\u2800\u2800\u28B8\u28FF\u2800\u2800\u2800\u28B0\u2840\u2800\u2800\u280F\u282B\u2800\u2800\u2800\u2800\u2880\u2800\u28F4\u28CB\u28FD\u28FF\u28C9\u28F9\u285F\u2812\u2836\u2824\u28A4\u2836\u28FA\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u287F\u2800\u2800\u2800\u2800\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u285E\u28F8\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28F7\u28F6\u28F6\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u28FF\u2807\u2800\u2800\u2800\u2800\u2839\u28F7\u2840\u2800\u2800\u2800\u2800\u28A0\u28CE\u2800\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u2843\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FB\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u2840\u2800\u2800\u2800\u2800\u2819\u2846\u28BF\u287F\u28BF\u28FB\u288D\u2809\u2809\u2819\u2832\u28C4\u2809\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28B8\u28E7\u285F\u28B9\u28E6\u2860\u2800\u2800\u2800\u2808\u28A3\u2800\u2819\u28A6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FD\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28A3\u28F3\u28DE\u2880\u285F\u28A7\u2844\u2800\u2800\u2800\u281B\u2842\u2800\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28BF\u28E6\u2840\u2800\u2800\u2800\u2800\u2819\u28BF\u28FF\u2867\u28EF\u28D9\u287E\u28D7\u2864\u2824\u28C0\u28C0\u28C0\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28E7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FF\u28FF\u28E6\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28B3\u28EE\u28E5\u28E5\u28ED\u28FF\u28FF\u28FF\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28F7\u28E6\u2840\u2880\u28C0\u2880\u2880\u28F4\u28BE\u28F7\u2876\u281E\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FB\u2886\u281E\u2830\u28FD\u28BF\u28CD\u28A2\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u283B\u28C6\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u287F\u28BF\u28FF\u28FF\u2819\u28FF\u287E\u2846\u2803\u2808\u28A7\u285F\u2847\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28A7\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u281E\u2801\u2800\u28B8\u287F\u2803\u2800\u284F\u2887\u285F\u2844\u28A0\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u2833\u28A4\u28C0\u2800\u2800\u2830\u280A\u2800\u2800\u2800\u28A0\u287F\u2803\u2800\u2818\u2800\u287F\u28F8\u2843\u283B\u28B7\u28F6\u28D2\u2832\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2811\u2822\u28C4\u2800\u2800\u2800\u28A0\u285F\u2801\u2800\u2800\u2800\u2800\u2837\u28FF\u28F7\u28F6\u28D6\u2852\u28FF\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u2810\u28F0\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u280B\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n");
   }
   console.log(import_picocolors32.default.bold(import_picocolors32.default.cyan("bode")) + import_picocolors32.default.dim(` v${state.version} \u2014 interactive shell`));
-  console.log(import_picocolors32.default.dim("type 'help' for commands \xB7 'exit' to quit"));
+  console.log(import_picocolors32.default.dim("type 'help' for commands \xB7 \u2191\u2193 history \xB7 tab completes \xB7 ctrl+c exits"));
   console.log("");
 }
-async function renderShellOnce(state, lastExitCode) {
+async function renderShellOnce(state, lastExitCode, history) {
   let submitted = "";
+  let terminated = false;
   const instance = render_default(
-    (0, import_react24.createElement)(App2, {
+    (0, import_react23.createElement)(App2, {
       state,
       lastExitCode,
+      history,
       onSubmit: (value) => {
         submitted = value;
         instance.unmount();
+      },
+      onTerminate: () => {
+        terminated = true;
+        instance.unmount();
       }
-    })
+    }),
+    { exitOnCtrlC: false }
   );
   await instance.waitUntilExit();
   try {
@@ -81470,20 +81579,31 @@ async function renderShellOnce(state, lastExitCode) {
   } catch {
   }
   await new Promise((r) => setImmediate(r));
-  return submitted;
+  return { value: submitted, terminated };
 }
 async function runShell2() {
   let lastExitCode = null;
   let first = true;
+  let history = await loadHistory();
   while (true) {
     const state = await loadInitialState();
     if (first) {
       printBanner(state);
       first = false;
     }
-    const line = (await renderShellOnce(state, lastExitCode)).trim();
+    const { value, terminated } = await renderShellOnce(state, lastExitCode, history);
+    if (terminated) return;
+    const line = value.trim();
     if (!line) continue;
-    const result = await dispatch(line);
+    await appendHistory(line);
+    history = await loadHistory();
+    let result;
+    try {
+      result = await dispatch(line);
+    } catch (err) {
+      if (err instanceof TerminateShellError) return;
+      throw err;
+    }
     if (result.kind === "exit") return;
     if (result.kind === "error" && result.error) {
       console.error(import_picocolors32.default.red(`error: ${result.error.message}`));
