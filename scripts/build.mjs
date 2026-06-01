@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const artPath = resolve(root, 'src', 'assets', 'bode.art');
 const goatArt = readFileSync(artPath, 'utf-8');
+const compactArtPath = resolve(root, 'src', 'assets', 'bode-compact.art');
+const goatCompactArt = readFileSync(compactArtPath, 'utf-8');
 
 const skillPlanning = readFileSync(resolve(root, 'src/skills/defaults/planning.md'), 'utf-8');
 const skillPlanReview = readFileSync(resolve(root, 'src/skills/defaults/plan-review.md'), 'utf-8');
@@ -38,6 +40,7 @@ await build({
 	},
 	define: {
 		__GOAT_ART__: JSON.stringify(goatArt),
+		__GOAT_COMPACT_ART__: JSON.stringify(goatCompactArt),
 		__VERSION__: JSON.stringify(pkg.version),
 		__SKILL_PLANNING__: JSON.stringify(skillPlanning),
 		__SKILL_PLAN_REVIEW__: JSON.stringify(skillPlanReview),

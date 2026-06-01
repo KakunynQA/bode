@@ -1,6 +1,6 @@
 # Testing
 
-Bode has no UI, so testing focuses on unit logic around config loading, skill resolution, adapter behaviour, strict gates, and the orchestrator state machine. Integration and smoke layers are on disk and run through `npm run test:all`.
+Bode's Ink-powered TUI landing screen is tested via unit tests on rendering logic. Testing focuses on unit logic around config loading, skill resolution, adapter behaviour, strict gates, the orchestrator state machine, and TUI components. Integration and smoke layers are on disk and run through `npm run test:all`.
 
 ## Layers
 
@@ -23,6 +23,7 @@ Today's unit coverage:
 - Orchestrator: phase runner, preflight, hooks, PR creator (`tests/unit/orchestrator/`)
 - Storage: run meta atomicity, lockfile (`tests/unit/storage/`)
 - Fast path: ticket-key detection, slug generation (`tests/unit/cli/fast.test.ts`)
+- TUI: logo rendering (full/compact/text fallback), command palette search/filter, multiline composer input, status bar formatting, landing-app component (`tests/unit/tui/`)
 
 Rules:
 
@@ -92,6 +93,7 @@ tests/
     ├── orchestrator/   # phase-runner, preflight, pr-creator, hooks
     ├── skills/         # resolver, prompt-builder
     ├── storage/        # run-meta, lockfile
+    ├── tui/             # logo, palette, composer, status-bar, landing-app (v2.4.0)
     ├── types/          # phase
     └── utils/          # format, merge, fs-atomic, errors, telemetry
 ```

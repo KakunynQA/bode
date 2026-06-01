@@ -328,24 +328,45 @@ hooks:
 3. Global: `~/.bode/config.yml`
 4. Defaults baked into `src/config/loader.ts`
 
-## Shell Mode (v2.0.0+)
+## Shell Mode (v2.0.0+, landing screen v2.4.0)
 
-`bode` (no args, any args other than `--version` / `--help`) launches the interactive TUI shell. The shell renders:
+`bode` (no args) launches the Ink-powered interactive TUI shell. The shell now opens with a landing screen built from composable Ink components (`src/tui/components/`).
+
+### Landing screen (v2.4.0)
+
+- **Responsive ASCII goat art** (`src/tui/logo.ts`): three tiers — full art (`__GOAT_ART__` from `src/assets/bode.art`), compact art (from `src/assets/bode-compact.art`), text fallback (`bode`). Auto-centered based on terminal width.
+- **Multiline composer** (`src/tui/composer.ts`, `src/tui/components/composer-panel.tsx`): **Enter** submits, **Shift+Enter** inserts a newline. Up/down history navigation, Tab autocomplete. Cursor-based text input via Ink's `useInput`.
+- **Command palette** (`src/tui/palette.ts`, `src/tui/components/command-palette.tsx`): **Ctrl+P** opens a searchable, filterable list of all subcommands and flags. Fuzzy search, arrow-key selection, Enter to execute.
+- **Leader-key shortcuts** (**Ctrl+X** prefix): **L** = `list`, **S** = `status <last>`, **H** = `help`, **Q** = `quit`. Sequences time out after 2 s back to idle.
+- **Status bar** (`src/tui/components/status-bar.tsx`): bottom-line footer showing `cwd · <tracker-kind> · bode v<version>`. Replaces the v2.0 header + footer pair.
+
+### Shell routing (src/index.ts)
+
+Three-way routing at entry:
+
+1. `--version` / `--help` → headless (no TTY required, exits immediately)
+2. Explicit subcommand args (e.g. `bode setup`, `bode start KD-1`) → one-shot headless invocation
+3. No args (or bare `bode`) → Ink TUI shell via `src/tui/shell.ts` → `LandingApp` (`src/tui/components/landing-app.tsx`)
+
+### Prior shell elements (v2.0.0)
 
 - **Header:** `bode v<version>` and `project: <name> (<tracker>)`.
-- **Prompt:** `> ` text input with line editing, ↑/↓ history navigation, and Tab autocomplete.
-- **Footer:** `→ <KEY> · <phase> · last exit <code>` plus the keybinding hint `(↵ run · ↑↓ history · tab complete · ctrl+c exit)`.
+- **Prompt:** `> ` text input with line editing, up/down history navigation, and Tab autocomplete.
+- **Footer:** status run indicator `→ <KEY> · <phase> · last exit <code>` plus keybinding hint.
 
-### Keybindings (v2.1.0+)
+### Keybindings (v2.1.0+, v2.4.0 additions in bold)
 
 | Key                                                 | At idle prompt                                                                                                                                                                                      | Inside an active action                                                                                                                                                          |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `↵` (Enter)                                         | Submit the command.                                                                                                                                                                                 | (per-prompt) Submit the current answer.                                                                                                                                          |
-| `↑` / `↓`                                           | Cycle through previously submitted commands (persistent history).                                                                                                                                   | n/a — actions use the raw-mode prompt, which does not support per-prompt history.                                                                                          |
+| `Enter`                                             | Submit the command.                                                                                                                                                                                 | (per-prompt) Submit the current answer.                                                                                                                                          |
+| **`Shift+Enter`** (v2.4.0)                          | Insert a newline in the composer (multiline input).                                                                                                                                                 | n/a.                                                                                                                                                                             |
+| `Up` / `Down`                                       | Cycle through previously submitted commands (persistent history).                                                                                                                                   | n/a — actions use the raw-mode prompt, which does not support per-prompt history.                                                                                                |
 | `Tab`                                               | Accept the inline ghost completion (the dim suffix appended after the cursor as the user types). When multiple candidates match, the first in declaration order wins. Tab with no ghost is a no-op. | n/a.                                                                                                                                                                             |
-| `←` / `→` / `Home` / `End` / `Backspace` / `Delete` | Standard single-line editing.                                                                                                                                                                       | Standard.                                                                                                                                                                        |
+| `Left` / `Right` / `Home` / `End` / `Backspace` / `Delete` | Standard single-line editing.                                                                                                                                                                       | Standard.                                                                                                                                                                        |
 | `Esc`                                               | Clear the in-progress command (buffer, cursor, history pointer, stashed draft). No-op when the prompt is already empty.                                                                             | Wizard: step back one question; at the first step, cancel the entire wizard and return to the idle prompt. Non-wizard actions: not yet honoured (the spawned AI CLI owns stdin). |
 | `Ctrl+C`                                            | Exit the bode process cleanly.                                                                                                                                                                      | Exit the bode process cleanly — including mid-wizard and mid-AI-CLI.                                                                                                             |
+| **`Ctrl+P`** (v2.4.0)                               | Open the command palette (searchable list of all subcommands and flags).                                                                                                                            | n/a.                                                                                                                                                                             |
+| **`Ctrl+X`** prefix (v2.4.0)                        | Leader-key mode: **L** = `list`, **S** = `status <last>`, **H** = `help`, **Q** = `quit`. 2 s timeout returns to idle.                                                                              | n/a.                                                                                                                                                                             |
 
 ### Persistent command history
 

@@ -1,5 +1,6 @@
 declare const __dirname: string;
 declare const __GOAT_ART__: string;
+declare const __GOAT_COMPACT_ART__: string;
 declare const __VERSION__: string;
 declare const __SKILL_PLANNING__: string;
 declare const __SKILL_IMPLEMENTATION__: string;

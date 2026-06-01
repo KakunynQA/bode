@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] — 2026-06-01
+
+### Added
+
+- **Interactive TUI landing screen.** Running `bode` with no args now opens a persistent Ink-powered shell with a responsive ASCII goat logo, multiline composer (Shift+Enter for newline, Enter to submit), command palette (Ctrl+P), and leader-key shortcuts (Ctrl+X then L/S/H/Q).
+- **Responsive art selection.** Full-size goat art renders when the terminal is wide/tall enough; a compact variant is selected for smaller terminals; plain text fallback for tiny terminals. Art is centered dynamically.
+- **Multiline composer state machine** (`src/tui/composer.ts`) with cursor navigation (arrows, Home/End), backspace/delete (with line merging), newline splitting, and clear.
+- **Command palette state machine** (`src/tui/palette.ts`) with search/filter, cursor navigation, and categorized commands.
+- **Leader-key shortcuts:** Ctrl+X shows an action hint; then L lists runs, S runs doctor, H shows help, Q quits.
+- **Compact ASCII goat art** (`src/assets/bode-compact.art`) embedded at build time alongside the full-size art.
+- **Status bar** footer showing working directory, tracker kind, and version.
+
+### Changed
+
+- `src/index.ts` now routes three ways: `--help`/`--version` headless, explicit commands via `dispatch()`, and no-arg invocation opens the TUI shell. Non-TTY no-arg invocation prints an error and exits with code 2.
+- `src/tui/shell.ts` uses the new `LandingApp` component instead of the previous `App`.
+
+### Tests
+
+- 55 new unit tests covering logo selection/centering (`tests/unit/tui/logo.test.ts`), composer reducer (`tests/unit/tui/composer.test.ts`), palette reducer (`tests/unit/tui/palette.test.ts`), and entrypoint routing (`tests/unit/tui/entrypoint.test.ts`).
+
 ## [2.3.2] — 2026-06-01
 
 ### Fixed

@@ -39,6 +39,22 @@
 > **v2.0.0 — Interactive TUI shell.** Running `bode` now launches a persistent shell with a header (version + project + tracker), a prompt in the middle, and a footer (active run + last exit code). Every command is typed inside the shell **without** the `bode ` prefix: `setup`, `start KD-1 --auto`, `"fix the dashboard bug"`. Only `bode --version` and `bode --help` remain headless. The one-shot CLI form (`bode setup`, `bode start KD-1`, …) is gone. See the [v2.0.0 CHANGELOG](CHANGELOG.md#200--2026-05-29) for full details.
 >
 > **v2.1.0 — TUI polish.** The shell now supports persistent ↑/↓ command history (`~/.bode/history`, capped at 250 entries) and Tab autocomplete for subcommands and flags. `Ctrl+C` exits the shell from anywhere (including mid-action); `ESC` cancels the active wizard one step at a time and cancels the whole wizard at the first step.
+>
+> **v2.4.0 — TUI landing screen.** The shell now opens with a responsive landing screen (ASCII goat art with full/compact/text fallback, multiline composer, command palette via Ctrl+P, leader-key shortcuts via Ctrl+X, status bar footer). `bode` with no args launches the TUI; explicit subcommands (`bode setup`, `bode start KD-1`, etc.) still work as one-shot invocations outside the TUI.
+
+---
+
+## Quick Start (TUI)
+
+Running `bode` with no arguments opens the Ink-powered TUI shell (requires a TTY):
+
+- **Landing screen** shows responsive ASCII goat art (full/compact/text fallback, auto-centered), a multiline composer, and a status bar with cwd, tracker kind, and version.
+- **Enter** submits a command. **Shift+Enter** inserts a newline in the composer.
+- **Ctrl+P** opens a searchable command palette with all subcommands and flags.
+- **Ctrl+X** enters leader-key mode: **L** (list), **S** (status), **H** (help), **Q** (quit).
+- **Ctrl+C** exits the shell from anywhere.
+
+Explicit commands (`bode setup`, `bode start KD-1`, `bode --version`, `bode --help`) still work as one-shot invocations outside the TUI. Only `--version` and `--help` work without a TTY.
 
 ---
 

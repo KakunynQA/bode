@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, OpenCode, Codex, Cursor, etc.) w
 
 ## Project Context
 
-**Bode** is a local interactive TUI shell (v2.0.0) that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v2.0.0 replaces the one-shot commander CLI with an Ink-powered persistent shell: running `bode` opens a screen with a header, prompt, and footer, and every subcommand (`setup`, `start KD-1`, etc.) is typed inside without the `bode ` prefix. `bode --version` and `bode --help` remain as headless escape hatches; nothing else runs without a TTY. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
+**Bode** is a local interactive TUI shell (v2.4.0) that orchestrates AI coding work through configurable phases (planning, plan-review, implementation, review, PR creation), driving native AI CLIs interactively (terminal handoff). v2.0.0 replaced the one-shot commander CLI with an Ink-powered persistent shell. v2.4.0 adds a landing screen with responsive ASCII goat art, multiline composer, command palette (Ctrl+P), leader-key shortcuts (Ctrl+X), and status bar footer. Running `bode` opens the TUI; explicit subcommands (`bode setup`, `bode start KD-1`, etc.) still work as one-shot invocations outside the TUI. `bode --version` and `bode --help` remain as headless escape hatches. See `SPEC.md` for full requirements. See `CONVENTIONS.md` for code standards.
 
 ## Commands
 
@@ -45,7 +45,9 @@ bode                           # launches the TUI shell (needs a TTY)
 - Config in YAML (`~/.bode/config.yml`, project `.bode.yml`, project configs `~/.bode/projects/<name>.yml`)
 - Skill prompts in markdown (`~/.bode/skills/`, project `.bode/skills/`)
 - Interactive setup uses custom raw-mode prompts in `src/utils/prompt.ts` (v2.2.0 replaced @inquirer/prompts)
-- ASCII art embedded via esbuild `define` from `src/assets/bode.art`
+- ASCII art embedded via esbuild `define` from `src/assets/bode.art` and `src/assets/bode-compact.art`
+- Ink-powered TUI landing screen (v2.4.0): responsive goat art, multiline composer, command palette (Ctrl+P), leader-key shortcuts (Ctrl+X), status bar footer
+- Three-way routing in `src/index.ts`: headless (`--version`/`--help`), explicit subcommand, or TUI shell
 
 ## Supported AI CLIs
 
@@ -95,8 +97,17 @@ Available models per CLI are defined in `src/adapters/cli/models.ts`.
 | `src/adapters/vcs/github.ts` | GitHub PR adapter (gh CLI) |
 | `src/adapters/vcs/factory.ts` | VCS adapter factory (github/gitlab) |
 | `src/adapters/jira/factory.ts` | Jira adapter factory |
-| `src/assets/bode.art` | ASCII goat art (embedded at build time) |
-| `scripts/build.mjs` | esbuild build script (injects __GOAT_ART__) |
+| `src/assets/bode.art` | ASCII goat art — full variant (embedded at build time) |
+| `src/assets/bode-compact.art` | ASCII goat art — compact variant for narrow terminals (v2.4.0) |
+| `src/tui/shell.ts` | TUI shell entry — rewritten to use LandingApp (v2.4.0) |
+| `src/tui/logo.ts` | Responsive logo rendering (full/compact/text fallback, auto-centered) |
+| `src/tui/palette.ts` | Command palette logic (search/filter subcommands and flags) |
+| `src/tui/composer.ts` | Multiline composer logic (Shift+Enter newline, Enter submit) |
+| `src/tui/components/landing-app.tsx` | Ink root component for the landing screen (v2.4.0) |
+| `src/tui/components/composer-panel.tsx` | Ink composer panel component (v2.4.0) |
+| `src/tui/components/command-palette.tsx` | Ink command palette component (v2.4.0) |
+| `src/tui/components/status-bar.tsx` | Ink status bar footer component (cwd, tracker, version) (v2.4.0) |
+| `scripts/build.mjs` | esbuild build script (injects __GOAT_ART__ and __GOAT_ART_COMPACT__) |
 
 ## CI/CD
 

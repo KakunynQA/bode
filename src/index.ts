@@ -2,6 +2,7 @@ import pc from 'picocolors';
 import { getVersion } from './utils/version.ts';
 import { renderHelp } from './tui/builtins.ts';
 import { runShell } from './tui/shell.ts';
+import { dispatch } from './tui/dispatcher.ts';
 
 const args = process.argv.slice(2);
 
@@ -16,28 +17,40 @@ if (args.includes('--help') || args.includes('-h')) {
 	console.log('');
 	console.log(pc.dim('Run `bode` to launch the interactive shell.'));
 	console.log(pc.dim('Inside the shell, type any command below without the `bode ` prefix.'));
+	console.log(pc.dim('You can also run commands directly: `bode setup`, `bode start KD-1`, etc.'));
 	console.log('');
 	console.log(renderHelp());
 	process.exit(0);
 }
 
-if (!process.stdin.isTTY) {
-	console.error(pc.red('bode requires an interactive terminal (TTY).'));
-	console.error(
-		pc.dim('Headless invocation was removed in v2.0.0. Use --version or --help for headless info.')
-	);
-	process.exit(2);
-}
+const isExplicitCommand = args.length > 0 && !args[0]!.startsWith('-');
 
-// Wrapped in a self-executing async function to dodge Node 22+'s spurious
-// "unsettled top-level await" diagnostic, which can fire mid-prompt when
-// the shell hands stdin to inquirer (the original top-level await stays
-// pending for the whole session, which Node's heuristic flags as a leak).
-void (async () => {
-	try {
-		await runShell();
-	} catch (error) {
-		console.error(pc.red((error as Error).message ?? String(error)));
-		process.exit(1);
-	}
-})();
+if (isExplicitCommand) {
+	const line = args.join(' ');
+	void (async () => {
+		try {
+			const result = await dispatch(line);
+			if (result.kind === 'error' && result.error) {
+				console.error(pc.red(`error: ${result.error.message}`));
+			}
+			process.exit(result.exitCode);
+		} catch (error) {
+			console.error(pc.red((error as Error).message ?? String(error)));
+			process.exit(1);
+		}
+	})();
+} else if (!process.stdin.isTTY) {
+	console.error(pc.red('bode requires an interactive terminal (TTY).'));
+	console.error(pc.dim('Use --version or --help for headless info.'));
+	console.error(pc.dim('Explicit commands like `bode setup` also work without a TTY.'));
+	process.exit(2);
+} else {
+	void (async () => {
+		try {
+			await runShell();
+		} catch (error) {
+			console.error(pc.red((error as Error).message ?? String(error)));
+			process.exit(1);
+		}
+	})();
+}

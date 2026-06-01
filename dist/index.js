@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.3.2") {
-    return "2.3.2";
+  if ("2.4.0") {
+    return "2.4.0";
   }
   const base = moduleDir();
   if (base) {
@@ -1483,7 +1483,7 @@ var require_react_development = __commonJS({
           }
           return dispatcher.useContext(Context);
         }
-        function useState3(initialState) {
+        function useState5(initialState) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useState(initialState);
         }
@@ -1507,7 +1507,7 @@ var require_react_development = __commonJS({
           var dispatcher = resolveDispatcher();
           return dispatcher.useLayoutEffect(create2, deps);
         }
-        function useCallback(callback, deps) {
+        function useCallback2(callback, deps) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useCallback(callback, deps);
         }
@@ -2274,7 +2274,7 @@ var require_react_development = __commonJS({
         exports.memo = memo;
         exports.startTransition = startTransition;
         exports.unstable_act = act;
-        exports.useCallback = useCallback;
+        exports.useCallback = useCallback2;
         exports.useContext = useContext7;
         exports.useDebugValue = useDebugValue;
         exports.useDeferredValue = useDeferredValue;
@@ -2286,7 +2286,7 @@ var require_react_development = __commonJS({
         exports.useMemo = useMemo3;
         exports.useReducer = useReducer;
         exports.useRef = useRef;
-        exports.useState = useState3;
+        exports.useState = useState5;
         exports.useSyncExternalStore = useSyncExternalStore;
         exports.useTransition = useTransition;
         exports.version = ReactVersion;
@@ -63164,7 +63164,7 @@ function clearScreen() {
 }
 
 // src/tui/shell.ts
-var import_react23 = __toESM(require_react(), 1);
+var import_react25 = __toESM(require_react(), 1);
 
 // node_modules/ink/build/render.js
 import { Stream } from "node:stream";
@@ -68871,231 +68871,545 @@ var import_react21 = __toESM(require_react(), 1);
 // src/tui/shell.ts
 var import_picocolors32 = __toESM(require_picocolors(), 1);
 
-// src/tui/components/header.tsx
-var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
-function Header({ state }) {
-  const projectLabel = state.project ? `${state.project.name} (${state.project.trackerKind})` : "no project configured";
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-    Box_default,
-    {
-      borderStyle: "round",
-      borderColor: "cyan",
-      paddingX: 1,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: "cyan", bold: true, children: "bode" }),
-          " ",
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { dimColor: true, children: [
-            "v",
-            state.version
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: "project " }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: state.project ? "green" : "yellow", children: projectLabel })
-        ] })
-      ]
-    }
-  );
+// src/tui/components/landing-app.tsx
+var import_react24 = __toESM(require_react(), 1);
+
+// src/tui/logo.ts
+function measureArt(art) {
+  const lines = art.split("\n");
+  let maxWidth = 0;
+  for (const line of lines) {
+    const visible = stripInvisible(line);
+    if (visible.length > maxWidth) maxWidth = visible.length;
+  }
+  return { width: maxWidth, height: lines.length };
+}
+function stripInvisible(s) {
+  const ESC2 = "\x1B";
+  return s.replace(new RegExp(`${ESC2}\\[[0-9;]*[A-Za-z]`, "g"), "");
+}
+function selectArt(termCols, termRows, options) {
+  const full = options?.fullArt ?? (true ? "\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28A0\u28E4\u28C0\u2800\u2800\u2800\u28B0\u2876\u28E6\u2800\u2800\u2800\u28F0\u28FE\u28FF\u2844\u2800\u2800\u28E0\u28F4\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2800\u2800\u2800\u2800\u2880\u28FF\u2809\u28BB\u28F7\u2844\u2880\u28FF\u2837\u283B\u28FF\u2801\u2838\u280B\u2809\u28B9\u2847\u2800\u287E\u281B\u28BB\u287F\u2800\u28E4\u287E\u28FB\u2807\u2800\u2800\u28A0\u2876\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E0\u28E4\u28E4\u28E4\u28E4\u2840\u2800\u2800\u2800\u28FF\u287F\u28E6\u28C4\u2840\u28F4\u287F\u281F\u280B\u2819\u283F\u2819\u2809\u2800\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2801\u281B\u2809\u28BB\u285F\u2800\u2820\u28F4\u28FF\u2840\u28E0\u285E\u2801\u2880\u28F4\u2806\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F4\u28FF\u280B\u2801\u2800\u28E0\u285F\u2801\u2800\u2800\u2800\u28FD\u28FF\u281F\u283B\u2876\u2808\u2817\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u28F4\u28EA\u28E1\u28FE\u28F7\u287F\u28F7\u28FE\u28FF\u28FF\u28DF\u28C3\u2800\u2800\u2800\u2808\u2800\u2800\u28FE\u280F\u28E8\u28FF\u280B\u2880\u28F4\u281F\u2801\u28C0\u28F4\u281E\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u283B\u28F7\u28F4\u283F\u281B\u281B\u281B\u281B\u28F7\u2844\u2838\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28A7\u28FF\u28FF\u281B\u28DF\u28FF\u28CF\u28E4\u283E\u283F\u283E\u2837\u28F6\u28CC\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u281F\u2801\u2800\u281B\u2801\u28E0\u287E\u280B\u2801\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u28FF\u2844\u2800\u2800\u2800\u2800\u28FC\u285F\u2800\u2801\u2800\u2800\u2800\u2800\u2880\u28E4\u2874\u2836\u281B\u281B\u280B\u2809\u2809\u2800\u2800\u2800\u2800\u2811\u2804\u2880\u2800\u2800\u2809\u28B3\u28C4\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2810\u281F\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BF\u28FF\u28C0\u28C0\u28E0\u28FC\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u2803\u2880\u2840\u28C0\u28E4\u2824\u2824\u28A4\u28C0\u2800\u2800\u2800\u28C0\u287F\u28A7\u2824\u28C4\u281B\u281B\u281B\u281B\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u281B\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2830\u283E\u283F\u281B\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u28B0\u28FF\u28C3\u28F4\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2808\u2818\u28A6\u2848\u2801\u2800\u2800\u2810\u2812\u2800\u2820\u28F4\u2813\u281B\u281B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B6\u28FF\u2847\u2801\u2801\u2864\u2890\u28F4\u28E6\u28E4\u2840\u2800\u2800\u2800\u2808\u283B\u28C4\u2800\u2800\u2800\u2800\u2801\u2800\u2808\u28BB\u285F\u28BB\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u28E4\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2874\u281E\u28BB\u2847\u2800\u2800\u28F4\u28E1\u28E4\u28E4\u28EE\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u28B9\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28BE\u2877\u2866\u28E4\u28C4\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u2864\u281E\u2809\u28FB\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28C0\u28E0\u28E4\u2824\u2836\u281A\u281B\u2809\u2800\u2800\u2800\u28B8\u2847\u2800\u2820\u28FF\u281B\u281B\u281B\u2889\u28F8\u2807\u2800\u2800\u2800\u2800\u2800\u2800\u2838\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28AE\u280A\u2800\u2809\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u28F0\u2847\n\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u28E4\u28E4\u2864\u2834\u2836\u281A\u281B\u280B\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28B7\u2800\u2800\u2808\u28BB\u28D2\u28D2\u28EB\u280F\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2876\u281B\u281B\u281B\u281B\u28BF\u281B\u2809\u28F7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F8\u280B\u2800\n\u28ED\u28FF\u280D\u2809\u2809\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2840\u2804\u2810\u282B\u2800\u28B8\u2847\u2800\u283B\u283D\u2801\u2808\u2801\u2800\u2800\u2800\u2800\u2880\u2876\u2826\u2800\u2838\u28E4\u281E\u28FB\u2806\u2800\u2808\u2840\u28F4\u281F\u28B3\u28C0\u28C0\u2800\u2800\u2880\u28E0\u281C\u2803\u2800\u2800\n\u287C\u283B\u28E6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E4\u28BE\u2865\u2824\u28E4\u28C0\u2800\u2800\u2818\u28E7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28DE\u2801\u2800\u2800\u2800\u2800\u2808\u2819\u28A6\u28C0\u28C0\u28E1\u280F\u2800\u28A8\u2807\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u2800\u2800\n\u2800\u2800\u2808\u281B\u28A6\u28C0\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2834\u280B\u2801\u2800\u2800\u2800\u28FF\u2808\u2800\u2800\u2800\u2800\u2809\u281B\u28E6\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28C0\u28C0\u2800\u2800\u2800\u2800\u2809\u28BD\u2801\u2800\u28E0\u281E\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2808\u2809\u281B\u281B\u281B\u281B\u281B\u281B\u281B\u280B\u2809\u2809\u2801\u2800\u2800\u2800\u2800\u2800\u28B8\u28FF\u2800\u2800\u2800\u28B0\u2840\u2800\u2800\u280F\u282B\u2800\u2800\u2800\u2800\u2880\u2800\u28F4\u28CB\u28FD\u28FF\u28C9\u28F9\u285F\u2812\u2836\u2824\u28A4\u2836\u28FA\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u287F\u2800\u2800\u2800\u2800\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u285E\u28F8\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28F7\u28F6\u28F6\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u28FF\u2807\u2800\u2800\u2800\u2800\u2839\u28F7\u2840\u2800\u2800\u2800\u2800\u28A0\u28CE\u2800\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u2843\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FB\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u2840\u2800\u2800\u2800\u2800\u2819\u2846\u28BF\u287F\u28BF\u28FB\u288D\u2809\u2809\u2819\u2832\u28C4\u2809\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28B8\u28E7\u285F\u28B9\u28E6\u2860\u2800\u2800\u2800\u2808\u28A3\u2800\u2819\u28A6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FD\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28A3\u28F3\u28DE\u2880\u285F\u28A7\u2844\u2800\u2800\u2800\u281B\u2842\u2800\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28BF\u28E6\u2840\u2800\u2800\u2800\u2800\u2819\u28BF\u28FF\u2867\u28EF\u28D9\u287E\u28D7\u2864\u2824\u28C0\u28C0\u28C0\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28E7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FF\u28FF\u28E6\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28B3\u28EE\u28E5\u28E5\u28ED\u28FF\u28FF\u28FF\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28F7\u28E6\u2840\u2880\u28C0\u2880\u2880\u28F4\u28BE\u28F7\u2876\u281E\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FB\u2886\u281E\u2830\u28FD\u28BF\u28CD\u28A2\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u283B\u28C6\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u287F\u28BF\u28FF\u28FF\u2819\u28FF\u287E\u2846\u2803\u2808\u28A7\u285F\u2847\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28A7\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u281E\u2801\u2800\u28B8\u287F\u2803\u2800\u284F\u2887\u285F\u2844\u28A0\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u2833\u28A4\u28C0\u2800\u2800\u2830\u280A\u2800\u2800\u2800\u28A0\u287F\u2803\u2800\u2818\u2800\u287F\u28F8\u2843\u283B\u28B7\u28F6\u28D2\u2832\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2811\u2822\u28C4\u2800\u2800\u2800\u28A0\u285F\u2801\u2800\u2800\u2800\u2800\u2837\u28FF\u28F7\u28F6\u28D6\u2852\u28FF\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u2810\u28F0\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u280B\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n" : "");
+  const compact = options?.compactArt ?? (true ? "\n         \\\\\n          \\\\_\n           \\\\ \\\\/\\//,\n            )@@ ((\n           /     \\__\n          |  ^   ^  |\n          |   o   o |\n          |   ===   |\n           \\_______/\n          /|       |\\\n         / |       | \\\n        (  |       |  )\n        |  |       |  |\n        |  |       |  |\n        | /         \\ |\n        |/           \\|\n        / \\\n       /   \\\n\n" : "");
+  const text = options?.textFallback ?? "BODE";
+  const fullSize = measureArt(full);
+  const compactSize = measureArt(compact);
+  const reservedRows = 10;
+  const availableRows = termRows - reservedRows;
+  if (full && fullSize.width <= termCols && fullSize.height <= Math.max(availableRows, 10)) {
+    return { choice: "full", art: full };
+  }
+  if (compact && compactSize.width <= termCols && compactSize.height <= Math.max(availableRows, 8)) {
+    return { choice: "compact", art: compact };
+  }
+  return { choice: "text", art: text };
+}
+function centerArt(art, termCols) {
+  const lines = art.split("\n");
+  return lines.map((line) => {
+    const visibleLen = stripInvisible(line).length;
+    const pad = Math.max(0, Math.floor((termCols - visibleLen) / 2));
+    return " ".repeat(pad) + line;
+  }).join("\n");
 }
 
-// src/tui/components/footer.tsx
-var import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
-function Footer({ state, lastExitCode }) {
-  const runLabel = state.activeRun ? `${state.activeRun.key} \xB7 ${state.activeRun.phase}` : "no active run";
-  const exitLabel = lastExitCode === null ? "\u2014" : String(lastExitCode);
-  const exitColor = lastExitCode === null || lastExitCode === 0 ? "gray" : "red";
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { paddingX: 1, flexDirection: "row", justifyContent: "space-between", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { dimColor: true, children: "\u2192 " }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", children: runLabel }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { dimColor: true, children: " \xB7 last exit " }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: exitColor, children: exitLabel })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { dimColor: true, children: "(\u21B5 run \xB7 ctrl+c exit \xB7 type 'help')" })
-  ] });
-}
-
-// src/tui/components/prompt-input.tsx
+// src/tui/components/composer-panel.tsx
 var import_react22 = __toESM(require_react(), 1);
 
-// src/tui/completion.ts
-var COMMAND_FLAGS = {
-  setup: [],
-  "setup-project": ["--shared-in-repo", "--refresh-context"],
-  "setup-transitions": ["--project"],
-  init: ["--overwrite", "--from"],
-  learn: ["--refresh", "--detailed"],
-  start: [
-    "--auto",
-    "--strict",
-    "--dangerously-approve-all",
-    "--project",
-    "--with-cli",
-    "--with-model",
-    "--from-branch"
-  ],
-  continue: ["--dangerously-approve-all", "--phase"],
-  done: ["--auto-approve-pr-merge", "-y"],
-  abort: ["-y"],
-  new: ["--title"],
-  cancel: [],
-  status: [],
-  show: ["--diff", "--html"],
-  log: [],
-  list: ["--watch"],
-  skills: [],
-  doctor: ["--report"],
-  replay: ["--phase", "--with-cli", "--with-model", "--export", "--import", "--from", "--pick"],
-  compare: ["--agents"],
-  feedback: ["--title", "--open"],
-  telemetry: [],
-  memory: []
-};
-var BUILTIN_TOKENS = ["help", "clear", "exit", "quit", "?", ":q"];
-function ghostCompletion(buffer, cursor) {
-  if (buffer.length === 0) return "";
-  if (cursor !== buffer.length) return "";
-  const upToCursor = buffer.slice(0, cursor);
-  const lastSpace = upToCursor.lastIndexOf(" ");
-  const tokenStart = lastSpace + 1;
-  const partial2 = buffer.slice(tokenStart);
-  if (partial2.length === 0) return "";
-  const beforeToken = buffer.slice(0, tokenStart);
-  const isFirstToken = beforeToken.trim() === "";
-  let pool;
-  if (isFirstToken) {
-    pool = [...Array.from(ALL_SUBCOMMANDS), ...BUILTIN_TOKENS];
-  } else if (partial2.startsWith("-")) {
-    const firstToken = (buffer.match(/^\s*(\S+)/)?.[1] ?? "").toLowerCase();
-    pool = COMMAND_FLAGS[firstToken] ?? [];
-  } else {
-    return "";
+// src/tui/composer.ts
+function createComposerState() {
+  return { lines: [""], cursorLine: 0, cursorCol: 0 };
+}
+function reduceComposer(state, action) {
+  switch (action.kind) {
+    case "char": {
+      if (!action.value) return state;
+      const lines = [...state.lines];
+      const line = lines[state.cursorLine] ?? "";
+      lines[state.cursorLine] = line.slice(0, state.cursorCol) + action.value + line.slice(state.cursorCol);
+      return { ...state, lines, cursorCol: state.cursorCol + 1 };
+    }
+    case "backspace": {
+      if (state.cursorCol === 0 && state.cursorLine === 0) return state;
+      if (state.cursorCol === 0) {
+        const prevLine = state.lines[state.cursorLine - 1] ?? "";
+        const curLine = state.lines[state.cursorLine] ?? "";
+        const lines2 = [...state.lines];
+        lines2[state.cursorLine - 1] = prevLine + curLine;
+        lines2.splice(state.cursorLine, 1);
+        return {
+          ...state,
+          lines: lines2,
+          cursorLine: state.cursorLine - 1,
+          cursorCol: prevLine.length
+        };
+      }
+      const lines = [...state.lines];
+      const line = lines[state.cursorLine] ?? "";
+      lines[state.cursorLine] = line.slice(0, state.cursorCol - 1) + line.slice(state.cursorCol);
+      return { ...state, lines, cursorCol: state.cursorCol - 1 };
+    }
+    case "delete": {
+      const line = state.lines[state.cursorLine] ?? "";
+      if (state.cursorCol < line.length) {
+        const lines = [...state.lines];
+        lines[state.cursorLine] = line.slice(0, state.cursorCol) + line.slice(state.cursorCol + 1);
+        return { ...state, lines };
+      }
+      if (state.cursorLine < state.lines.length - 1) {
+        const nextLine = state.lines[state.cursorLine + 1] ?? "";
+        const lines = [...state.lines];
+        lines[state.cursorLine] = line + nextLine;
+        lines.splice(state.cursorLine + 1, 1);
+        return { ...state, lines };
+      }
+      return state;
+    }
+    case "left": {
+      if (state.cursorCol > 0) return { ...state, cursorCol: state.cursorCol - 1 };
+      if (state.cursorLine > 0) {
+        const prevLen = (state.lines[state.cursorLine - 1] ?? "").length;
+        return { ...state, cursorLine: state.cursorLine - 1, cursorCol: prevLen };
+      }
+      return state;
+    }
+    case "right": {
+      const lineLen = (state.lines[state.cursorLine] ?? "").length;
+      if (state.cursorCol < lineLen) return { ...state, cursorCol: state.cursorCol + 1 };
+      if (state.cursorLine < state.lines.length - 1) {
+        return { ...state, cursorLine: state.cursorLine + 1, cursorCol: 0 };
+      }
+      return state;
+    }
+    case "up": {
+      if (state.cursorLine === 0) return state;
+      const prevLen = (state.lines[state.cursorLine - 1] ?? "").length;
+      return {
+        ...state,
+        cursorLine: state.cursorLine - 1,
+        cursorCol: Math.min(state.cursorCol, prevLen)
+      };
+    }
+    case "down": {
+      if (state.cursorLine >= state.lines.length - 1) return state;
+      const nextLen = (state.lines[state.cursorLine + 1] ?? "").length;
+      return {
+        ...state,
+        cursorLine: state.cursorLine + 1,
+        cursorCol: Math.min(state.cursorCol, nextLen)
+      };
+    }
+    case "home":
+      return { ...state, cursorCol: 0 };
+    case "end":
+      return { ...state, cursorCol: (state.lines[state.cursorLine] ?? "").length };
+    case "newline": {
+      const line = state.lines[state.cursorLine] ?? "";
+      const lines = [...state.lines];
+      const before = line.slice(0, state.cursorCol);
+      const after = line.slice(state.cursorCol);
+      lines[state.cursorLine] = before;
+      lines.splice(state.cursorLine + 1, 0, after);
+      return { ...state, lines, cursorLine: state.cursorLine + 1, cursorCol: 0 };
+    }
+    case "submit":
+      return state;
+    case "clear":
+      return createComposerState();
+    default:
+      return state;
   }
-  const match = pool.find((c) => c.startsWith(partial2) && c.length > partial2.length);
-  if (!match) return "";
-  return match.slice(partial2.length);
+}
+function composerText(state) {
+  return state.lines.join("\n");
+}
+function composerIsEmpty(state) {
+  return state.lines.length === 1 && state.lines[0] === "";
 }
 
-// src/tui/components/prompt-input.tsx
-var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
-function stripControlChars(s) {
-  let out = "";
-  for (const ch of s) {
-    const code = ch.charCodeAt(0);
-    if (code >= 32) out += ch;
-  }
-  return out;
-}
-function PromptInput({ history, onSubmit, onTerminate }) {
-  const [buffer, setBuffer] = (0, import_react22.useState)("");
-  const [cursor, setCursor] = (0, import_react22.useState)(0);
-  const [historyIdx, setHistoryIdx] = (0, import_react22.useState)(history.length);
-  const [draft, setDraft] = (0, import_react22.useState)("");
-  const ghost = ghostCompletion(buffer, cursor);
+// src/tui/components/composer-panel.tsx
+var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
+var PLACEHOLDER = "Ask Bode to plan, build, review, or ship something...";
+var PEACH = "#FAB283";
+function ComposerPanel({
+  metadata,
+  onSubmit,
+  onTerminate,
+  onOpenPalette,
+  onLeaderKey
+}) {
+  const [state, setState] = (0, import_react22.useState)(createComposerState());
   use_input_default((input, key) => {
     if (key.ctrl && input === "c") {
       onTerminate();
       return;
     }
-    const isEscape = key.escape || input.length === 1 && input.charCodeAt(0) === 27;
-    if (isEscape) {
-      if (buffer.length === 0 && historyIdx === history.length && draft === "") return;
-      setBuffer("");
-      setCursor(0);
-      setHistoryIdx(history.length);
-      setDraft("");
+    if (key.ctrl && input === "p") {
+      onOpenPalette();
       return;
     }
-    if (key.return) {
-      const submitted = buffer;
-      setBuffer("");
-      setCursor(0);
-      setHistoryIdx(history.length);
-      setDraft("");
-      onSubmit(submitted);
+    if (key.ctrl && input === "x") {
+      onLeaderKey();
       return;
     }
-    if (key.upArrow) {
-      if (history.length === 0) return;
-      const newIdx = Math.max(0, historyIdx - 1);
-      if (newIdx === historyIdx) return;
-      if (historyIdx === history.length) setDraft(buffer);
-      const entry = history[newIdx] ?? "";
-      setHistoryIdx(newIdx);
-      setBuffer(entry);
-      setCursor(entry.length);
+    if (key.return && !key.shift) {
+      const text = composerText(state);
+      if (!text.trim()) return;
+      setState(createComposerState());
+      onSubmit(text);
       return;
     }
-    if (key.downArrow) {
-      if (historyIdx === history.length) return;
-      const newIdx = historyIdx + 1;
-      setHistoryIdx(newIdx);
-      if (newIdx === history.length) {
-        setBuffer(draft);
-        setCursor(draft.length);
-      } else {
-        const entry = history[newIdx] ?? "";
-        setBuffer(entry);
-        setCursor(entry.length);
+    if (key.return && key.shift) {
+      setState((s) => reduceComposer(s, { kind: "newline" }));
+      return;
+    }
+    if (key.escape) {
+      if (!composerIsEmpty(state)) {
+        setState(createComposerState());
       }
+      return;
+    }
+    if (key.backspace || key.delete) {
+      setState((s) => reduceComposer(s, { kind: key.backspace ? "backspace" : "delete" }));
       return;
     }
     if (key.leftArrow) {
-      if (cursor > 0) setCursor(cursor - 1);
+      setState((s) => reduceComposer(s, { kind: "left" }));
       return;
     }
     if (key.rightArrow) {
-      if (cursor < buffer.length) setCursor(cursor + 1);
+      setState((s) => reduceComposer(s, { kind: "right" }));
       return;
     }
-    if (key.delete || key.backspace) {
-      if (cursor === 0) return;
-      setBuffer(buffer.slice(0, cursor - 1) + buffer.slice(cursor));
-      setCursor(cursor - 1);
+    if (key.upArrow) {
+      setState((s) => reduceComposer(s, { kind: "up" }));
       return;
     }
-    if (key.tab) {
-      if (ghost) {
-        const next = buffer + ghost;
-        setBuffer(next);
-        setCursor(next.length);
-      }
+    if (key.downArrow) {
+      setState((s) => reduceComposer(s, { kind: "down" }));
       return;
     }
     if (input && !key.ctrl && !key.meta) {
-      const safe = stripControlChars(input);
-      if (!safe) return;
-      setBuffer(buffer.slice(0, cursor) + safe + buffer.slice(cursor));
-      setCursor(cursor + safe.length);
+      const code = input.charCodeAt(0);
+      if (code < 32 && input !== "\n" && input !== "\r") return;
+      setState((s) => reduceComposer(s, { kind: "char", value: input }));
     }
   });
-  const atEnd = cursor === buffer.length;
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { paddingX: 1, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { color: "cyan", children: "> " }),
-    atEnd ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: buffer }),
-      ghost ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { inverse: true, dimColor: true, children: ghost[0] }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { dimColor: true, children: ghost.slice(1) })
-      ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { inverse: true, children: " " })
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: buffer.slice(0, cursor) }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { inverse: true, children: buffer[cursor] ?? " " }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { children: buffer.slice(cursor + 1) })
+  const isEmpty = composerIsEmpty(state);
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { flexDirection: "column", paddingX: 2, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { flexDirection: "row", borderStyle: "round", borderColor: PEACH, paddingX: 1, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { flexDirection: "column", flexGrow: 1, children: isEmpty ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: PEACH, children: "\u2503" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: PLACEHOLDER })
+    ] }) : state.lines.map((line, i) => {
+      const isCurrent = i === state.cursorLine;
+      const col = isCurrent ? state.cursorCol : line.length;
+      const before = line.slice(0, col);
+      const at = line[col] ?? " ";
+      const after = line.slice(col + 1);
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: PEACH, children: "\u2503" }),
+        isCurrent ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: before }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { inverse: true, children: at }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: after })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: line })
+      ] }, i);
+    }) }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { marginTop: 0, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { dimColor: true, children: [
+        "  ",
+        metadata
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { dimColor: true, children: [
+        "          ",
+        "tab complete",
+        "  ",
+        "ctrl+p commands"
+      ] })
     ] })
   ] });
 }
 
-// src/tui/components/app.tsx
+// src/tui/components/command-palette.tsx
+var import_react23 = __toESM(require_react(), 1);
+
+// src/tui/palette.ts
+var PALETTE_COMMANDS = [
+  { id: "new-task", label: "New task/run", shortcut: "ctrl+x n", category: "Suggested" },
+  { id: "view-status", label: "View status", shortcut: "ctrl+x s", category: "Suggested" },
+  { id: "clear-prompt", label: "Clear prompt", category: "Prompt" },
+  { id: "open-help", label: "Open help", category: "Prompt" },
+  { id: "view-project", label: "View project information", category: "System" },
+  { id: "view-version", label: "View version", category: "System" },
+  { id: "exit", label: "Exit", shortcut: "ctrl+x q", category: "System" }
+];
+function filterItems(items, query) {
+  if (!query) return items;
+  const lower = query.toLowerCase();
+  return items.filter(
+    (item) => item.label.toLowerCase().includes(lower) || item.category.toLowerCase().includes(lower) || (item.shortcut?.toLowerCase().includes(lower) ?? false)
+  );
+}
+function uniqueCategories(items) {
+  const seen = /* @__PURE__ */ new Set();
+  for (const item of items) {
+    if (!seen.has(item.category)) seen.add(item.category);
+  }
+  return [...seen];
+}
+function createPaletteState(items) {
+  const all = items ?? PALETTE_COMMANDS;
+  return {
+    open: false,
+    query: "",
+    items: all,
+    filtered: all,
+    cursor: 0,
+    categories: uniqueCategories(all)
+  };
+}
+function reducePalette(state, action) {
+  switch (action.kind) {
+    case "open":
+      return { ...state, open: true, query: "", cursor: 0, filtered: state.items };
+    case "close":
+      return { ...state, open: false, query: "" };
+    case "type": {
+      const filtered = filterItems(state.items, action.value);
+      return {
+        ...state,
+        query: action.value,
+        filtered,
+        cursor: 0,
+        categories: uniqueCategories(filtered)
+      };
+    }
+    case "up":
+      return { ...state, cursor: Math.max(0, state.cursor - 1) };
+    case "down":
+      return { ...state, cursor: Math.min(state.filtered.length - 1, state.cursor + 1) };
+    case "select":
+      return state;
+    case "reset":
+      return createPaletteState(state.items);
+    default:
+      return state;
+  }
+}
+function selectedCommand(state) {
+  if (state.filtered.length === 0) return null;
+  return state.filtered[state.cursor] ?? null;
+}
+
+// src/tui/components/command-palette.tsx
+var import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
+var PEACH2 = "#FAB283";
+var PURPLE = "#9D7CD8";
+function CommandPalette({ onClose, onSelect, commands }) {
+  const [state, setState] = (0, import_react23.useState)(() => createPaletteState(commands));
+  use_input_default((input, key) => {
+    if (key.escape) {
+      onClose();
+      return;
+    }
+    if (key.upArrow) {
+      setState((s) => reducePalette(s, { kind: "up" }));
+      return;
+    }
+    if (key.downArrow) {
+      setState((s) => reducePalette(s, { kind: "down" }));
+      return;
+    }
+    if (key.return) {
+      const cmd = selectedCommand(state);
+      if (cmd) {
+        onSelect(cmd.id);
+      }
+      return;
+    }
+    if (key.backspace) {
+      setState((s) => reducePalette(s, { kind: "type", value: s.query.slice(0, -1) }));
+      return;
+    }
+    if (input && !key.ctrl && !key.meta && !key.upArrow && !key.downArrow) {
+      const code = input.charCodeAt(0);
+      if (code < 32) return;
+      setState((s) => reducePalette(s, { kind: "type", value: s.query + input }));
+    }
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "column", borderStyle: "round", borderColor: "gray", paddingX: 1, marginX: 4, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { marginBottom: 1, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { bold: true, children: "Commands" }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { dimColor: true, children: [
+        "                                              ",
+        "esc"
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { marginBottom: 1, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", children: "> " }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: state.query }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { inverse: true, children: " " })
+    ] }),
+    state.categories.map((cat) => {
+      const catItems = state.filtered.filter((item) => item.category === cat);
+      if (catItems.length === 0) return null;
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "column", marginBottom: 1, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: PURPLE, bold: true, children: cat }),
+        catItems.map((item) => {
+          const idx = state.filtered.indexOf(item);
+          const isSelected = idx === state.cursor;
+          return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "row", justifyContent: "space-between", children: [
+            isSelected ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { backgroundColor: PEACH2, color: "black", bold: true, children: " " + item.label + " " }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: "  " + item.label }),
+            item.shortcut ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { dimColor: true, children: item.shortcut }) : null
+          ] }, item.id);
+        })
+      ] }, cat);
+    })
+  ] });
+}
+
+// src/tui/components/status-bar.tsx
+var import_jsx_runtime3 = __toESM(require_jsx_runtime(), 1);
+function StatusBar({ state }) {
+  const cwd2 = state.project?.workdir ?? process.cwd();
+  const cwdShort = cwd2.split(/[/\\]/).slice(-2).join("/");
+  const trackerLabel = state.project?.trackerKind ?? "local";
+  const runLabel = state.activeRun ? `${state.activeRun.key} \xB7 ${state.activeRun.phase}` : "";
+  const centerParts = [];
+  if (trackerLabel) centerParts.push(`${trackerLabel} tracker`);
+  if (runLabel) centerParts.push(runLabel);
+  const centerText = centerParts.join(" \xB7 ");
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { flexDirection: "row", justifyContent: "space-between", paddingX: 2, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { dimColor: true, children: cwdShort }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { dimColor: true, children: centerText }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { dimColor: true, children: [
+      "/status",
+      "  ",
+      "v",
+      state.version
+    ] })
+  ] });
+}
+
+// src/tui/components/landing-app.tsx
 var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
-function App2({ state, lastExitCode, history, onSubmit, onTerminate }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Header, { state }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(PromptInput, { history, onSubmit, onTerminate }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Footer, { state, lastExitCode })
+var PEACH3 = "#FAB283";
+var TIPS = [
+  "Press Ctrl+P to browse commands.",
+  "Run /help to view shortcuts.",
+  "Start with a task description and Bode will create an orchestrated run."
+];
+function LandingApp({
+  state,
+  _lastExitCode,
+  _history,
+  onSubmit,
+  onTerminate
+}) {
+  const [view, setView] = (0, import_react24.useState)("idle");
+  const [tipIdx] = (0, import_react24.useState)(() => Math.floor(Math.random() * TIPS.length));
+  const [showHelp, setShowHelp] = (0, import_react24.useState)(false);
+  const [leaderHint, setLeaderHint] = (0, import_react24.useState)(false);
+  const termCols = process.stdout.columns ?? 80;
+  const termRows = process.stdout.rows ?? 24;
+  const { art } = selectArt(termCols, termRows);
+  const centeredArt = centerArt(art, termCols);
+  const handlePaletteClose = (0, import_react24.useCallback)(() => setView("idle"), []);
+  const handlePaletteSelect = (0, import_react24.useCallback)(
+    (commandId) => {
+      setView("idle");
+      switch (commandId) {
+        case "open-help":
+          setShowHelp(true);
+          break;
+        case "clear-prompt":
+          break;
+        case "view-version":
+          break;
+        case "view-project":
+          break;
+        case "exit":
+          onTerminate();
+          break;
+      }
+    },
+    [onTerminate]
+  );
+  const handleSubmit = (0, import_react24.useCallback)(
+    (text) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      if (trimmed === "/help") {
+        setShowHelp(true);
+        return;
+      }
+      onSubmit(trimmed);
+    },
+    [onSubmit]
+  );
+  const handleLeaderKey = (0, import_react24.useCallback)(() => {
+    setLeaderHint(true);
+  }, []);
+  use_input_default(
+    (input, key) => {
+      if (key.escape) {
+        if (showHelp) {
+          setShowHelp(false);
+          return;
+        }
+        if (leaderHint) {
+          setLeaderHint(false);
+          return;
+        }
+      }
+      if (leaderHint) {
+        setLeaderHint(false);
+        const ch = input.toLowerCase();
+        if (ch === "l") onSubmit("list");
+        else if (ch === "s") onSubmit("doctor");
+        else if (ch === "h") setShowHelp(true);
+        else if (ch === "q") onTerminate();
+      }
+    },
+    { isActive: view === "idle" && (showHelp || leaderHint) }
+  );
+  const planningCli = "Plan";
+  const metadata = `${planningCli} \xB7 ${state.project?.trackerKind ?? "local"} tracker`;
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", minHeight: termRows, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: centeredArt }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 0, children: view === "idle" && !showHelp && !leaderHint && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      ComposerPanel,
+      {
+        metadata,
+        onSubmit: handleSubmit,
+        onTerminate,
+        onOpenPalette: () => setView("palette"),
+        onLeaderKey: handleLeaderKey
+      }
+    ) }),
+    showHelp && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", paddingX: 2, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: renderHelp() }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: "Press Esc to close" }) })
+    ] }),
+    leaderHint && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { paddingX: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
+      "ctrl+x",
+      "  ",
+      "l list",
+      "  ",
+      "s doctor",
+      "  ",
+      "h help",
+      "  ",
+      "q quit"
+    ] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { marginTop: 1, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: PEACH3, children: "  \u25CF" }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: " Tip  " }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: TIPS[tipIdx] })
+    ] }),
+    view === "palette" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(CommandPalette, { onClose: handlePaletteClose, onSelect: handlePaletteSelect }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexGrow: 1 }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(StatusBar, { state })
   ] });
 }
 
@@ -69601,22 +69915,14 @@ async function appendHistory(line, path = defaultHistoryPath()) {
 }
 
 // src/tui/shell.ts
-function printBanner(state) {
-  if ("\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28A0\u28E4\u28C0\u2800\u2800\u2800\u28B0\u2876\u28E6\u2800\u2800\u2800\u28F0\u28FE\u28FF\u2844\u2800\u2800\u28E0\u28F4\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2800\u2800\u2800\u2800\u2880\u28FF\u2809\u28BB\u28F7\u2844\u2880\u28FF\u2837\u283B\u28FF\u2801\u2838\u280B\u2809\u28B9\u2847\u2800\u287E\u281B\u28BB\u287F\u2800\u28E4\u287E\u28FB\u2807\u2800\u2800\u28A0\u2876\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E0\u28E4\u28E4\u28E4\u28E4\u2840\u2800\u2800\u2800\u28FF\u287F\u28E6\u28C4\u2840\u28F4\u287F\u281F\u280B\u2819\u283F\u2819\u2809\u2800\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2801\u281B\u2809\u28BB\u285F\u2800\u2820\u28F4\u28FF\u2840\u28E0\u285E\u2801\u2880\u28F4\u2806\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F4\u28FF\u280B\u2801\u2800\u28E0\u285F\u2801\u2800\u2800\u2800\u28FD\u28FF\u281F\u283B\u2876\u2808\u2817\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u28F4\u28EA\u28E1\u28FE\u28F7\u287F\u28F7\u28FE\u28FF\u28FF\u28DF\u28C3\u2800\u2800\u2800\u2808\u2800\u2800\u28FE\u280F\u28E8\u28FF\u280B\u2880\u28F4\u281F\u2801\u28C0\u28F4\u281E\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u283B\u28F7\u28F4\u283F\u281B\u281B\u281B\u281B\u28F7\u2844\u2838\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28A7\u28FF\u28FF\u281B\u28DF\u28FF\u28CF\u28E4\u283E\u283F\u283E\u2837\u28F6\u28CC\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u281F\u2801\u2800\u281B\u2801\u28E0\u287E\u280B\u2801\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u28FF\u2844\u2800\u2800\u2800\u2800\u28FC\u285F\u2800\u2801\u2800\u2800\u2800\u2800\u2880\u28E4\u2874\u2836\u281B\u281B\u280B\u2809\u2809\u2800\u2800\u2800\u2800\u2811\u2804\u2880\u2800\u2800\u2809\u28B3\u28C4\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2810\u281F\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BF\u28FF\u28C0\u28C0\u28E0\u28FC\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u2803\u2880\u2840\u28C0\u28E4\u2824\u2824\u28A4\u28C0\u2800\u2800\u2800\u28C0\u287F\u28A7\u2824\u28C4\u281B\u281B\u281B\u281B\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u281B\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2830\u283E\u283F\u281B\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u28B0\u28FF\u28C3\u28F4\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2808\u2818\u28A6\u2848\u2801\u2800\u2800\u2810\u2812\u2800\u2820\u28F4\u2813\u281B\u281B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B6\u28FF\u2847\u2801\u2801\u2864\u2890\u28F4\u28E6\u28E4\u2840\u2800\u2800\u2800\u2808\u283B\u28C4\u2800\u2800\u2800\u2800\u2801\u2800\u2808\u28BB\u285F\u28BB\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u28E4\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2874\u281E\u28BB\u2847\u2800\u2800\u28F4\u28E1\u28E4\u28E4\u28EE\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u28B9\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28BE\u2877\u2866\u28E4\u28C4\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u2864\u281E\u2809\u28FB\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28C0\u28E0\u28E4\u2824\u2836\u281A\u281B\u2809\u2800\u2800\u2800\u28B8\u2847\u2800\u2820\u28FF\u281B\u281B\u281B\u2889\u28F8\u2807\u2800\u2800\u2800\u2800\u2800\u2800\u2838\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28AE\u280A\u2800\u2809\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u28F0\u2847\n\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u28E4\u28E4\u2864\u2834\u2836\u281A\u281B\u280B\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28B7\u2800\u2800\u2808\u28BB\u28D2\u28D2\u28EB\u280F\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2876\u281B\u281B\u281B\u281B\u28BF\u281B\u2809\u28F7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F8\u280B\u2800\n\u28ED\u28FF\u280D\u2809\u2809\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2840\u2804\u2810\u282B\u2800\u28B8\u2847\u2800\u283B\u283D\u2801\u2808\u2801\u2800\u2800\u2800\u2800\u2880\u2876\u2826\u2800\u2838\u28E4\u281E\u28FB\u2806\u2800\u2808\u2840\u28F4\u281F\u28B3\u28C0\u28C0\u2800\u2800\u2880\u28E0\u281C\u2803\u2800\u2800\n\u287C\u283B\u28E6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E4\u28BE\u2865\u2824\u28E4\u28C0\u2800\u2800\u2818\u28E7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28DE\u2801\u2800\u2800\u2800\u2800\u2808\u2819\u28A6\u28C0\u28C0\u28E1\u280F\u2800\u28A8\u2807\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u2800\u2800\n\u2800\u2800\u2808\u281B\u28A6\u28C0\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2834\u280B\u2801\u2800\u2800\u2800\u28FF\u2808\u2800\u2800\u2800\u2800\u2809\u281B\u28E6\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28C0\u28C0\u2800\u2800\u2800\u2800\u2809\u28BD\u2801\u2800\u28E0\u281E\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2808\u2809\u281B\u281B\u281B\u281B\u281B\u281B\u281B\u280B\u2809\u2809\u2801\u2800\u2800\u2800\u2800\u2800\u28B8\u28FF\u2800\u2800\u2800\u28B0\u2840\u2800\u2800\u280F\u282B\u2800\u2800\u2800\u2800\u2880\u2800\u28F4\u28CB\u28FD\u28FF\u28C9\u28F9\u285F\u2812\u2836\u2824\u28A4\u2836\u28FA\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u287F\u2800\u2800\u2800\u2800\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u285E\u28F8\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28F7\u28F6\u28F6\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u28FF\u2807\u2800\u2800\u2800\u2800\u2839\u28F7\u2840\u2800\u2800\u2800\u2800\u28A0\u28CE\u2800\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u2843\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FB\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u2840\u2800\u2800\u2800\u2800\u2819\u2846\u28BF\u287F\u28BF\u28FB\u288D\u2809\u2809\u2819\u2832\u28C4\u2809\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28B8\u28E7\u285F\u28B9\u28E6\u2860\u2800\u2800\u2800\u2808\u28A3\u2800\u2819\u28A6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FD\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28A3\u28F3\u28DE\u2880\u285F\u28A7\u2844\u2800\u2800\u2800\u281B\u2842\u2800\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28BF\u28E6\u2840\u2800\u2800\u2800\u2800\u2819\u28BF\u28FF\u2867\u28EF\u28D9\u287E\u28D7\u2864\u2824\u28C0\u28C0\u28C0\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28E7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FF\u28FF\u28E6\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28B3\u28EE\u28E5\u28E5\u28ED\u28FF\u28FF\u28FF\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28F7\u28E6\u2840\u2880\u28C0\u2880\u2880\u28F4\u28BE\u28F7\u2876\u281E\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FB\u2886\u281E\u2830\u28FD\u28BF\u28CD\u28A2\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u283B\u28C6\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u287F\u28BF\u28FF\u28FF\u2819\u28FF\u287E\u2846\u2803\u2808\u28A7\u285F\u2847\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28A7\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u281E\u2801\u2800\u28B8\u287F\u2803\u2800\u284F\u2887\u285F\u2844\u28A0\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u2833\u28A4\u28C0\u2800\u2800\u2830\u280A\u2800\u2800\u2800\u28A0\u287F\u2803\u2800\u2818\u2800\u287F\u28F8\u2843\u283B\u28B7\u28F6\u28D2\u2832\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2811\u2822\u28C4\u2800\u2800\u2800\u28A0\u285F\u2801\u2800\u2800\u2800\u2800\u2837\u28FF\u28F7\u28F6\u28D6\u2852\u28FF\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u2810\u28F0\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u280B\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n") {
-    console.log("\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28A0\u28E4\u28C0\u2800\u2800\u2800\u28B0\u2876\u28E6\u2800\u2800\u2800\u28F0\u28FE\u28FF\u2844\u2800\u2800\u28E0\u28F4\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2800\u2800\u2800\u2800\u2880\u28FF\u2809\u28BB\u28F7\u2844\u2880\u28FF\u2837\u283B\u28FF\u2801\u2838\u280B\u2809\u28B9\u2847\u2800\u287E\u281B\u28BB\u287F\u2800\u28E4\u287E\u28FB\u2807\u2800\u2800\u28A0\u2876\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E0\u28E4\u28E4\u28E4\u28E4\u2840\u2800\u2800\u2800\u28FF\u287F\u28E6\u28C4\u2840\u28F4\u287F\u281F\u280B\u2819\u283F\u2819\u2809\u2800\u2800\u2800\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2801\u281B\u2809\u28BB\u285F\u2800\u2820\u28F4\u28FF\u2840\u28E0\u285E\u2801\u2880\u28F4\u2806\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F4\u28FF\u280B\u2801\u2800\u28E0\u285F\u2801\u2800\u2800\u2800\u28FD\u28FF\u281F\u283B\u2876\u2808\u2817\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u28F4\u28EA\u28E1\u28FE\u28F7\u287F\u28F7\u28FE\u28FF\u28FF\u28DF\u28C3\u2800\u2800\u2800\u2808\u2800\u2800\u28FE\u280F\u28E8\u28FF\u280B\u2880\u28F4\u281F\u2801\u28C0\u28F4\u281E\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u283B\u28F7\u28F4\u283F\u281B\u281B\u281B\u281B\u28F7\u2844\u2838\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28A7\u28FF\u28FF\u281B\u28DF\u28FF\u28CF\u28E4\u283E\u283F\u283E\u2837\u28F6\u28CC\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u281F\u2801\u2800\u281B\u2801\u28E0\u287E\u280B\u2801\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u28FF\u2844\u2800\u2800\u2800\u2800\u28FC\u285F\u2800\u2801\u2800\u2800\u2800\u2800\u2880\u28E4\u2874\u2836\u281B\u281B\u280B\u2809\u2809\u2800\u2800\u2800\u2800\u2811\u2804\u2880\u2800\u2800\u2809\u28B3\u28C4\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2810\u281F\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BF\u28FF\u28C0\u28C0\u28E0\u28FC\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u2803\u2880\u2840\u28C0\u28E4\u2824\u2824\u28A4\u28C0\u2800\u2800\u2800\u28C0\u287F\u28A7\u2824\u28C4\u281B\u281B\u281B\u281B\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u281B\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2830\u283E\u283F\u281B\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u28B0\u28FF\u28C3\u28F4\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2808\u2818\u28A6\u2848\u2801\u2800\u2800\u2810\u2812\u2800\u2820\u28F4\u2813\u281B\u281B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B6\u28FF\u2847\u2801\u2801\u2864\u2890\u28F4\u28E6\u28E4\u2840\u2800\u2800\u2800\u2808\u283B\u28C4\u2800\u2800\u2800\u2800\u2801\u2800\u2808\u28BB\u285F\u28BB\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u28E4\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2874\u281E\u28BB\u2847\u2800\u2800\u28F4\u28E1\u28E4\u28E4\u28EE\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u28B9\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28BE\u2877\u2866\u28E4\u28C4\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u2864\u281E\u2809\u28FB\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28C0\u28E0\u28E4\u2824\u2836\u281A\u281B\u2809\u2800\u2800\u2800\u28B8\u2847\u2800\u2820\u28FF\u281B\u281B\u281B\u2889\u28F8\u2807\u2800\u2800\u2800\u2800\u2800\u2800\u2838\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28AE\u280A\u2800\u2809\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u28F0\u2847\n\u28C0\u28C0\u28C0\u28C0\u28C0\u28C0\u28E4\u28E4\u2864\u2834\u2836\u281A\u281B\u280B\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28B7\u2800\u2800\u2808\u28BB\u28D2\u28D2\u28EB\u280F\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u2876\u281B\u281B\u281B\u281B\u28BF\u281B\u2809\u28F7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28F8\u280B\u2800\n\u28ED\u28FF\u280D\u2809\u2809\u2809\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u2840\u2804\u2810\u282B\u2800\u28B8\u2847\u2800\u283B\u283D\u2801\u2808\u2801\u2800\u2800\u2800\u2800\u2880\u2876\u2826\u2800\u2838\u28E4\u281E\u28FB\u2806\u2800\u2808\u2840\u28F4\u281F\u28B3\u28C0\u28C0\u2800\u2800\u2880\u28E0\u281C\u2803\u2800\u2800\n\u287C\u283B\u28E6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28E4\u28BE\u2865\u2824\u28E4\u28C0\u2800\u2800\u2818\u28E7\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28DE\u2801\u2800\u2800\u2800\u2800\u2808\u2819\u28A6\u28C0\u28C0\u28E1\u280F\u2800\u28A8\u2807\u2809\u2809\u2809\u2809\u2801\u2800\u2800\u2800\u2800\n\u2800\u2800\u2808\u281B\u28A6\u28C0\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28E0\u2834\u280B\u2801\u2800\u2800\u2800\u28FF\u2808\u2800\u2800\u2800\u2800\u2809\u281B\u28E6\u28C0\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28C0\u28C0\u28C0\u2800\u2800\u2800\u2800\u2809\u28BD\u2801\u2800\u28E0\u281E\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2808\u2809\u281B\u281B\u281B\u281B\u281B\u281B\u281B\u280B\u2809\u2809\u2801\u2800\u2800\u2800\u2800\u2800\u28B8\u28FF\u2800\u2800\u2800\u28B0\u2840\u2800\u2800\u280F\u282B\u2800\u2800\u2800\u2800\u2880\u2800\u28F4\u28CB\u28FD\u28FF\u28C9\u28F9\u285F\u2812\u2836\u2824\u28A4\u2836\u28FA\u281F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u287F\u2800\u2800\u2800\u2800\u28F7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u285E\u28F8\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28F7\u28F6\u28F6\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B4\u28FF\u2807\u2800\u2800\u2800\u2800\u2839\u28F7\u2840\u2800\u2800\u2800\u2800\u28A0\u28CE\u2800\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u2843\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FB\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u2840\u2800\u2800\u2800\u2800\u2819\u2846\u28BF\u287F\u28BF\u28FB\u288D\u2809\u2809\u2819\u2832\u28C4\u2809\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2820\u28BE\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2839\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28B8\u28E7\u285F\u28B9\u28E6\u2860\u2800\u2800\u2800\u2808\u28A3\u2800\u2819\u28A6\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FD\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28C4\u2800\u2800\u2800\u2800\u2800\u28A3\u28F3\u28DE\u2880\u285F\u28A7\u2844\u2800\u2800\u2800\u281B\u2842\u2800\u283B\u28C4\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u28BF\u28E6\u2840\u2800\u2800\u2800\u2800\u2819\u28BF\u28FF\u2867\u28EF\u28D9\u287E\u28D7\u2864\u2824\u28C0\u28C0\u28C0\u287F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28E7\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28FF\u28FF\u28E6\u2800\u2800\u2800\u2800\u2800\u2808\u281B\u28B3\u28EE\u28E5\u28E5\u28ED\u28FF\u28FF\u28FF\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28B9\u2846\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28F7\u28E6\u2840\u2880\u28C0\u2880\u2880\u28F4\u28BE\u28F7\u2876\u281E\u281B\u280B\u2801\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28BB\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2818\u28FF\u28FF\u28FF\u28FF\u28FF\u28FF\u28FB\u2886\u281E\u2830\u28FD\u28BF\u28CD\u28A2\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u283B\u28C6\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2880\u28FF\u287F\u28BF\u28FF\u28FF\u2819\u28FF\u287E\u2846\u2803\u2808\u28A7\u285F\u2847\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u28A7\u2844\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u28E0\u281E\u2801\u2800\u28B8\u287F\u2803\u2800\u284F\u2887\u285F\u2844\u28A0\u285F\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2819\u2833\u28A4\u28C0\u2800\u2800\u2830\u280A\u2800\u2800\u2800\u28A0\u287F\u2803\u2800\u2818\u2800\u287F\u28F8\u2843\u283B\u28B7\u28F6\u28D2\u2832\u2840\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u2811\u2822\u28C4\u2800\u2800\u2800\u28A0\u285F\u2801\u2800\u2800\u2800\u2800\u2837\u28FF\u28F7\u28F6\u28D6\u2852\u28FF\u2804\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2809\u2810\u28F0\u280B\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2808\u280B\u2803\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\u2800\n");
-  }
-  console.log(import_picocolors32.default.bold(import_picocolors32.default.cyan("bode")) + import_picocolors32.default.dim(` v${state.version} \u2014 interactive shell`));
-  console.log(import_picocolors32.default.dim("type 'help' for commands \xB7 \u2191\u2193 history \xB7 tab completes \xB7 ctrl+c exits"));
-  console.log("");
-}
-async function renderShellOnce(state, lastExitCode, history) {
+async function renderShellOnce(state, _lastExitCode, _history) {
   let submitted = "";
   let terminated = false;
   const instance = render_default(
-    (0, import_react23.createElement)(App2, {
+    (0, import_react25.createElement)(LandingApp, {
       state,
-      lastExitCode,
-      history,
+      _lastExitCode,
+      _history,
       onSubmit: (value) => {
         submitted = value;
         instance.unmount();
@@ -69638,14 +69944,9 @@ async function renderShellOnce(state, lastExitCode, history) {
 }
 async function runShell2() {
   let lastExitCode = null;
-  let first = true;
   let history = await loadHistory();
   while (true) {
     const state = await loadInitialState();
-    if (first) {
-      printBanner(state);
-      first = false;
-    }
     const { value, terminated } = await renderShellOnce(state, lastExitCode, history);
     if (terminated) return;
     const line = value.trim();
@@ -69679,25 +69980,41 @@ if (args.includes("--help") || args.includes("-h")) {
   console.log("");
   console.log(import_picocolors33.default.dim("Run `bode` to launch the interactive shell."));
   console.log(import_picocolors33.default.dim("Inside the shell, type any command below without the `bode ` prefix."));
+  console.log(import_picocolors33.default.dim("You can also run commands directly: `bode setup`, `bode start KD-1`, etc."));
   console.log("");
   console.log(renderHelp());
   process.exit(0);
 }
-if (!process.stdin.isTTY) {
+var isExplicitCommand = args.length > 0 && !args[0].startsWith("-");
+if (isExplicitCommand) {
+  const line = args.join(" ");
+  void (async () => {
+    try {
+      const result = await dispatch(line);
+      if (result.kind === "error" && result.error) {
+        console.error(import_picocolors33.default.red(`error: ${result.error.message}`));
+      }
+      process.exit(result.exitCode);
+    } catch (error52) {
+      console.error(import_picocolors33.default.red(error52.message ?? String(error52)));
+      process.exit(1);
+    }
+  })();
+} else if (!process.stdin.isTTY) {
   console.error(import_picocolors33.default.red("bode requires an interactive terminal (TTY)."));
-  console.error(
-    import_picocolors33.default.dim("Headless invocation was removed in v2.0.0. Use --version or --help for headless info.")
-  );
+  console.error(import_picocolors33.default.dim("Use --version or --help for headless info."));
+  console.error(import_picocolors33.default.dim("Explicit commands like `bode setup` also work without a TTY."));
   process.exit(2);
+} else {
+  void (async () => {
+    try {
+      await runShell2();
+    } catch (error52) {
+      console.error(import_picocolors33.default.red(error52.message ?? String(error52)));
+      process.exit(1);
+    }
+  })();
 }
-void (async () => {
-  try {
-    await runShell2();
-  } catch (error52) {
-    console.error(import_picocolors33.default.red(error52.message ?? String(error52)));
-    process.exit(1);
-  }
-})();
 /*! Bundled license information:
 
 react/cjs/react.production.min.js:
