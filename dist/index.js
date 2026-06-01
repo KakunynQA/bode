@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.1.4") {
-    return "2.1.4";
+  if ("2.1.5") {
+    return "2.1.5";
   }
   const base = moduleDir();
   if (base) {
@@ -66077,28 +66077,73 @@ var init_dist17 = __esm({
 
 // src/utils/prompt.ts
 import { emitKeypressEvents } from "node:readline";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { join as join8 } from "node:path";
+function escLog(event, detail = {}) {
+  if (!ESC_DEBUG) return;
+  try {
+    if (!escLogInited) {
+      mkdirSync(join8(homedir2(), ".bode"), { recursive: true });
+      escLogInited = true;
+    }
+    const line = JSON.stringify({ t: (/* @__PURE__ */ new Date()).toISOString(), event, ...detail }) + "\n";
+    appendFileSync(ESC_LOG_PATH, line, "utf8");
+  } catch {
+  }
+}
+function bufToHex(b) {
+  if (b === void 0) return "<undef>";
+  if (typeof b === "string") {
+    const buf = Buffer.from(b, "utf8");
+    return buf.toString("hex");
+  }
+  return b.toString("hex");
+}
 function createBackSignal() {
   const ac = new AbortController();
   let escTimer = null;
   let done = false;
-  function trigger() {
+  escLog("createBackSignal:start", {
+    stdinIsRaw: process.stdin.isRaw === true,
+    stdinIsTTY: process.stdin.isTTY === true,
+    stdinListeners: {
+      data: process.stdin.listenerCount("data"),
+      keypress: process.stdin.listenerCount("keypress")
+    }
+  });
+  function trigger(source) {
     if (done) return;
     done = true;
+    escLog("trigger", { source });
     ac.abort(new BackError());
     cleanup();
   }
   function onKeypress(_str, key) {
+    escLog("keypress", {
+      str: _str,
+      keyName: key?.name,
+      keyCtrl: key?.ctrl,
+      keyMeta: key?.meta,
+      keyShift: key?.shift,
+      sequence: bufToHex(key?.sequence)
+    });
     if (!key) return;
     if (key.name === "escape" && !key.ctrl && !key.meta && !key.shift) {
-      trigger();
+      trigger("keypress");
     }
   }
   function onData(chunk) {
+    escLog("data", {
+      length: chunk.length,
+      hex: chunk.toString("hex"),
+      firstByte: chunk.length > 0 ? `0x${chunk[0].toString(16)}` : null
+    });
     if (chunk.length === 1 && chunk[0] === 27) {
       if (escTimer) clearTimeout(escTimer);
       escTimer = setTimeout(() => {
         escTimer = null;
-        trigger();
+        trigger("data-1byte-debounced");
       }, 60);
     } else if (escTimer) {
       clearTimeout(escTimer);
@@ -66107,11 +66152,14 @@ function createBackSignal() {
   }
   try {
     emitKeypressEvents(process.stdin);
-  } catch {
+    escLog("emitKeypressEvents:ok");
+  } catch (err) {
+    escLog("emitKeypressEvents:err", { msg: err.message });
   }
   process.stdin.on("keypress", onKeypress);
   process.stdin.on("data", onData);
   function cleanup() {
+    escLog("cleanup");
     process.stdin.removeListener("keypress", onKeypress);
     process.stdin.removeListener("data", onData);
     if (escTimer) {
@@ -66399,13 +66447,16 @@ async function askInputWithAtTrigger(opts, wrap = {}) {
     render2();
   });
 }
-var import_picocolors2, BACK, AT_TRIGGER, BackError, FOOTER_HINT, CancelledError, TerminateShellError, ESC_DEBOUNCE_MS;
+var import_picocolors2, ESC_DEBUG, ESC_LOG_PATH, escLogInited, BACK, AT_TRIGGER, BackError, FOOTER_HINT, CancelledError, TerminateShellError, ESC_DEBOUNCE_MS;
 var init_prompt = __esm({
   "src/utils/prompt.ts"() {
     "use strict";
     init_dist5();
     init_dist17();
     import_picocolors2 = __toESM(require_picocolors(), 1);
+    ESC_DEBUG = process.env.BODE_ESC_DEBUG === "1";
+    ESC_LOG_PATH = join8(homedir2(), ".bode", "esc-debug.log");
+    escLogInited = false;
     BACK = Symbol("__BACK__");
     AT_TRIGGER = Symbol("__AT_TRIGGER__");
     BackError = class extends Error {
@@ -66497,11 +66548,11 @@ var init_fs = __esm({
 // src/config/project-resolver.ts
 import { existsSync as existsSync9 } from "node:fs";
 import { readFile as readFile6 } from "node:fs/promises";
-import { join as join8 } from "node:path";
+import { join as join9 } from "node:path";
 async function loadRepoLocalProject(cwd2) {
   let dir = cwd2;
   while (true) {
-    const candidate = join8(dir, ".bode.yml");
+    const candidate = join9(dir, ".bode.yml");
     if (existsSync9(candidate)) {
       try {
         const raw = await readFile6(candidate, "utf-8");
@@ -66515,7 +66566,7 @@ async function loadRepoLocalProject(cwd2) {
       }
       return null;
     }
-    const parent = join8(dir, "..");
+    const parent = join9(dir, "..");
     if (parent === dir) return null;
     dir = parent;
   }
@@ -66658,10 +66709,10 @@ var init_project_resolver = __esm({
 });
 
 // src/storage/run-meta.ts
-import { join as join9 } from "node:path";
+import { join as join10 } from "node:path";
 async function loadRunMeta(taskKey) {
   try {
-    const path3 = join9(getRunDir(taskKey), "meta.json");
+    const path3 = join10(getRunDir(taskKey), "meta.json");
     const data = await readJson(path3);
     return { ok: true, value: data };
   } catch (error52) {
@@ -66672,7 +66723,7 @@ async function saveRunMeta(meta3) {
   try {
     const dir = getRunDir(meta3.taskKey);
     await ensureDir(dir);
-    const path3 = join9(dir, "meta.json");
+    const path3 = join10(dir, "meta.json");
     await writeJson(path3, { ...meta3, updatedAt: Date.now() });
     return { ok: true, value: void 0 };
   } catch (error52) {
@@ -67074,7 +67125,7 @@ var init_registry = __esm({
 
 // src/skills/resolver.ts
 import { existsSync as existsSync10 } from "node:fs";
-import { dirname as dirname3, join as join10 } from "node:path";
+import { dirname as dirname3, join as join11 } from "node:path";
 import { readFile as readFile7 } from "node:fs/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 function moduleDir2() {
@@ -67101,18 +67152,18 @@ function getDevBundledPath(phase, flavor) {
   if (!base) return null;
   const preferred = flavor === "neutral" ? `${phase}.neutral.md` : `${phase}.${flavor}.md`;
   const candidates = [
-    join10(base, "defaults", preferred),
-    join10(base, "defaults", `${phase}.md`),
-    join10(base, "..", "src", "skills", "defaults", preferred),
-    join10(base, "..", "src", "skills", "defaults", `${phase}.md`),
-    join10(base, "..", "skills", "defaults", preferred),
-    join10(base, "..", "skills", "defaults", `${phase}.md`),
-    join10(base, "skills", "defaults", preferred),
-    join10(base, "skills", "defaults", `${phase}.md`),
-    join10(base, "defaults", `${phase}.neutral.md`),
-    join10(base, "..", "src", "skills", "defaults", `${phase}.neutral.md`),
-    join10(base, "..", "skills", "defaults", `${phase}.neutral.md`),
-    join10(base, "skills", "defaults", `${phase}.neutral.md`)
+    join11(base, "defaults", preferred),
+    join11(base, "defaults", `${phase}.md`),
+    join11(base, "..", "src", "skills", "defaults", preferred),
+    join11(base, "..", "src", "skills", "defaults", `${phase}.md`),
+    join11(base, "..", "skills", "defaults", preferred),
+    join11(base, "..", "skills", "defaults", `${phase}.md`),
+    join11(base, "skills", "defaults", preferred),
+    join11(base, "skills", "defaults", `${phase}.md`),
+    join11(base, "defaults", `${phase}.neutral.md`),
+    join11(base, "..", "src", "skills", "defaults", `${phase}.neutral.md`),
+    join11(base, "..", "skills", "defaults", `${phase}.neutral.md`),
+    join11(base, "skills", "defaults", `${phase}.neutral.md`)
   ];
   for (const c of candidates) {
     if (existsSync10(c)) return c;
@@ -67121,8 +67172,8 @@ function getDevBundledPath(phase, flavor) {
 }
 async function resolveSkillPath(phase, options) {
   const flavor = flavorForCli(options.cli);
-  const projectSkill = options.projectRoot ? join10(options.projectRoot, ".bode", "skills", `${phase}.md`) : null;
-  const globalSkill = join10(options.globalDir ?? getSkillsDir(), `${phase}.md`);
+  const projectSkill = options.projectRoot ? join11(options.projectRoot, ".bode", "skills", `${phase}.md`) : null;
+  const globalSkill = join11(options.globalDir ?? getSkillsDir(), `${phase}.md`);
   if (projectSkill && existsSync10(projectSkill)) {
     return { ok: true, value: projectSkill };
   }
@@ -67359,24 +67410,24 @@ var init_prompt_builder = __esm({
 import { existsSync as existsSync11 } from "node:fs";
 import { mkdir as mkdir3, readFile as readFile8, writeFile as writeFile3 } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { join as join11 } from "node:path";
+import { join as join12 } from "node:path";
 function memorySlug(projectPath) {
   const hash2 = createHash("sha256").update(projectPath.toLowerCase()).digest("hex").slice(0, 12);
   return `${projectPath.split(/[\\/]/).filter(Boolean).pop() ?? "project"}-${hash2}`;
 }
 function memoryDirForProject(projectPath) {
-  return join11(getMemoryDir(), memorySlug(projectPath));
+  return join12(getMemoryDir(), memorySlug(projectPath));
 }
 async function initMemory(projectPath) {
   const dir = memoryDirForProject(projectPath);
   await mkdir3(dir, { recursive: true });
   for (const file2 of MEMORY_FILES) {
-    const path3 = join11(dir, file2);
+    const path3 = join12(dir, file2);
     if (!existsSync11(path3)) await writeFile3(path3, `# ${file2.replace(".md", "")}
 `, "utf-8");
   }
   await writeFile3(
-    join11(dir, "metadata.json"),
+    join12(dir, "metadata.json"),
     JSON.stringify(
       { version: 1, project_path: projectPath, opted_in_at: (/* @__PURE__ */ new Date()).toISOString() },
       null,
@@ -67390,14 +67441,14 @@ async function disableMemory(projectPath) {
   const dir = memoryDirForProject(projectPath);
   await mkdir3(dir, { recursive: true });
   await writeFile3(
-    join11(dir, "metadata.json"),
+    join12(dir, "metadata.json"),
     JSON.stringify({ version: 1, project_path: projectPath, opted_in_at: null }, null, 2),
     "utf-8"
   );
 }
 async function appendMemoryNote(projectPath, note) {
   const dir = await initMemory(projectPath);
-  const path3 = join11(dir, "notes.md");
+  const path3 = join12(dir, "notes.md");
   const current = existsSync11(path3) ? await readFile8(path3, "utf-8") : "";
   await writeFile3(path3, `${current.trim()}
 
@@ -67406,7 +67457,7 @@ async function appendMemoryNote(projectPath, note) {
 }
 async function readProjectMemory(projectPath) {
   const dir = memoryDirForProject(projectPath);
-  const metaPath = join11(dir, "metadata.json");
+  const metaPath = join12(dir, "metadata.json");
   if (!existsSync11(metaPath)) return void 0;
   try {
     const meta3 = JSON.parse(await readFile8(metaPath, "utf-8"));
@@ -67416,7 +67467,7 @@ async function readProjectMemory(projectPath) {
   }
   const parts = [];
   for (const file2 of MEMORY_FILES) {
-    const path3 = join11(dir, file2);
+    const path3 = join12(dir, file2);
     if (!existsSync11(path3)) continue;
     let content = await readFile8(path3, "utf-8");
     if (Buffer.byteLength(content, "utf-8") > MAX_MEMORY_BYTES) {
@@ -67445,7 +67496,7 @@ var init_memory_store = __esm({
 // src/config/context.ts
 import { existsSync as existsSync12 } from "node:fs";
 import { readFile as readFile9, readdir as readdir3, stat } from "node:fs/promises";
-import { join as join12 } from "node:path";
+import { join as join13 } from "node:path";
 async function gatherContext(projectConfig) {
   const workdir = projectConfig.workdir;
   const projectContext = await readProjectContextFile(projectConfig.project_context_path);
@@ -67471,7 +67522,7 @@ ${content.trim()}` : void 0;
   }
 }
 async function readLearnedContext(workdir) {
-  const fullPath = join12(workdir, ".bode", "context.md");
+  const fullPath = join13(workdir, ".bode", "context.md");
   if (!existsSync12(fullPath)) return void 0;
   try {
     const content = await readFile9(fullPath, "utf-8");
@@ -67486,7 +67537,7 @@ async function readAgentsMd(workdir, contextFiles) {
   const candidates = contextFiles ?? ["AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md"];
   const parts = [];
   for (const candidate of candidates) {
-    const fullPath = join12(workdir, candidate);
+    const fullPath = join13(workdir, candidate);
     if (existsSync12(fullPath)) {
       try {
         const content = await readFile9(fullPath, "utf-8");
@@ -67528,7 +67579,7 @@ async function walkDir(dirPath, rootDir, lines, depth, counter, prefix = "") {
     if (IGNORED_FILES.has(entry.name)) continue;
     if (entry.isDirectory()) {
       lines.push(`${prefix}${entry.name}/`);
-      await walkDir(join12(dirPath, entry.name), rootDir, lines, depth + 1, counter, `${prefix}  `);
+      await walkDir(join13(dirPath, entry.name), rootDir, lines, depth + 1, counter, `${prefix}  `);
       count = lines.length;
       counter(count);
     } else {
@@ -67585,7 +67636,7 @@ var init_context = __esm({
 import { access } from "node:fs/promises";
 import { constants as constants2 } from "node:fs";
 import { existsSync as existsSync13 } from "node:fs";
-import { join as join13 } from "node:path";
+import { join as join14 } from "node:path";
 async function checkReadable(path3) {
   try {
     await access(path3, constants2.R_OK);
@@ -67619,7 +67670,7 @@ Fix permissions or remove the path from your project config, then retry.`;
   return { ok: false, error: { message, issues } };
 }
 function hasProjectContext(workdir) {
-  return existsSync13(join13(workdir, "AGENTS.md")) || existsSync13(join13(workdir, "README.md"));
+  return existsSync13(join14(workdir, "AGENTS.md")) || existsSync13(join14(workdir, "README.md"));
 }
 var init_preflight = __esm({
   "src/orchestrator/preflight.ts"() {
@@ -67630,7 +67681,7 @@ var init_preflight = __esm({
 // src/orchestrator/budget-tracker.ts
 import { existsSync as existsSync14 } from "node:fs";
 import { mkdir as mkdir4, readFile as readFile10, writeFile as writeFile4 } from "node:fs/promises";
-import { join as join14 } from "node:path";
+import { join as join15 } from "node:path";
 function getBudget(config2, project) {
   return project?.budget ?? config2.budget;
 }
@@ -67681,7 +67732,7 @@ async function writeTodayUsage(usage) {
   await writeFile4(todayPath(), JSON.stringify(usage, null, 2), "utf-8");
 }
 function todayPath() {
-  return join14(getUsageDir(), `${today()}.json`);
+  return join15(getUsageDir(), `${today()}.json`);
 }
 function today() {
   return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
@@ -67697,11 +67748,11 @@ var init_budget_tracker = __esm({
 import { createHash as createHash2 } from "node:crypto";
 import { existsSync as existsSync15 } from "node:fs";
 import { readdir as readdir4, readFile as readFile11 } from "node:fs/promises";
-import { basename, join as join15 } from "node:path";
+import { basename, join as join16 } from "node:path";
 async function recordManifestPhase(options) {
   const runDir = getRunDir(options.taskKey);
   const manifest = await readManifest(options.taskKey);
-  const promptPath = join15(runDir, `${options.phase}.prompt.md`);
+  const promptPath = join16(runDir, `${options.phase}.prompt.md`);
   const entry = {
     phase: options.phase,
     prompt_path: basename(promptPath),
@@ -67714,10 +67765,10 @@ async function recordManifestPhase(options) {
   };
   manifest.updated_at = entry.created_at;
   manifest.phases = [...manifest.phases.filter((p) => p.phase !== options.phase), entry];
-  await writeJson(join15(runDir, "manifest.json"), manifest);
+  await writeJson(join16(runDir, "manifest.json"), manifest);
 }
 async function readManifest(taskKey) {
-  const path3 = join15(getRunDir(taskKey), "manifest.json");
+  const path3 = join16(getRunDir(taskKey), "manifest.json");
   if (existsSync15(path3)) {
     const manifest = await readJson(path3);
     if (manifest) return manifest;
@@ -67740,7 +67791,7 @@ async function exportRunBundle(taskKey) {
     files: {}
   };
   for (const file2 of files) {
-    bundle.files[file2] = await readFile11(join15(runDir, file2), "utf-8");
+    bundle.files[file2] = await readFile11(join16(runDir, file2), "utf-8");
   }
   return JSON.stringify(bundle, null, 2);
 }
@@ -67756,7 +67807,7 @@ var init_run_manifest = __esm({
 });
 
 // src/orchestrator/phase-runner.ts
-import { join as join16 } from "node:path";
+import { join as join17 } from "node:path";
 import { existsSync as existsSync16 } from "node:fs";
 import { stat as stat2 } from "node:fs/promises";
 async function runPhase(taskKey, status, config2, tracker, options) {
@@ -67794,7 +67845,7 @@ async function runPhase(taskKey, status, config2, tracker, options) {
   if (!issueResult.ok) return issueResult;
   const issue2 = issueResult.value;
   const priorPhaseFile = getPriorPhaseFile(phaseName);
-  const priorArtifact = priorPhaseFile ? await readText(join16(getRunDir(taskKey), priorPhaseFile)) ?? void 0 : void 0;
+  const priorArtifact = priorPhaseFile ? await readText(join17(getRunDir(taskKey), priorPhaseFile)) ?? void 0 : void 0;
   let projectAgentsMd;
   let repoFileTree;
   if (options.projectConfig) {
@@ -67808,9 +67859,9 @@ async function runPhase(taskKey, status, config2, tracker, options) {
     return entry;
   });
   const runDir = getRunDir(taskKey);
-  const logPath = join16(runDir, `${phaseName}.log`);
-  const artifactPath = join16(runDir, `${phaseName}.md`);
-  const branchFile = join16(runDir, "branch.txt");
+  const logPath = join17(runDir, `${phaseName}.log`);
+  const artifactPath = join17(runDir, `${phaseName}.md`);
+  const branchFile = join17(runDir, "branch.txt");
   const currentMetaResult = await loadRunMeta(taskKey);
   const currentMeta = currentMetaResult.ok ? currentMetaResult.value : null;
   const baseBranch = currentMeta?.baseBranch;
@@ -67829,7 +67880,7 @@ async function runPhase(taskKey, status, config2, tracker, options) {
     ...options.projectConfig?.branch_tool ? { branchTool: options.projectConfig.branch_tool } : {},
     ...options.projectRoot ? { mainWorkdir: options.projectRoot } : {}
   });
-  await writeText(join16(runDir, `${phaseName}.prompt.md`), prompt);
+  await writeText(join17(runDir, `${phaseName}.prompt.md`), prompt);
   await recordManifestPhase({
     taskKey,
     phase: phaseName,
@@ -68079,9 +68130,9 @@ var init_contract = __esm({
 
 // src/orchestrator/validation-gate.ts
 import { spawn as spawn3 } from "node:child_process";
-import { join as join17 } from "node:path";
+import { join as join18 } from "node:path";
 async function runValidationGate(options) {
-  const logPath = join17(getRunDir(options.taskKey), "validation.log");
+  const logPath = join18(getRunDir(options.taskKey), "validation.log");
   const results = [];
   const log = [];
   for (const command of options.commands) {
@@ -68123,13 +68174,13 @@ var init_validation_gate = __esm({
 
 // src/orchestrator/release-gate.ts
 import { existsSync as existsSync17, readFileSync as readFileSync4 } from "node:fs";
-import { join as join18 } from "node:path";
+import { join as join19 } from "node:path";
 function runReleaseGate(options) {
   const release = options.projectConfig?.release ?? options.config.release;
   if (!release) return { ok: true, value: void 0 };
   const errors = [];
   if (release.require_version_bump) {
-    const pkgPath = join18(options.workdir, "package.json");
+    const pkgPath = join19(options.workdir, "package.json");
     if (!existsSync17(pkgPath)) errors.push("package.json is missing");
     else {
       const pkg = JSON.parse(readFileSync4(pkgPath, "utf-8"));
@@ -68137,7 +68188,7 @@ function runReleaseGate(options) {
     }
   }
   if (release.require_changelog_entry) {
-    const changelogPath = join18(options.workdir, "CHANGELOG.md");
+    const changelogPath = join19(options.workdir, "CHANGELOG.md");
     if (!existsSync17(changelogPath)) errors.push("CHANGELOG.md is missing");
     else if (!/^## \[[0-9]+\.[0-9]+\.[0-9]+\]/m.test(readFileSync4(changelogPath, "utf-8"))) {
       errors.push("CHANGELOG.md has no versioned entry");
@@ -68185,11 +68236,11 @@ var init_transitions = __esm({
 
 // src/cli/summary.ts
 import { existsSync as existsSync18 } from "node:fs";
-import { join as join19 } from "node:path";
+import { join as join20 } from "node:path";
 async function printPhaseArtifacts(taskKey, phaseName) {
   const runDir = getRunDir(taskKey);
-  const logPath = join19(runDir, `${phaseName}.log`);
-  const artifactPath = join19(runDir, `${phaseName}.md`);
+  const logPath = join20(runDir, `${phaseName}.log`);
+  const artifactPath = join20(runDir, `${phaseName}.md`);
   const lines = [];
   if (existsSync18(artifactPath)) {
     lines.push(`  Artifact: ${import_picocolors3.default.cyan(artifactPath)}`);
@@ -68229,8 +68280,8 @@ function printTaskSummary(meta3) {
   console.log(import_picocolors3.default.bold("  Artifacts"));
   let any2 = false;
   for (const phase of PHASE_FILES) {
-    const md = join19(runDir, `${phase}.md`);
-    const log = join19(runDir, `${phase}.log`);
+    const md = join20(runDir, `${phase}.md`);
+    const log = join20(runDir, `${phase}.log`);
     const hasMd = existsSync18(md);
     const hasLog = existsSync18(log);
     if (!hasMd && !hasLog) continue;
@@ -70993,18 +71044,18 @@ __export(pr_creator_exports, {
   __testing: () => __testing,
   createPullRequestViaAI: () => createPullRequestViaAI
 });
-import { join as join20 } from "node:path";
+import { join as join21 } from "node:path";
 import { existsSync as existsSync19 } from "node:fs";
 async function createPullRequestViaAI(args2) {
   const runDir = getRunDir(args2.taskKey);
-  const prFile = join20(runDir, "pr.txt");
-  const logPath = join20(runDir, "pr.log");
+  const prFile = join21(runDir, "pr.txt");
+  const logPath = join21(runDir, "pr.log");
   if (existsSync19(prFile)) {
     await writeText(prFile, "");
   }
-  const planning = await readText(join20(runDir, "planning.md")) ?? "(no plan artifact)";
-  const implementation = await readText(join20(runDir, "implementation.md")) ?? "(no implementation artifact)";
-  const review = await readText(join20(runDir, "review.md")) ?? "(no review artifact)";
+  const planning = await readText(join21(runDir, "planning.md")) ?? "(no plan artifact)";
+  const implementation = await readText(join21(runDir, "implementation.md")) ?? "(no implementation artifact)";
+  const review = await readText(join21(runDir, "review.md")) ?? "(no review artifact)";
   const tool = args2.provider === "gitlab" ? "glab" : "gh";
   const createCmd = args2.provider === "gitlab" ? `glab mr create --source-branch ${args2.branch} --target-branch ${args2.baseBranch} --title <title> --description <body> --no-editor` : `gh pr create --head ${args2.branch} --base ${args2.baseBranch} --title <title> --body <body>`;
   const prompt = buildPrPrompt({
@@ -71820,7 +71871,7 @@ var init_missing_artifact = __esm({
 // src/storage/lockfile.ts
 import { existsSync as existsSync20 } from "node:fs";
 import { readFile as readFile12, unlink as unlink2, writeFile as writeFile5, mkdir as mkdir5 } from "node:fs/promises";
-import { join as join21 } from "node:path";
+import { join as join22 } from "node:path";
 import { hostname as hostname3 } from "node:os";
 function isPidAlive(pid) {
   try {
@@ -71832,7 +71883,7 @@ function isPidAlive(pid) {
   }
 }
 function lockPath(taskKey) {
-  return join21(getRunDir(taskKey), LOCK_FILE);
+  return join22(getRunDir(taskKey), LOCK_FILE);
 }
 async function readLock(taskKey) {
   const path3 = lockPath(taskKey);
@@ -71846,7 +71897,7 @@ async function readLock(taskKey) {
 }
 async function acquireLock(taskKey, command) {
   const path3 = lockPath(taskKey);
-  await mkdir5(join21(getRunDir(taskKey)), { recursive: true });
+  await mkdir5(join22(getRunDir(taskKey)), { recursive: true });
   const existing = await readLock(taskKey);
   if (existing) {
     const stale = existing.host !== hostname3() || !isPidAlive(existing.pid) || existing.pid === process.pid;
@@ -72453,7 +72504,7 @@ var init_models = __esm({
 
 // src/utils/file-picker.ts
 import { readdir as readdir5 } from "node:fs/promises";
-import { join as join22, relative, sep } from "node:path";
+import { join as join23, relative, sep } from "node:path";
 async function scanWorkdirFiles(workdir, query) {
   const collected = [];
   let scanned = 0;
@@ -72474,7 +72525,7 @@ async function scanWorkdirFiles(workdir, query) {
       if (scanned >= MAX_SCANNED) return;
       if (IGNORED_DIRS2.has(entry.name)) continue;
       if (entry.name.startsWith(".") && entry.name !== ".cursorrules" && depth > 0) continue;
-      const full = join22(dir, entry.name);
+      const full = join23(dir, entry.name);
       scanned++;
       if (entry.isDirectory()) {
         await walk(full, depth + 1);
@@ -72540,10 +72591,10 @@ var init_file_picker = __esm({
 
 // src/cli/actions/setup-project-investigate.ts
 import { existsSync as existsSync22 } from "node:fs";
-import { join as join23 } from "node:path";
+import { join as join24 } from "node:path";
 function resolveProjectContextPath(projectName, workdir, sharedInRepo) {
-  if (sharedInRepo) return join23(workdir, "PROJECT_CONTEXT.md");
-  return join23(getProjectsDir(), projectName, "PROJECT_CONTEXT.md");
+  if (sharedInRepo) return join24(workdir, "PROJECT_CONTEXT.md");
+  return join24(getProjectsDir(), projectName, "PROJECT_CONTEXT.md");
 }
 async function investigateProjectContext(opts) {
   const target = resolveProjectContextPath(opts.projectName, opts.workdir, opts.sharedInRepo);
@@ -72593,7 +72644,7 @@ async function investigateProjectContext(opts) {
   if (opts.sharedInRepo) {
     await ensureDir(opts.workdir);
   } else {
-    await ensureDir(join23(getProjectsDir(), opts.projectName));
+    await ensureDir(join24(getProjectsDir(), opts.projectName));
   }
   console.log(import_picocolors11.default.dim(`\u2192 Running ${opts.cliName} (${opts.model}) against ${opts.workdir}`));
   console.log(import_picocolors11.default.dim(`  This may take a few minutes. Watch the AI output below.`));
@@ -73378,7 +73429,7 @@ __export(setup_transitions_exports, {
 });
 import { writeFile as writeFile7, readFile as readFile14, mkdir as mkdir7 } from "node:fs/promises";
 import { existsSync as existsSync24 } from "node:fs";
-import { join as join24, dirname as dirname5 } from "node:path";
+import { join as join25, dirname as dirname5 } from "node:path";
 async function setupTransitionsAction(options) {
   const configResult = await loadConfig();
   if (!configResult.ok) {
@@ -73457,7 +73508,7 @@ async function setupTransitionsAction(options) {
     handlePromptError(err);
     process.exit(1);
   }
-  const target = join24(projectConfig.workdir, ".bode.yml");
+  const target = join25(projectConfig.workdir, ".bode.yml");
   const existing = existsSync24(target) ? (0, import_yaml6.parse)(await readFile14(target, "utf-8")) ?? {} : {};
   const existingJira = existing["jira"] ?? {};
   const updated = {
@@ -73496,11 +73547,11 @@ var init_exports = {};
 __export(init_exports, {
   initAction: () => initAction
 });
-import { existsSync as existsSync25, mkdirSync, readFileSync as readFileSync5 } from "node:fs";
-import { join as join25 } from "node:path";
+import { existsSync as existsSync25, mkdirSync as mkdirSync2, readFileSync as readFileSync5 } from "node:fs";
+import { join as join26 } from "node:path";
 async function initAction(options) {
   const workdir = process.cwd();
-  const outPath = join25(workdir, "AGENTS.md");
+  const outPath = join26(workdir, "AGENTS.md");
   if (existsSync25(outPath) && !options.overwrite) {
     console.error(import_picocolors14.default.yellow("AGENTS.md already exists. Use --overwrite to regenerate."));
     process.exit(1);
@@ -73516,7 +73567,7 @@ async function initAction(options) {
     cli: phaseConfig.cli
   });
   if (!skill.ok) throw skill.error;
-  const importedRules = options.from && existsSync25(join25(workdir, options.from)) ? readFileSync5(join25(workdir, options.from), "utf-8") : void 0;
+  const importedRules = options.from && existsSync25(join26(workdir, options.from)) ? readFileSync5(join26(workdir, options.from), "utf-8") : void 0;
   const prompt = buildPrompt(skill.value, {
     jiraIssue: {
       key: "INIT",
@@ -73535,7 +73586,7 @@ async function initAction(options) {
     phaseName: "planning",
     mainWorkdir: workdir
   });
-  mkdirSync(workdir, { recursive: true });
+  mkdirSync2(workdir, { recursive: true });
   const result = await adapterResult.value.invoke(prompt, phaseConfig, {
     interactive: true,
     workdir
@@ -73563,12 +73614,12 @@ var learn_exports = {};
 __export(learn_exports, {
   learnAction: () => learnAction
 });
-import { mkdirSync as mkdirSync2, existsSync as existsSync26 } from "node:fs";
-import { join as join26 } from "node:path";
+import { mkdirSync as mkdirSync3, existsSync as existsSync26 } from "node:fs";
+import { join as join27 } from "node:path";
 async function learnAction(options) {
   const workdir = process.cwd();
-  const outDir = join26(workdir, ".bode");
-  const outPath = join26(outDir, "context.md");
+  const outDir = join27(workdir, ".bode");
+  const outPath = join27(outDir, "context.md");
   if (existsSync26(outPath) && !options.refresh) {
     console.log(import_picocolors15.default.yellow(`${outPath} already exists. Use --refresh to regenerate.`));
     return;
@@ -73602,7 +73653,7 @@ async function learnAction(options) {
     phaseName: "planning",
     mainWorkdir: workdir
   });
-  mkdirSync2(outDir, { recursive: true });
+  mkdirSync3(outDir, { recursive: true });
   const result = await adapterResult.value.invoke(prompt, phaseConfig, {
     interactive: true,
     workdir
@@ -74077,7 +74128,7 @@ var replay_exports = {};
 __export(replay_exports, {
   replayAction: () => replayAction
 });
-import { join as join27 } from "node:path";
+import { join as join28 } from "node:path";
 async function replayAction(taskKey, options) {
   if (options.import) {
     await importBundle(taskKey, options.import);
@@ -74096,7 +74147,7 @@ async function replayAction(taskKey, options) {
     console.error(import_picocolors22.default.yellow(`No replay manifest phase found for ${taskKey}`));
     process.exit(1);
   }
-  const prompt = await readText(join27(getRunDir(taskKey), phase.prompt_path));
+  const prompt = await readText(join28(getRunDir(taskKey), phase.prompt_path));
   if (!prompt) {
     console.error(import_picocolors22.default.red(`Prompt artifact missing: ${phase.prompt_path}`));
     process.exit(1);
@@ -74120,7 +74171,7 @@ async function replayAction(taskKey, options) {
     process.exit(1);
   }
   await writeText(
-    join27(getRunDir(taskKey), `${phase.phase}.replay.log`),
+    join28(getRunDir(taskKey), `${phase.phase}.replay.log`),
     `STDOUT:
 ${result.value.stdout}
 
@@ -74143,7 +74194,7 @@ async function importBundle(taskKey, bundlePath) {
   const runDir = getRunDir(taskKey);
   await ensureDir(runDir);
   for (const [file2, content] of Object.entries(bundle.files)) {
-    await writeText(join27(runDir, file2), content);
+    await writeText(join28(runDir, file2), content);
   }
   console.log(import_picocolors22.default.green(`Imported ${Object.keys(bundle.files).length} file(s) into ${runDir}`));
 }
@@ -74166,7 +74217,7 @@ __export(log_exports, {
 });
 async function logAction(taskKey) {
   const { readdir: readdir8 } = await import("node:fs/promises");
-  const { join: join33 } = await import("node:path");
+  const { join: join34 } = await import("node:path");
   const runDir = getRunDir(taskKey);
   try {
     const files = await readdir8(runDir);
@@ -74180,7 +74231,7 @@ async function logAction(taskKey) {
       console.error(import_picocolors23.default.yellow("No log file available"));
       return;
     }
-    const content = await readText(join33(runDir, latest));
+    const content = await readText(join34(runDir, latest));
     if (content) {
       console.log(content);
     }
@@ -74272,9 +74323,9 @@ var skills_exports = {};
 __export(skills_exports, {
   skillsAction: () => skillsAction
 });
-import { existsSync as existsSync27, mkdirSync as mkdirSync3, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { existsSync as existsSync27, mkdirSync as mkdirSync4, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { cp, readdir as readdir7, readFile as readFile15 } from "node:fs/promises";
-import { join as join28 } from "node:path";
+import { join as join29 } from "node:path";
 async function skillsAction(options) {
   if (options.subcommand) {
     await manageSkills(options.subcommand, options.args ?? []);
@@ -74328,15 +74379,15 @@ async function installSkill(source) {
   if (!source) throw new Error("Usage: bode skills install <repo>#<path>");
   const [, sourcePath] = source.split("#");
   if (!sourcePath) throw new Error("Skill source must use <repo>#<path>");
-  const localSource = join28(process.cwd(), sourcePath);
+  const localSource = join29(process.cwd(), sourcePath);
   if (!existsSync27(localSource))
     throw new Error(`Only local fixture installs are supported here: ${localSource}`);
   const slug = sourcePath.split(/[\\/]/).filter(Boolean).pop() ?? "skill";
-  const dest = join28(getSkillsDir(), slug);
-  mkdirSync3(getSkillsDir(), { recursive: true });
+  const dest = join29(getSkillsDir(), slug);
+  mkdirSync4(getSkillsDir(), { recursive: true });
   await cp(localSource, dest, { recursive: true, force: true });
   writeFileSync2(
-    join28(dest, ".install.json"),
+    join29(dest, ".install.json"),
     JSON.stringify({ source, installed_at: (/* @__PURE__ */ new Date()).toISOString(), version: "local" }, null, 2)
   );
   console.log(import_picocolors25.default.green(`Installed ${slug} to ${dest}`));
@@ -74350,14 +74401,14 @@ async function listInstalledSkills() {
 }
 function removeSkill(slug) {
   if (!slug) throw new Error("Usage: bode skills remove <slug>");
-  rmSync(join28(getSkillsDir(), slug), { recursive: true, force: true });
+  rmSync(join29(getSkillsDir(), slug), { recursive: true, force: true });
   console.log(import_picocolors25.default.green(`Removed ${slug}`));
 }
 async function searchSkills(query) {
-  const dir = join28(process.cwd(), "skills", "community");
+  const dir = join29(process.cwd(), "skills", "community");
   if (!existsSync27(dir)) return;
   for (const entry of await readdir7(dir)) {
-    const readme = join28(dir, entry, "README.md");
+    const readme = join29(dir, entry, "README.md");
     if (!existsSync27(readme)) continue;
     const text = await readFile15(readme, "utf-8");
     if (!query || text.toLowerCase().includes(query.toLowerCase())) console.log(entry);
@@ -74650,8 +74701,8 @@ var init_feedback = __esm({
 // src/utils/telemetry.ts
 import { existsSync as existsSync29 } from "node:fs";
 import { appendFile, mkdir as mkdir8, readFile as readFile16, writeFile as writeFile8 } from "node:fs/promises";
-import { join as join29 } from "node:path";
-import { homedir as homedir2 } from "node:os";
+import { join as join30 } from "node:path";
+import { homedir as homedir3 } from "node:os";
 import { randomUUID as randomUUID2 } from "node:crypto";
 async function readState() {
   if (!existsSync29(STATE_FILE)) return null;
@@ -74699,9 +74750,9 @@ var TELEMETRY_DIR, STATE_FILE, EVENTS_FILE, __testing4;
 var init_telemetry = __esm({
   "src/utils/telemetry.ts"() {
     "use strict";
-    TELEMETRY_DIR = join29(homedir2(), ".bode", "telemetry");
-    STATE_FILE = join29(TELEMETRY_DIR, "state.json");
-    EVENTS_FILE = join29(TELEMETRY_DIR, "events.ndjson");
+    TELEMETRY_DIR = join30(homedir3(), ".bode", "telemetry");
+    STATE_FILE = join30(TELEMETRY_DIR, "state.json");
+    EVENTS_FILE = join30(TELEMETRY_DIR, "events.ndjson");
     __testing4 = { TELEMETRY_DIR, STATE_FILE, EVENTS_FILE };
   }
 });
@@ -74782,8 +74833,8 @@ __export(compare_exports, {
   compareAction: () => compareAction
 });
 import { mkdir as mkdir9, writeFile as writeFile9 } from "node:fs/promises";
-import { join as join30 } from "node:path";
-import { homedir as homedir3 } from "node:os";
+import { join as join31 } from "node:path";
+import { homedir as homedir4 } from "node:os";
 async function compareAction(taskKey, options) {
   if (options.show || options.diff || options.pick) {
     console.log(import_picocolors29.default.dim("Compare reports live under ~/.bode/comparisons/."));
@@ -74836,7 +74887,7 @@ async function compareAction(taskKey, options) {
     process.exit(1);
   }
   const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").replace(/T/, "_").slice(0, 19);
-  const outDir = join30(homedir3(), ".bode", "comparisons", `${taskKey}-${timestamp}`);
+  const outDir = join31(homedir4(), ".bode", "comparisons", `${taskKey}-${timestamp}`);
   await mkdir9(outDir, { recursive: true });
   console.log(import_picocolors29.default.cyan(`Comparing ${specs.length} agents on ${phases.join(", ")} for ${taskKey}`));
   console.log(import_picocolors29.default.dim(`Output: ${outDir}`));
@@ -74877,7 +74928,7 @@ async function compareAction(taskKey, options) {
       continue;
     }
     const safe = spec.replace(/[^a-z0-9]+/gi, "-");
-    const path3 = join30(outDir, `${safe}.md`);
+    const path3 = join31(outDir, `${safe}.md`);
     await writeFile9(path3, invokeR.value.stdout, "utf-8");
     console.log(import_picocolors29.default.green(`  \u2713 ${spec} \u2192 ${path3} (${invokeR.value.durationMs}ms)`));
     results.push({
@@ -74887,7 +74938,7 @@ async function compareAction(taskKey, options) {
       durationMs: invokeR.value.durationMs
     });
   }
-  const summaryPath = join30(outDir, "summary.md");
+  const summaryPath = join31(outDir, "summary.md");
   const summary = `# Agent comparison \u2014 ${taskKey}
 
 Date: ${(/* @__PURE__ */ new Date()).toISOString()}
@@ -74935,7 +74986,7 @@ __export(memory_exports, {
 });
 import { spawn as spawn4 } from "node:child_process";
 import { existsSync as existsSync30, readFileSync as readFileSync6 } from "node:fs";
-import { join as join31 } from "node:path";
+import { join as join32 } from "node:path";
 async function memoryAction(subcommand, args2) {
   const workdir = process.cwd();
   switch (subcommand ?? "show") {
@@ -74958,7 +75009,7 @@ async function memoryAction(subcommand, args2) {
     case "edit": {
       const dir = await initMemory(workdir);
       const editor = process.env["EDITOR"] ?? "notepad";
-      spawn4(editor, [join31(dir, "notes.md")], { stdio: "inherit", shell: true });
+      spawn4(editor, [join32(dir, "notes.md")], { stdio: "inherit", shell: true });
       return;
     }
     case "off": {
@@ -74979,7 +75030,7 @@ async function memoryAction(subcommand, args2) {
   }
 }
 function readMemoryFileForTests(projectPath, file2) {
-  const path3 = join31(memoryDirForProject(projectPath), file2);
+  const path3 = join32(memoryDirForProject(projectPath), file2);
   return existsSync30(path3) ? readFileSync6(path3, "utf-8") : null;
 }
 var import_picocolors30;
@@ -81548,10 +81599,10 @@ init_prompt();
 init_defaults();
 import { existsSync as existsSync31 } from "node:fs";
 import { readFile as readFile17, writeFile as writeFile10, rename as rename2, mkdir as mkdir10 } from "node:fs/promises";
-import { dirname as dirname6, join as join32 } from "node:path";
+import { dirname as dirname6, join as join33 } from "node:path";
 var HISTORY_MAX = 250;
 function defaultHistoryPath() {
-  return join32(getGlobalDir(), "history");
+  return join33(getGlobalDir(), "history");
 }
 async function loadHistory(path3 = defaultHistoryPath()) {
   if (!existsSync31(path3)) return [];

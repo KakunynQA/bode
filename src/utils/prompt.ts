@@ -1,7 +1,42 @@
 import { ExitPromptError, AbortPromptError } from '@inquirer/core';
 import { input, password, select, search, Separator } from '@inquirer/prompts';
 import { emitKeypressEvents } from 'node:readline';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import pc from 'picocolors';
+
+// ---------------------------------------------------------------------------
+// ESC debug log (v2.1.5+). Toggle via env var BODE_ESC_DEBUG=1 so it never
+// pollutes ~/.bode/ for normal users. Used to diagnose why ESC inside
+// inquirer wizards doesn't fire on PowerShell + Windows Terminal.
+// ---------------------------------------------------------------------------
+const ESC_DEBUG = process.env.BODE_ESC_DEBUG === '1';
+const ESC_LOG_PATH = join(homedir(), '.bode', 'esc-debug.log');
+let escLogInited = false;
+
+function escLog(event: string, detail: Record<string, unknown> = {}): void {
+	if (!ESC_DEBUG) return;
+	try {
+		if (!escLogInited) {
+			mkdirSync(join(homedir(), '.bode'), { recursive: true });
+			escLogInited = true;
+		}
+		const line = JSON.stringify({ t: new Date().toISOString(), event, ...detail }) + '\n';
+		appendFileSync(ESC_LOG_PATH, line, 'utf8');
+	} catch {
+		/* never let logging crash the prompt */
+	}
+}
+
+function bufToHex(b: Buffer | string | undefined): string {
+	if (b === undefined) return '<undef>';
+	if (typeof b === 'string') {
+		const buf = Buffer.from(b, 'utf8');
+		return buf.toString('hex');
+	}
+	return b.toString('hex');
+}
 
 /**
  * Sentinel returned by `runWizard` step functions when the user pressed ESC.
@@ -56,29 +91,54 @@ function createBackSignal(): { signal: AbortSignal; cleanup: () => void } {
 	let escTimer: ReturnType<typeof setTimeout> | null = null;
 	let done = false;
 
-	function trigger(): void {
+	escLog('createBackSignal:start', {
+		stdinIsRaw: (process.stdin as { isRaw?: boolean }).isRaw === true,
+		stdinIsTTY: process.stdin.isTTY === true,
+		stdinListeners: {
+			data: process.stdin.listenerCount('data'),
+			keypress: process.stdin.listenerCount('keypress'),
+		},
+	});
+
+	function trigger(source: string): void {
 		if (done) return;
 		done = true;
+		escLog('trigger', { source });
 		ac.abort(new BackError());
 		cleanup();
 	}
 
 	function onKeypress(
 		_str: string | undefined,
-		key: { name?: string; ctrl?: boolean; meta?: boolean; shift?: boolean } | undefined
+		key:
+			| { name?: string; ctrl?: boolean; meta?: boolean; shift?: boolean; sequence?: string }
+			| undefined
 	): void {
+		escLog('keypress', {
+			str: _str,
+			keyName: key?.name,
+			keyCtrl: key?.ctrl,
+			keyMeta: key?.meta,
+			keyShift: key?.shift,
+			sequence: bufToHex(key?.sequence),
+		});
 		if (!key) return;
 		if (key.name === 'escape' && !key.ctrl && !key.meta && !key.shift) {
-			trigger();
+			trigger('keypress');
 		}
 	}
 
 	function onData(chunk: Buffer): void {
+		escLog('data', {
+			length: chunk.length,
+			hex: chunk.toString('hex'),
+			firstByte: chunk.length > 0 ? `0x${chunk[0]!.toString(16)}` : null,
+		});
 		if (chunk.length === 1 && chunk[0] === 0x1b) {
 			if (escTimer) clearTimeout(escTimer);
 			escTimer = setTimeout(() => {
 				escTimer = null;
-				trigger();
+				trigger('data-1byte-debounced');
 			}, 60);
 		} else if (escTimer) {
 			clearTimeout(escTimer);
@@ -89,14 +149,16 @@ function createBackSignal(): { signal: AbortSignal; cleanup: () => void } {
 	// Idempotent — readline guards against double-init internally.
 	try {
 		emitKeypressEvents(process.stdin);
-	} catch {
-		/* keypress emission unavailable — fall back to byte sniff */
+		escLog('emitKeypressEvents:ok');
+	} catch (err) {
+		escLog('emitKeypressEvents:err', { msg: (err as Error).message });
 	}
 
 	process.stdin.on('keypress', onKeypress);
 	process.stdin.on('data', onData);
 
 	function cleanup(): void {
+		escLog('cleanup');
 		process.stdin.removeListener('keypress', onKeypress);
 		process.stdin.removeListener('data', onData);
 		if (escTimer) {

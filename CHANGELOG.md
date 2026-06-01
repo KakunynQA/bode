@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.5] — 2026-06-01
+
+### Added
+
+- Opt-in stdin debug log to diagnose ESC delivery on PowerShell + Windows
+  Terminal. Set `BODE_ESC_DEBUG=1` before launching bode — every
+  `data` / `keypress` event during an inquirer wizard prompt is appended
+  to `~/.bode/esc-debug.log` as JSONL. The log captures chunk hex,
+  keypress name, sequence bytes, and stdin state (raw mode, TTY, listener
+  counts) so we can pinpoint why ESC is not firing in 2.1.4.
+
 ## [2.1.4] — 2026-06-01
 
 ### Fixed
