@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.6] — 2026-06-01
+
+### Added
+
+- Wizard step indicator: a `─── step X / N ───` divider prints above
+  each `setup` / `setup-project` / `setup-transitions` question so the
+  user always sees where they are in the flow. Not a true sticky footer
+  (that needs a separate Ink rewrite of the wizard itself); scrolls up
+  with subsequent output but keeps the user oriented.
+
+### Changed
+
+- `BODE_ESC_DEBUG` is now **on by default**. The v2.1.5 opt-in path was
+  too easy to miss across terminals / shell sessions. The log lives at
+  `~/.bode/esc-debug.log`, one JSONL line per stdin event. Opt out via
+  `BODE_ESC_DEBUG=0`.
+
 ## [2.1.5] — 2026-06-01
 
 ### Added

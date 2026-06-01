@@ -36,6 +36,11 @@ async function runWizard(steps: WizardStep[], results: unknown[]): Promise<void>
 	while (cursor < steps.length) {
 		const step = steps[cursor]!;
 		const isFirst = cursor === 0;
+		// v2.1.6: progress indicator above each step. Not a true sticky
+		// footer (that would need an Ink rewrite of the wizard itself);
+		// scrolls up with subsequent output but keeps the user oriented.
+		const bar = '─'.repeat(40);
+		console.log(pc.dim(`\n${bar}  step ${cursor + 1} / ${steps.length}  ${bar}`));
 		const result = await step(isFirst);
 		if (result === BACK) {
 			cursor = Math.max(0, cursor - 1);

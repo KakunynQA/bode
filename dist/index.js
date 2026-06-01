@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.1.5") {
-    return "2.1.5";
+  if ("2.1.6") {
+    return "2.1.6";
   }
   const base = moduleDir();
   if (base) {
@@ -66454,7 +66454,7 @@ var init_prompt = __esm({
     init_dist5();
     init_dist17();
     import_picocolors2 = __toESM(require_picocolors(), 1);
-    ESC_DEBUG = process.env.BODE_ESC_DEBUG === "1";
+    ESC_DEBUG = process.env.BODE_ESC_DEBUG !== "0";
     ESC_LOG_PATH = join8(homedir2(), ".bode", "esc-debug.log");
     escLogInited = false;
     BACK = Symbol("__BACK__");
@@ -72694,6 +72694,9 @@ async function runWizard(steps, results) {
   while (cursor < steps.length) {
     const step = steps[cursor];
     const isFirst = cursor === 0;
+    const bar = "\u2500".repeat(40);
+    console.log(import_picocolors12.default.dim(`
+${bar}  step ${cursor + 1} / ${steps.length}  ${bar}`));
     const result = await step(isFirst);
     if (result === BACK) {
       cursor = Math.max(0, cursor - 1);

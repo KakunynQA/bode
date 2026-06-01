@@ -7,11 +7,12 @@ import { join } from 'node:path';
 import pc from 'picocolors';
 
 // ---------------------------------------------------------------------------
-// ESC debug log (v2.1.5+). Toggle via env var BODE_ESC_DEBUG=1 so it never
-// pollutes ~/.bode/ for normal users. Used to diagnose why ESC inside
-// inquirer wizards doesn't fire on PowerShell + Windows Terminal.
+// ESC debug log. v2.1.6: ON by default to guarantee we capture stdin events
+// for the open ESC-in-wizard bug. Opt out with BODE_ESC_DEBUG=0. The log is
+// small (one JSONL line per keystroke) and rotates on each new wizard so it
+// does not grow unbounded.
 // ---------------------------------------------------------------------------
-const ESC_DEBUG = process.env.BODE_ESC_DEBUG === '1';
+const ESC_DEBUG = process.env.BODE_ESC_DEBUG !== '0';
 const ESC_LOG_PATH = join(homedir(), '.bode', 'esc-debug.log');
 let escLogInited = false;
 
