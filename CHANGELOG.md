@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.2] — 2026-06-01
+
+### Fixed
+
+- **ESC no longer erases the previous line.** Two related bugs in the raw-mode prompt render loop:
+  - `handleEvents` unconditionally re-rendered after every stdin chunk even when `parseChunk` returned zero events (e.g., a lone ESC byte). Now early-returns when `events.length === 0`, so ESC is truly a no-op.
+  - The cursor-up math was off by one. After writing N lines joined by `\n`, the cursor sits on the Nth row, so to return to the start of the block you move up `N - 1` rows — not `N`. The previous `\x1b[${lastRenderHeight}A\x1b[0J` overshot by one row, landing on (and erasing) the previous prompt's line. Replaced with: skip move-up entirely when `lastRenderHeight === 1`, otherwise `\x1b[${lastRenderHeight - 1}A` then `\r\x1b[0J`. The v2.3.0 `firstRender` flag (which masked this for the first paint only) is gone — initial `lastRenderHeight = 0` now serves the same purpose without papering over the math bug. Applied to all 5 prompts: `askInput`, `askSelect`, `askSearch`, `askPassword`, `askInputWithAtTrigger`.
+
 ## [2.3.1] — 2026-06-01
 
 ### Changed

@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.3.1") {
-    return "2.3.1";
+  if ("2.3.2") {
+    return "2.3.2";
   }
   const base = moduleDir();
   if (base) {
@@ -53767,13 +53767,14 @@ async function askInput(opts) {
       cursor: (opts.default ?? "").length
     };
     let closed = false;
-    let lastRenderHeight = 1;
-    let firstRender = true;
+    let lastRenderHeight = 0;
     function render2() {
-      if (!firstRender) {
-        process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      if (lastRenderHeight > 0) {
+        if (lastRenderHeight > 1) {
+          process.stdout.write(`\x1B[${lastRenderHeight - 1}A`);
+        }
+        process.stdout.write("\r\x1B[0J");
       }
-      firstRender = false;
       const lines = [];
       const trailing = state.buffer.length - state.cursor;
       let line = "\r\x1B[2K" + prefix + state.buffer;
@@ -53818,6 +53819,7 @@ async function askInput(opts) {
       handleEvents(parseChunk(text));
     }
     function handleEvents(events) {
+      if (events.length === 0) return;
       for (const evt of events) {
         state = reduceInputState(state, evt);
         if (state.exit) {
@@ -53850,13 +53852,14 @@ async function askSelect(opts) {
       pageSize: effectivePageSize
     });
     let closed = false;
-    let lastRenderHeight = 1;
-    let firstRender = true;
+    let lastRenderHeight = 0;
     function render2() {
-      if (!firstRender) {
-        process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      if (lastRenderHeight > 0) {
+        if (lastRenderHeight > 1) {
+          process.stdout.write(`\x1B[${lastRenderHeight - 1}A`);
+        }
+        process.stdout.write("\r\x1B[0J");
       }
-      firstRender = false;
       const lines = [];
       lines.push("\r\x1B[2K" + prefix);
       const visibleStart = state.scrollOffset;
@@ -53900,6 +53903,7 @@ async function askSelect(opts) {
       handleEvents(parseChunk(text));
     }
     function handleEvents(events) {
+      if (events.length === 0) return;
       for (const evt of events) {
         state = reduceSelectState(state, evt);
         if (state.exit) {
@@ -53933,13 +53937,14 @@ async function askSearch(opts) {
     };
     let debounceTimer = null;
     let closed = false;
-    let lastRenderHeight = 1;
-    let firstRender = true;
+    let lastRenderHeight = 0;
     function render2() {
-      if (!firstRender) {
-        process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      if (lastRenderHeight > 0) {
+        if (lastRenderHeight > 1) {
+          process.stdout.write(`\x1B[${lastRenderHeight - 1}A`);
+        }
+        process.stdout.write("\r\x1B[0J");
       }
-      firstRender = false;
       const lines = [];
       const trailing = state.buffer.length - state.inputCursor;
       let inputLine = "\r\x1B[2K" + prefix + state.buffer;
@@ -54023,6 +54028,7 @@ async function askSearch(opts) {
       handleEvents(parseChunk(text));
     }
     function handleEvents(events) {
+      if (events.length === 0) return;
       const wasLoading = state.loading;
       for (const evt of events) {
         state = reduceSearchState(state, evt);
@@ -54054,13 +54060,14 @@ async function askPassword(opts) {
       cursor: (opts.default ?? "").length
     };
     let closed = false;
-    let lastRenderHeight = 1;
-    let firstRender = true;
+    let lastRenderHeight = 0;
     function render2() {
-      if (!firstRender) {
-        process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      if (lastRenderHeight > 0) {
+        if (lastRenderHeight > 1) {
+          process.stdout.write(`\x1B[${lastRenderHeight - 1}A`);
+        }
+        process.stdout.write("\r\x1B[0J");
       }
-      firstRender = false;
       const lines = [];
       const display = showMask ? "*".repeat(state.buffer.length) : "";
       const trailing = display.length - state.cursor;
@@ -54087,6 +54094,7 @@ async function askPassword(opts) {
       handleEvents(parseChunk(text));
     }
     function handleEvents(events) {
+      if (events.length === 0) return;
       for (const evt of events) {
         state = reduceInputState(state, evt);
         if (state.exit) {
@@ -54111,13 +54119,14 @@ async function askInputWithAtTrigger(opts) {
       cursor: (opts.default ?? "").length
     };
     let closed = false;
-    let lastRenderHeight = 1;
-    let firstRender = true;
+    let lastRenderHeight = 0;
     function render2() {
-      if (!firstRender) {
-        process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      if (lastRenderHeight > 0) {
+        if (lastRenderHeight > 1) {
+          process.stdout.write(`\x1B[${lastRenderHeight - 1}A`);
+        }
+        process.stdout.write("\r\x1B[0J");
       }
-      firstRender = false;
       const lines = [];
       const trailing = state.buffer.length - state.cursor;
       let line = "\r\x1B[2K" + prefix + state.buffer;
@@ -54152,6 +54161,7 @@ async function askInputWithAtTrigger(opts) {
       handleEvents(parseChunk(text));
     }
     function handleEvents(events) {
+      if (events.length === 0) return;
       for (const evt of events) {
         state = reduceKeystroke(state, evt);
         if (state.exit) {
