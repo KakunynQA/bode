@@ -34,13 +34,14 @@ export class TerminateShellError extends Error {
 
 type WrapOptions = {
 	firstStep?: boolean;
+	noBack?: boolean;
 };
 
 const FOOTER_HINT = pc.dim('  (esc to go back · ctrl+c to exit bode)');
 const ESC_DEBOUNCE_MS = 60;
 
-function printFooterHint(firstStep: boolean): void {
-	if (!firstStep) console.log(FOOTER_HINT);
+function printFooterHint(opts: WrapOptions): void {
+	if (!opts.firstStep && !opts.noBack) console.log(FOOTER_HINT);
 }
 
 function reRefStdin(): void {
@@ -298,7 +299,7 @@ export type SelectPromptState<T> = {
 	cursor: number;
 	scrollOffset: number;
 	pageSize: number;
-	exit?: 'DONE' | 'BACK' | 'CANCELLED';
+	exit?: 'DONE' | 'BACK' | 'CANCELLED' | undefined;
 };
 
 function clampCursor<T>(state: SelectPromptState<T>): SelectPromptState<T> {
@@ -371,7 +372,7 @@ export type SearchPromptState<T> = {
 	pageSize: number;
 	loading: boolean;
 	focusMode: 'input' | 'list';
-	exit?: 'DONE' | 'BACK' | 'CANCELLED';
+	exit?: 'DONE' | 'BACK' | 'CANCELLED' | undefined;
 };
 
 export function reduceSearchState<T>(
@@ -525,7 +526,7 @@ export async function askInput(
 	opts: AskInputOpts,
 	wrap: WrapOptions = {}
 ): Promise<string | typeof BACK> {
-	printFooterHint(wrap.firstStep ?? false);
+	printFooterHint(wrap);
 	reRefStdin();
 
 	return new Promise<string | typeof BACK>((resolve, reject) => {
@@ -567,6 +568,11 @@ export async function askInput(
 		}
 
 		async function finish(exit: 'DONE' | 'BACK' | 'CANCELLED'): Promise<void> {
+			if (exit === 'BACK' && wrap.noBack) {
+				state = { ...state, exit: undefined };
+				render();
+				return;
+			}
 			if (exit === 'DONE' && opts.validate) {
 				try {
 					const result = opts.validate(state.buffer);
@@ -651,7 +657,7 @@ export async function askSelect<T>(
 	opts: AskSelectOpts<T>,
 	wrap: WrapOptions = {}
 ): Promise<T | typeof BACK> {
-	printFooterHint(wrap.firstStep ?? false);
+	printFooterHint(wrap);
 	reRefStdin();
 
 	return new Promise<T | typeof BACK>((resolve, reject) => {
@@ -716,6 +722,11 @@ export async function askSelect<T>(
 		}
 
 		function finish(exit: 'DONE' | 'BACK' | 'CANCELLED'): void {
+			if (exit === 'BACK' && wrap.noBack) {
+				state = { ...state, exit: undefined };
+				render();
+				return;
+			}
 			cleanup();
 			switch (exit) {
 				case 'DONE':
@@ -783,7 +794,7 @@ export async function askSearch<T>(
 	opts: AskSearchOpts<T>,
 	wrap: WrapOptions = {}
 ): Promise<T | typeof BACK> {
-	printFooterHint(wrap.firstStep ?? false);
+	printFooterHint(wrap);
 	reRefStdin();
 
 	return new Promise<T | typeof BACK>((resolve, reject) => {
@@ -854,6 +865,11 @@ export async function askSearch<T>(
 		}
 
 		function finish(exit: 'DONE' | 'BACK' | 'CANCELLED'): void {
+			if (exit === 'BACK' && wrap.noBack) {
+				state = { ...state, exit: undefined };
+				render();
+				return;
+			}
 			cleanup();
 			switch (exit) {
 				case 'DONE': {
@@ -962,7 +978,7 @@ export async function askPassword(
 	opts: AskPasswordOpts,
 	wrap: WrapOptions = {}
 ): Promise<string | typeof BACK> {
-	printFooterHint(wrap.firstStep ?? false);
+	printFooterHint(wrap);
 	reRefStdin();
 
 	return new Promise<string | typeof BACK>((resolve, reject) => {
@@ -1003,6 +1019,11 @@ export async function askPassword(
 		}
 
 		function finish(exit: 'DONE' | 'BACK' | 'CANCELLED'): void {
+			if (exit === 'BACK' && wrap.noBack) {
+				state = { ...state, exit: undefined };
+				render();
+				return;
+			}
 			cleanup();
 			switch (exit) {
 				case 'DONE':
@@ -1069,7 +1090,7 @@ export async function askInputWithAtTrigger(
 	opts: AtTriggerOptions,
 	wrap: WrapOptions = {}
 ): Promise<string | typeof BACK | typeof AT_TRIGGER> {
-	printFooterHint(wrap.firstStep ?? false);
+	printFooterHint(wrap);
 	reRefStdin();
 
 	return new Promise<string | typeof BACK | typeof AT_TRIGGER>((resolve, reject) => {

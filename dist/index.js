@@ -53421,8 +53421,8 @@ var init_factory = __esm({
 });
 
 // src/utils/prompt.ts
-function printFooterHint(firstStep) {
-  if (!firstStep) console.log(FOOTER_HINT);
+function printFooterHint(opts) {
+  if (!opts.firstStep && !opts.noBack) console.log(FOOTER_HINT);
 }
 function reRefStdin() {
   try {
@@ -53769,7 +53769,7 @@ function acquireStdin() {
   };
 }
 async function askInput(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
+  printFooterHint(wrap);
   reRefStdin();
   return new Promise((resolve, reject) => {
     const session = acquireStdin();
@@ -53807,6 +53807,11 @@ async function askInput(opts, wrap = {}) {
       process.stdout.write("\n");
     }
     async function finish(exit) {
+      if (exit === "BACK" && wrap.noBack) {
+        state = { ...state, exit: void 0 };
+        render2();
+        return;
+      }
       if (exit === "DONE" && opts.validate) {
         try {
           const result = opts.validate(state.buffer);
@@ -53873,7 +53878,7 @@ async function askInput(opts, wrap = {}) {
   });
 }
 async function askSelect(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
+  printFooterHint(wrap);
   reRefStdin();
   return new Promise((resolve, reject) => {
     const session = acquireStdin();
@@ -53934,6 +53939,11 @@ async function askSelect(opts, wrap = {}) {
       process.stdout.write("\n");
     }
     function finish(exit) {
+      if (exit === "BACK" && wrap.noBack) {
+        state = { ...state, exit: void 0 };
+        render2();
+        return;
+      }
       cleanup();
       switch (exit) {
         case "DONE":
@@ -53984,7 +53994,7 @@ async function askSelect(opts, wrap = {}) {
   });
 }
 async function askSearch(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
+  printFooterHint(wrap);
   reRefStdin();
   return new Promise((resolve, reject) => {
     const session = acquireStdin();
@@ -54051,6 +54061,11 @@ async function askSearch(opts, wrap = {}) {
       process.stdout.write("\n");
     }
     function finish(exit) {
+      if (exit === "BACK" && wrap.noBack) {
+        state = { ...state, exit: void 0 };
+        render2();
+        return;
+      }
       cleanup();
       switch (exit) {
         case "DONE": {
@@ -54140,7 +54155,7 @@ async function askSearch(opts, wrap = {}) {
   });
 }
 async function askPassword(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
+  printFooterHint(wrap);
   reRefStdin();
   return new Promise((resolve, reject) => {
     const session = acquireStdin();
@@ -54177,6 +54192,11 @@ async function askPassword(opts, wrap = {}) {
       process.stdout.write("\n");
     }
     function finish(exit) {
+      if (exit === "BACK" && wrap.noBack) {
+        state = { ...state, exit: void 0 };
+        render2();
+        return;
+      }
       cleanup();
       switch (exit) {
         case "DONE":
@@ -54227,7 +54247,7 @@ async function askPassword(opts, wrap = {}) {
   });
 }
 async function askInputWithAtTrigger(opts, wrap = {}) {
-  printFooterHint(wrap.firstStep ?? false);
+  printFooterHint(wrap);
   reRefStdin();
   return new Promise((resolve, reject) => {
     const session = acquireStdin();
@@ -61001,18 +61021,27 @@ async function setupAction(subcommand, options) {
       },
       { firstStep: true }
     );
-    const jiraProject = await askInput({
-      message: "Default project key (e.g. KD):",
-      default: currentProject || "KD"
-    });
-    let jiraEmail = await askInput({
-      message: "Jira account email (for API token auth):",
-      default: currentJiraEmail
-    });
-    let jiraToken = await askPassword({
-      message: "Jira API token (leave blank to keep existing or use mock):",
-      mask: true
-    });
+    const jiraProject = await askInput(
+      {
+        message: "Default project key (e.g. KD):",
+        default: currentProject || "KD"
+      },
+      { noBack: true }
+    );
+    let jiraEmail = await askInput(
+      {
+        message: "Jira account email (for API token auth):",
+        default: currentJiraEmail
+      },
+      { noBack: true }
+    );
+    let jiraToken = await askPassword(
+      {
+        message: "Jira API token (leave blank to keep existing or use mock):",
+        mask: true
+      },
+      { noBack: true }
+    );
     if (!jiraToken) jiraToken = currentJiraToken;
     if (jiraEmail && jiraToken) {
       const spinner = ora("Testing Jira connection...").start();
@@ -61021,22 +61050,31 @@ async function setupAction(subcommand, options) {
         spinner.succeed("Jira connection successful!");
       } else {
         spinner.fail(`Connection failed: ${testResult.error.message}`);
-        const action = await askSelect({
-          message: "What would you like to do?",
-          choices: [
-            { name: "Retry with different credentials", value: "retry" },
-            { name: "Skip (mock adapter will be used)", value: "skip" }
-          ]
-        });
+        const action = await askSelect(
+          {
+            message: "What would you like to do?",
+            choices: [
+              { name: "Retry with different credentials", value: "retry" },
+              { name: "Skip (mock adapter will be used)", value: "skip" }
+            ]
+          },
+          { noBack: true }
+        );
         if (action === "retry") {
-          const newEmail = await askInput({
-            message: "Jira account email:",
-            default: jiraEmail
-          });
-          const newToken = await askPassword({
-            message: "Jira API token:",
-            mask: true
-          });
+          const newEmail = await askInput(
+            {
+              message: "Jira account email:",
+              default: jiraEmail
+            },
+            { noBack: true }
+          );
+          const newToken = await askPassword(
+            {
+              message: "Jira API token:",
+              mask: true
+            },
+            { noBack: true }
+          );
           if (newEmail && newToken) {
             const retryResult = await testJiraConnection(jiraSite, newEmail, newToken);
             if (retryResult.ok) {
@@ -61055,18 +61093,24 @@ async function setupAction(subcommand, options) {
       }
     }
     console.log(import_picocolors12.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
-    const vcsProvider = await askSelect({
-      message: "VCS provider:",
-      default: "github",
-      choices: [
-        { name: "GitHub (gh)", value: "github", description: "Uses gh CLI for PR creation" },
-        { name: "GitLab (glab)", value: "gitlab", description: "Uses glab CLI for MR creation" }
-      ]
-    });
-    const githubOrg = await askInput({
-      message: "Default org:",
-      default: currentGithubOrg || "myorg"
-    });
+    const vcsProvider = await askSelect(
+      {
+        message: "VCS provider:",
+        default: "github",
+        choices: [
+          { name: "GitHub (gh)", value: "github", description: "Uses gh CLI for PR creation" },
+          { name: "GitLab (glab)", value: "gitlab", description: "Uses glab CLI for MR creation" }
+        ]
+      },
+      { noBack: true }
+    );
+    const githubOrg = await askInput(
+      {
+        message: "Default org:",
+        default: currentGithubOrg || "myorg"
+      },
+      { noBack: true }
+    );
     const results = [];
     const phaseSteps = [
       async () => {
@@ -61192,10 +61236,13 @@ async function setupProjectAction(options) {
           existingProject = loadResult.value;
         }
       } else {
-        selectedName = await askInput({
-          message: "Project name (lowercase, no spaces):",
-          validate: (v) => /^[a-z0-9][a-z0-9_-]*$/.test(v) || "Use lowercase letters, numbers, dashes, underscores"
-        });
+        selectedName = await askInput(
+          {
+            message: "Project name (lowercase, no spaces):",
+            validate: (v) => /^[a-z0-9][a-z0-9_-]*$/.test(v) || "Use lowercase letters, numbers, dashes, underscores"
+          },
+          { noBack: true }
+        );
       }
     } else {
       selectedName = await askInput(

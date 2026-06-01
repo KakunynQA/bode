@@ -259,18 +259,27 @@ export async function setupAction(
 			},
 			{ firstStep: true }
 		)) as string;
-		const jiraProject = (await askInput({
-			message: 'Default project key (e.g. KD):',
-			default: currentProject || 'KD',
-		})) as string;
-		let jiraEmail = (await askInput({
-			message: 'Jira account email (for API token auth):',
-			default: currentJiraEmail,
-		})) as string;
-		let jiraToken = (await askPassword({
-			message: 'Jira API token (leave blank to keep existing or use mock):',
-			mask: true,
-		})) as string;
+		const jiraProject = (await askInput(
+			{
+				message: 'Default project key (e.g. KD):',
+				default: currentProject || 'KD',
+			},
+			{ noBack: true }
+		)) as string;
+		let jiraEmail = (await askInput(
+			{
+				message: 'Jira account email (for API token auth):',
+				default: currentJiraEmail,
+			},
+			{ noBack: true }
+		)) as string;
+		let jiraToken = (await askPassword(
+			{
+				message: 'Jira API token (leave blank to keep existing or use mock):',
+				mask: true,
+			},
+			{ noBack: true }
+		)) as string;
 		if (!jiraToken) jiraToken = currentJiraToken;
 
 		if (jiraEmail && jiraToken) {
@@ -280,22 +289,31 @@ export async function setupAction(
 				spinner.succeed('Jira connection successful!');
 			} else {
 				spinner.fail(`Connection failed: ${testResult.error.message}`);
-				const action = await askSelect<'retry' | 'skip'>({
-					message: 'What would you like to do?',
-					choices: [
-						{ name: 'Retry with different credentials', value: 'retry' },
-						{ name: 'Skip (mock adapter will be used)', value: 'skip' },
-					],
-				});
+				const action = await askSelect<'retry' | 'skip'>(
+					{
+						message: 'What would you like to do?',
+						choices: [
+							{ name: 'Retry with different credentials', value: 'retry' },
+							{ name: 'Skip (mock adapter will be used)', value: 'skip' },
+						],
+					},
+					{ noBack: true }
+				);
 				if (action === 'retry') {
-					const newEmail = (await askInput({
-						message: 'Jira account email:',
-						default: jiraEmail,
-					})) as string;
-					const newToken = (await askPassword({
-						message: 'Jira API token:',
-						mask: true,
-					})) as string;
+					const newEmail = (await askInput(
+						{
+							message: 'Jira account email:',
+							default: jiraEmail,
+						},
+						{ noBack: true }
+					)) as string;
+					const newToken = (await askPassword(
+						{
+							message: 'Jira API token:',
+							mask: true,
+						},
+						{ noBack: true }
+					)) as string;
 					if (newEmail && newToken) {
 						const retryResult = await testJiraConnection(jiraSite, newEmail, newToken);
 						if (retryResult.ok) {
@@ -315,18 +333,24 @@ export async function setupAction(
 		}
 
 		console.log(pc.bold('\n── VCS ──'));
-		const vcsProvider = (await askSelect<'github' | 'gitlab'>({
-			message: 'VCS provider:',
-			default: 'github',
-			choices: [
-				{ name: 'GitHub (gh)', value: 'github', description: 'Uses gh CLI for PR creation' },
-				{ name: 'GitLab (glab)', value: 'gitlab', description: 'Uses glab CLI for MR creation' },
-			],
-		})) as 'github' | 'gitlab';
-		const githubOrg = (await askInput({
-			message: 'Default org:',
-			default: currentGithubOrg || 'myorg',
-		})) as string;
+		const vcsProvider = (await askSelect<'github' | 'gitlab'>(
+			{
+				message: 'VCS provider:',
+				default: 'github',
+				choices: [
+					{ name: 'GitHub (gh)', value: 'github', description: 'Uses gh CLI for PR creation' },
+					{ name: 'GitLab (glab)', value: 'gitlab', description: 'Uses glab CLI for MR creation' },
+				],
+			},
+			{ noBack: true }
+		)) as 'github' | 'gitlab';
+		const githubOrg = (await askInput(
+			{
+				message: 'Default org:',
+				default: currentGithubOrg || 'myorg',
+			},
+			{ noBack: true }
+		)) as string;
 
 		const results: unknown[] = [];
 		const phaseSteps: WizardStep[] = [
@@ -466,12 +490,15 @@ async function setupProjectAction(options: {
 					existingProject = loadResult.value;
 				}
 			} else {
-				selectedName = (await askInput({
-					message: 'Project name (lowercase, no spaces):',
-					validate: (v: string) =>
-						/^[a-z0-9][a-z0-9_-]*$/.test(v) ||
-						'Use lowercase letters, numbers, dashes, underscores',
-				})) as string;
+				selectedName = (await askInput(
+					{
+						message: 'Project name (lowercase, no spaces):',
+						validate: (v: string) =>
+							/^[a-z0-9][a-z0-9_-]*$/.test(v) ||
+							'Use lowercase letters, numbers, dashes, underscores',
+					},
+					{ noBack: true }
+				)) as string;
 			}
 		} else {
 			selectedName = (await askInput(
