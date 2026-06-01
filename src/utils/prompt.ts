@@ -124,7 +124,12 @@ function createBackSignal(): { signal: AbortSignal; cleanup: () => void } {
 			sequence: bufToHex(key?.sequence),
 		});
 		if (!key) return;
-		if (key.name === 'escape' && !key.ctrl && !key.meta && !key.shift) {
+		// PowerShell + Windows Terminal: readline reports a standalone ESC
+		// press with `key.name === 'escape'` and (surprisingly) `key.meta = true`
+		// even when no Alt modifier was held. We accept ESC regardless of the
+		// meta flag. We DO still reject ctrl+esc and shift+esc as those are
+		// different keystrokes the user might intend differently.
+		if (key.name === 'escape' && !key.ctrl && !key.shift) {
 			trigger('keypress');
 		}
 	}

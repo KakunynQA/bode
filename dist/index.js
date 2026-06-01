@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.1.6") {
-    return "2.1.6";
+  if ("2.1.7") {
+    return "2.1.7";
   }
   const base = moduleDir();
   if (base) {
@@ -66129,7 +66129,7 @@ function createBackSignal() {
       sequence: bufToHex(key?.sequence)
     });
     if (!key) return;
-    if (key.name === "escape" && !key.ctrl && !key.meta && !key.shift) {
+    if (key.name === "escape" && !key.ctrl && !key.shift) {
       trigger("keypress");
     }
   }

@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.7] — 2026-06-01
+
+### Fixed
+
+- ESC inside `setup` / `setup-project` / `setup-transitions` wizards
+  finally works on PowerShell + Windows Terminal. Root cause confirmed
+  from the 2.1.6 debug log: readline reports a standalone ESC press
+  with `key.name === 'escape'` AND `key.meta = true`, even when no Alt
+  modifier was held. The 2.1.4 dual-listener was rejecting it on the
+  `!key.meta` filter. We now accept `key.escape` regardless of the meta
+  flag (ctrl+esc and shift+esc remain ignored — they are different
+  intended keystrokes).
+
 ## [2.1.6] — 2026-06-01
 
 ### Added
