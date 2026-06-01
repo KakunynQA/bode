@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.2.0") {
-    return "2.2.0";
+  if ("2.3.0") {
+    return "2.3.0";
   }
   const base = moduleDir();
   if (base) {
@@ -53421,9 +53421,6 @@ var init_factory = __esm({
 });
 
 // src/utils/prompt.ts
-function printFooterHint(opts) {
-  if (!opts.firstStep && !opts.noBack) console.log(FOOTER_HINT);
-}
 function reRefStdin() {
   try {
     process.stdin.ref?.();
@@ -53457,7 +53454,6 @@ function parseChunk(chunk) {
         i = j + 1;
         continue;
       }
-      if (i === chunk.length - 1) out.push({ kind: "esc" });
       i++;
       continue;
     }
@@ -53521,8 +53517,6 @@ function reduceKeystroke(state, key) {
       return { ...state, exit: "AT_TRIGGER" };
     case "enter":
       return { ...state, exit: "DONE" };
-    case "esc":
-      return { ...state, exit: "BACK" };
     case "ctrlC":
       return { ...state, exit: "CANCELLED" };
     case "up":
@@ -53561,8 +53555,6 @@ function reduceInputState(state, key) {
     case "enter": {
       return { ...state, exit: "DONE", validateError: void 0 };
     }
-    case "esc":
-      return { ...state, exit: "BACK" };
     case "ctrlC":
       return { ...state, exit: "CANCELLED" };
     case "at": {
@@ -53641,8 +53633,6 @@ function reduceSelectState(state, key) {
       if (state.items.length === 0 || state.cursor >= state.items.length || state.items[state.cursor]?.disabled)
         return state;
       return { ...state, exit: "DONE" };
-    case "esc":
-      return { ...state, exit: "BACK" };
     case "ctrlC":
       return { ...state, exit: "CANCELLED" };
     default:
@@ -53677,8 +53667,6 @@ function reduceSearchState(state, key) {
       if (state.listCursor >= state.items.length) return state;
       return { ...state, exit: "DONE" };
     }
-    case "esc":
-      return { ...state, exit: "BACK" };
     case "ctrlC":
       return { ...state, exit: "CANCELLED" };
     case "char": {
@@ -53768,8 +53756,7 @@ function acquireStdin() {
     }
   };
 }
-async function askInput(opts, wrap = {}) {
-  printFooterHint(wrap);
+async function askInput(opts) {
   reRefStdin();
   return new Promise((resolve, reject) => {
     const session = acquireStdin();
@@ -53779,11 +53766,14 @@ async function askInput(opts, wrap = {}) {
       buffer: opts.default ?? "",
       cursor: (opts.default ?? "").length
     };
-    let escTimer = null;
     let closed = false;
     let lastRenderHeight = 1;
+    let firstRender = true;
     function render2() {
-      process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      if (!firstRender) {
+        process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      }
+      firstRender = false;
       const lines = [];
       const trailing = state.buffer.length - state.cursor;
       let line = "\r\x1B[2K" + prefix + state.buffer;
@@ -53799,19 +53789,10 @@ async function askInput(opts, wrap = {}) {
       if (closed) return;
       closed = true;
       stdin.removeListener("data", onData);
-      if (escTimer) {
-        clearTimeout(escTimer);
-        escTimer = null;
-      }
       session.restore();
       process.stdout.write("\n");
     }
     async function finish(exit) {
-      if (exit === "BACK" && wrap.noBack) {
-        state = { ...state, exit: void 0 };
-        render2();
-        return;
-      }
       if (exit === "DONE" && opts.validate) {
         try {
           const result = opts.validate(state.buffer);
@@ -53829,38 +53810,11 @@ async function askInput(opts, wrap = {}) {
         }
       }
       cleanup();
-      switch (exit) {
-        case "DONE":
-          resolve(state.buffer);
-          return;
-        case "BACK":
-          if (wrap.firstStep) {
-            console.log(import_picocolors2.default.dim("  Cancelled."));
-            reject(new CancelledError());
-            return;
-          }
-          resolve(BACK);
-          return;
-        case "CANCELLED":
-          reject(new TerminateShellError());
-          return;
-      }
+      if (exit === "DONE") resolve(state.buffer);
+      else reject(new TerminateShellError());
     }
     function onData(chunk) {
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
-      if (text === "\x1B" && !escTimer) {
-        escTimer = setTimeout(() => {
-          escTimer = null;
-          finish("BACK");
-        }, ESC_DEBOUNCE_MS);
-        return;
-      }
-      if (escTimer) {
-        clearTimeout(escTimer);
-        escTimer = null;
-        const merged = "\x1B" + text;
-        return handleEvents(parseChunk(merged));
-      }
       handleEvents(parseChunk(text));
     }
     function handleEvents(events) {
@@ -53877,8 +53831,7 @@ async function askInput(opts, wrap = {}) {
     render2();
   });
 }
-async function askSelect(opts, wrap = {}) {
-  printFooterHint(wrap);
+async function askSelect(opts) {
   reRefStdin();
   return new Promise((resolve, reject) => {
     const session = acquireStdin();
@@ -53896,11 +53849,14 @@ async function askSelect(opts, wrap = {}) {
       scrollOffset: 0,
       pageSize: effectivePageSize
     });
-    let escTimer = null;
     let closed = false;
     let lastRenderHeight = 1;
+    let firstRender = true;
     function render2() {
-      process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      if (!firstRender) {
+        process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      }
+      firstRender = false;
       const lines = [];
       lines.push("\r\x1B[2K" + prefix);
       const visibleStart = state.scrollOffset;
@@ -53931,52 +53887,16 @@ async function askSelect(opts, wrap = {}) {
       if (closed) return;
       closed = true;
       stdin.removeListener("data", onData);
-      if (escTimer) {
-        clearTimeout(escTimer);
-        escTimer = null;
-      }
       session.restore();
       process.stdout.write("\n");
     }
     function finish(exit) {
-      if (exit === "BACK" && wrap.noBack) {
-        state = { ...state, exit: void 0 };
-        render2();
-        return;
-      }
       cleanup();
-      switch (exit) {
-        case "DONE":
-          resolve(state.items[state.cursor].value);
-          return;
-        case "BACK":
-          if (wrap.firstStep) {
-            console.log(import_picocolors2.default.dim("  Cancelled."));
-            reject(new CancelledError());
-            return;
-          }
-          resolve(BACK);
-          return;
-        case "CANCELLED":
-          reject(new TerminateShellError());
-          return;
-      }
+      if (exit === "DONE") resolve(state.items[state.cursor].value);
+      else reject(new TerminateShellError());
     }
     function onData(chunk) {
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
-      if (text === "\x1B" && !escTimer) {
-        escTimer = setTimeout(() => {
-          escTimer = null;
-          finish("BACK");
-        }, ESC_DEBOUNCE_MS);
-        return;
-      }
-      if (escTimer) {
-        clearTimeout(escTimer);
-        escTimer = null;
-        const merged = "\x1B" + text;
-        return handleEvents(parseChunk(merged));
-      }
       handleEvents(parseChunk(text));
     }
     function handleEvents(events) {
@@ -53993,8 +53913,7 @@ async function askSelect(opts, wrap = {}) {
     render2();
   });
 }
-async function askSearch(opts, wrap = {}) {
-  printFooterHint(wrap);
+async function askSearch(opts) {
   reRefStdin();
   return new Promise((resolve, reject) => {
     const session = acquireStdin();
@@ -54012,12 +53931,15 @@ async function askSearch(opts, wrap = {}) {
       loading: false,
       focusMode: "input"
     };
-    let escTimer = null;
     let debounceTimer = null;
     let closed = false;
     let lastRenderHeight = 1;
+    let firstRender = true;
     function render2() {
-      process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      if (!firstRender) {
+        process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      }
+      firstRender = false;
       const lines = [];
       const trailing = state.buffer.length - state.inputCursor;
       let inputLine = "\r\x1B[2K" + prefix + state.buffer;
@@ -54049,10 +53971,6 @@ async function askSearch(opts, wrap = {}) {
       if (closed) return;
       closed = true;
       stdin.removeListener("data", onData);
-      if (escTimer) {
-        clearTimeout(escTimer);
-        escTimer = null;
-      }
       if (debounceTimer) {
         clearTimeout(debounceTimer);
         debounceTimer = null;
@@ -54061,34 +53979,17 @@ async function askSearch(opts, wrap = {}) {
       process.stdout.write("\n");
     }
     function finish(exit) {
-      if (exit === "BACK" && wrap.noBack) {
-        state = { ...state, exit: void 0 };
-        render2();
+      cleanup();
+      if (exit === "CANCELLED") {
+        reject(new TerminateShellError());
         return;
       }
-      cleanup();
-      switch (exit) {
-        case "DONE": {
-          if (state.focusMode === "list" && state.listCursor < state.items.length) {
-            resolve(state.items[state.listCursor].value);
-          } else if (state.items.length > 0) {
-            resolve(state.items[0].value);
-          } else {
-            resolve(void 0);
-          }
-          return;
-        }
-        case "BACK":
-          if (wrap.firstStep) {
-            console.log(import_picocolors2.default.dim("  Cancelled."));
-            reject(new CancelledError());
-            return;
-          }
-          resolve(BACK);
-          return;
-        case "CANCELLED":
-          reject(new TerminateShellError());
-          return;
+      if (state.focusMode === "list" && state.listCursor < state.items.length) {
+        resolve(state.items[state.listCursor].value);
+      } else if (state.items.length > 0) {
+        resolve(state.items[0].value);
+      } else {
+        resolve(void 0);
       }
     }
     async function fetchSource() {
@@ -54119,19 +54020,6 @@ async function askSearch(opts, wrap = {}) {
     }
     function onData(chunk) {
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
-      if (text === "\x1B" && !escTimer) {
-        escTimer = setTimeout(() => {
-          escTimer = null;
-          finish("BACK");
-        }, ESC_DEBOUNCE_MS);
-        return;
-      }
-      if (escTimer) {
-        clearTimeout(escTimer);
-        escTimer = null;
-        const merged = "\x1B" + text;
-        return handleEvents(parseChunk(merged));
-      }
       handleEvents(parseChunk(text));
     }
     function handleEvents(events) {
@@ -54154,8 +54042,7 @@ async function askSearch(opts, wrap = {}) {
     fetchSource();
   });
 }
-async function askPassword(opts, wrap = {}) {
-  printFooterHint(wrap);
+async function askPassword(opts) {
   reRefStdin();
   return new Promise((resolve, reject) => {
     const session = acquireStdin();
@@ -54166,11 +54053,14 @@ async function askPassword(opts, wrap = {}) {
       buffer: opts.default ?? "",
       cursor: (opts.default ?? "").length
     };
-    let escTimer = null;
     let closed = false;
     let lastRenderHeight = 1;
+    let firstRender = true;
     function render2() {
-      process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      if (!firstRender) {
+        process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      }
+      firstRender = false;
       const lines = [];
       const display = showMask ? "*".repeat(state.buffer.length) : "";
       const trailing = display.length - state.cursor;
@@ -54184,52 +54074,16 @@ async function askPassword(opts, wrap = {}) {
       if (closed) return;
       closed = true;
       stdin.removeListener("data", onData);
-      if (escTimer) {
-        clearTimeout(escTimer);
-        escTimer = null;
-      }
       session.restore();
       process.stdout.write("\n");
     }
     function finish(exit) {
-      if (exit === "BACK" && wrap.noBack) {
-        state = { ...state, exit: void 0 };
-        render2();
-        return;
-      }
       cleanup();
-      switch (exit) {
-        case "DONE":
-          resolve(state.buffer);
-          return;
-        case "BACK":
-          if (wrap.firstStep) {
-            console.log(import_picocolors2.default.dim("  Cancelled."));
-            reject(new CancelledError());
-            return;
-          }
-          resolve(BACK);
-          return;
-        case "CANCELLED":
-          reject(new TerminateShellError());
-          return;
-      }
+      if (exit === "DONE") resolve(state.buffer);
+      else reject(new TerminateShellError());
     }
     function onData(chunk) {
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
-      if (text === "\x1B" && !escTimer) {
-        escTimer = setTimeout(() => {
-          escTimer = null;
-          finish("BACK");
-        }, ESC_DEBOUNCE_MS);
-        return;
-      }
-      if (escTimer) {
-        clearTimeout(escTimer);
-        escTimer = null;
-        const merged = "\x1B" + text;
-        return handleEvents(parseChunk(merged));
-      }
       handleEvents(parseChunk(text));
     }
     function handleEvents(events) {
@@ -54246,8 +54100,7 @@ async function askPassword(opts, wrap = {}) {
     render2();
   });
 }
-async function askInputWithAtTrigger(opts, wrap = {}) {
-  printFooterHint(wrap);
+async function askInputWithAtTrigger(opts) {
   reRefStdin();
   return new Promise((resolve, reject) => {
     const session = acquireStdin();
@@ -54257,11 +54110,14 @@ async function askInputWithAtTrigger(opts, wrap = {}) {
       buffer: opts.default ?? "",
       cursor: (opts.default ?? "").length
     };
-    let escTimer = null;
     let closed = false;
     let lastRenderHeight = 1;
+    let firstRender = true;
     function render2() {
-      process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      if (!firstRender) {
+        process.stdout.write(`\x1B[${lastRenderHeight}A\x1B[0J`);
+      }
+      firstRender = false;
       const lines = [];
       const trailing = state.buffer.length - state.cursor;
       let line = "\r\x1B[2K" + prefix + state.buffer;
@@ -54274,10 +54130,6 @@ async function askInputWithAtTrigger(opts, wrap = {}) {
       if (closed) return;
       closed = true;
       stdin.removeListener("data", onData);
-      if (escTimer) {
-        clearTimeout(escTimer);
-        escTimer = null;
-      }
       session.restore();
       process.stdout.write("\n");
     }
@@ -54290,14 +54142,6 @@ async function askInputWithAtTrigger(opts, wrap = {}) {
         case "AT_TRIGGER":
           resolve(AT_TRIGGER);
           return;
-        case "BACK":
-          if (wrap.firstStep) {
-            console.log(import_picocolors2.default.dim("  Cancelled."));
-            reject(new CancelledError());
-            return;
-          }
-          resolve(BACK);
-          return;
         case "CANCELLED":
           reject(new TerminateShellError());
           return;
@@ -54305,19 +54149,6 @@ async function askInputWithAtTrigger(opts, wrap = {}) {
     }
     function onData(chunk) {
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
-      if (text === "\x1B" && !escTimer) {
-        escTimer = setTimeout(() => {
-          escTimer = null;
-          finish("BACK");
-        }, ESC_DEBOUNCE_MS);
-        return;
-      }
-      if (escTimer) {
-        clearTimeout(escTimer);
-        escTimer = null;
-        const merged = "\x1B" + text;
-        return handleEvents(parseChunk(merged));
-      }
       handleEvents(parseChunk(text));
     }
     function handleEvents(events) {
@@ -54334,12 +54165,11 @@ async function askInputWithAtTrigger(opts, wrap = {}) {
     render2();
   });
 }
-var import_picocolors2, BACK, AT_TRIGGER, CancelledError, TerminateShellError, FOOTER_HINT, ESC_DEBOUNCE_MS;
+var import_picocolors2, AT_TRIGGER, CancelledError, TerminateShellError;
 var init_prompt = __esm({
   "src/utils/prompt.ts"() {
     "use strict";
     import_picocolors2 = __toESM(require_picocolors(), 1);
-    BACK = Symbol("__BACK__");
     AT_TRIGGER = Symbol("__AT_TRIGGER__");
     CancelledError = class extends Error {
       constructor() {
@@ -54353,8 +54183,6 @@ var init_prompt = __esm({
         this.name = "TerminateShellError";
       }
     };
-    FOOTER_HINT = import_picocolors2.default.dim("  (esc to go back \xB7 ctrl+c to exit bode)");
-    ESC_DEBOUNCE_MS = 60;
   }
 });
 
@@ -59954,7 +59782,7 @@ async function planDangerousMode(config2) {
           { name: "No \u2014 abort and let me reconfigure those phases", value: "no" }
         ]
       });
-      if (choice === BACK || choice !== "yes") {
+      if (choice !== "yes") {
         return { approved: false, unsupported };
       }
     } catch (err) {
@@ -59971,7 +59799,6 @@ var init_dangerous_check = __esm({
     init_prompt();
     import_picocolors7 = __toESM(require_picocolors(), 1);
     init_registry();
-    init_prompt();
   }
 });
 
@@ -60006,7 +59833,6 @@ async function handleMissingArtifact(context, taskKey) {
         }
       ]
     });
-    if (choice === BACK) return "abort";
     return choice;
   } catch (err) {
     handlePromptError(err);
@@ -60019,7 +59845,6 @@ var init_missing_artifact = __esm({
     "use strict";
     init_prompt();
     import_picocolors8 = __toESM(require_picocolors(), 1);
-    init_prompt();
   }
 });
 
@@ -60318,10 +60143,6 @@ async function startAction(taskKey, options) {
           { name: "Cancel", value: "cancel" }
         ]
       });
-      if (action === BACK) {
-        console.log(import_picocolors9.default.dim("Aborted."));
-        process.exit(0);
-      }
       if (action === "cancel") process.exit(0);
       if (action === "restart") {
         const abortResult = await abortRun(taskKey);
@@ -60386,7 +60207,7 @@ async function startAction(taskKey, options) {
           { name: "No \u2014 abort so I can re-run with --dangerously-approve-all", value: "no" }
         ]
       });
-      if (choice === BACK || choice !== "yes") {
+      if (choice !== "yes") {
         console.log(import_picocolors9.default.dim("Aborted by user."));
         process.exit(0);
       }
@@ -60764,7 +60585,7 @@ async function investigateProjectContext(opts) {
         { name: "Yes, overwrite", value: "yes" }
       ]
     });
-    if (overwrite === BACK || overwrite === "no") {
+    if (overwrite === "no") {
       console.log(import_picocolors11.default.dim(`Keeping existing ${target}`));
       return {
         path: target,
@@ -60834,7 +60655,6 @@ var init_setup_project_investigate = __esm({
     init_resolver();
     init_prompt_builder();
     init_prompt();
-    init_prompt();
   }
 });
 
@@ -60847,42 +60667,23 @@ __export(setup_exports, {
 import { existsSync as existsSync23 } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 async function runWizard(steps, results) {
-  let cursor = 0;
-  let camFromBack = false;
-  while (cursor < steps.length) {
+  for (let cursor = 0; cursor < steps.length; cursor++) {
     const step = steps[cursor];
-    const isFirst = cursor === 0;
-    const bar = "\u2500".repeat(40);
-    const arrow = camFromBack ? import_picocolors12.default.yellow("  \u2190 back to  ") : import_picocolors12.default.dim("  step ");
-    console.log(
-      import_picocolors12.default.dim(bar) + arrow + import_picocolors12.default.bold(`${cursor + 1} / ${steps.length}`) + import_picocolors12.default.dim(`  ${bar}`)
-    );
-    const result = await step(isFirst);
-    if (result === BACK) {
-      cursor = Math.max(0, cursor - 1);
-      camFromBack = true;
-    } else {
-      results[cursor] = result;
-      cursor++;
-      camFromBack = false;
-    }
+    results[cursor] = await step();
   }
 }
-async function selectCli(question, defaultCli, firstStep = false) {
+async function selectCli(question, defaultCli) {
   const adapters2 = listAdapterNames();
   const choices = adapters2.map((name) => ({
     name,
     value: name,
     description: cliDescription(name)
   }));
-  return askSelect(
-    {
-      message: question,
-      default: defaultCli,
-      choices
-    },
-    { firstStep }
-  );
+  return askSelect({
+    message: question,
+    default: defaultCli,
+    choices
+  });
 }
 async function selectModel(cliName, currentModel) {
   const models = getModelsForCli(cliName);
@@ -60896,7 +60697,6 @@ async function selectModel(cliName, currentModel) {
     default: currentModel,
     choices
   });
-  if (chosen === BACK) return BACK;
   if (chosen === "__custom__") {
     return askInput({ message: "Custom model name:", default: currentModel });
   }
@@ -60928,10 +60728,8 @@ async function askContextFiles(workdir, defaults, message) {
       message,
       default: selected.join(", ")
     });
-    if (raw === BACK) return BACK;
     if (raw === AT_TRIGGER) {
       const picked = await pickContextFile(absWorkdir, "Pick a context file:");
-      if (picked === BACK) return BACK;
       selected = uniqueStrings([...selected, picked]);
       continue;
     }
@@ -60940,7 +60738,6 @@ async function askContextFiles(workdir, defaults, message) {
     for (const entry of entries) {
       if (entry.startsWith("@")) {
         const picked = await pickContextFile(absWorkdir, "Pick a context file:", entry.slice(1));
-        if (picked === BACK) return BACK;
         expanded.push(picked);
       } else {
         expanded.push(entry);
@@ -60950,14 +60747,13 @@ async function askContextFiles(workdir, defaults, message) {
   }
 }
 async function pickContextFile(workdir, message, initialQuery = "") {
-  const picked = await askSearch({
+  return askSearch({
     message,
     source: async (input) => {
       const files = await scanWorkdirFiles(workdir, input ?? initialQuery);
       return files.map((f) => ({ name: f, value: f }));
     }
   });
-  return picked;
 }
 function uniqueStrings(values) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
@@ -61014,34 +60810,22 @@ async function setupAction(subcommand, options) {
   }
   try {
     console.log(import_picocolors12.default.bold("\u2500\u2500 Jira \u2500\u2500"));
-    const jiraSite = await askInput(
-      {
-        message: "Jira site (e.g. mycompany.atlassian.net):",
-        default: currentJiraSite || "yourcompany.atlassian.net"
-      },
-      { firstStep: true }
-    );
-    const jiraProject = await askInput(
-      {
-        message: "Default project key (e.g. KD):",
-        default: currentProject || "KD"
-      },
-      { noBack: true }
-    );
-    let jiraEmail = await askInput(
-      {
-        message: "Jira account email (for API token auth):",
-        default: currentJiraEmail
-      },
-      { noBack: true }
-    );
-    let jiraToken = await askPassword(
-      {
-        message: "Jira API token (leave blank to keep existing or use mock):",
-        mask: true
-      },
-      { noBack: true }
-    );
+    const jiraSite = await askInput({
+      message: "Jira site (e.g. mycompany.atlassian.net):",
+      default: currentJiraSite || "yourcompany.atlassian.net"
+    });
+    const jiraProject = await askInput({
+      message: "Default project key (e.g. KD):",
+      default: currentProject || "KD"
+    });
+    let jiraEmail = await askInput({
+      message: "Jira account email (for API token auth):",
+      default: currentJiraEmail
+    });
+    let jiraToken = await askPassword({
+      message: "Jira API token (leave blank to keep existing or use mock):",
+      mask: true
+    });
     if (!jiraToken) jiraToken = currentJiraToken;
     if (jiraEmail && jiraToken) {
       const spinner = ora("Testing Jira connection...").start();
@@ -61050,31 +60834,22 @@ async function setupAction(subcommand, options) {
         spinner.succeed("Jira connection successful!");
       } else {
         spinner.fail(`Connection failed: ${testResult.error.message}`);
-        const action = await askSelect(
-          {
-            message: "What would you like to do?",
-            choices: [
-              { name: "Retry with different credentials", value: "retry" },
-              { name: "Skip (mock adapter will be used)", value: "skip" }
-            ]
-          },
-          { noBack: true }
-        );
+        const action = await askSelect({
+          message: "What would you like to do?",
+          choices: [
+            { name: "Retry with different credentials", value: "retry" },
+            { name: "Skip (mock adapter will be used)", value: "skip" }
+          ]
+        });
         if (action === "retry") {
-          const newEmail = await askInput(
-            {
-              message: "Jira account email:",
-              default: jiraEmail
-            },
-            { noBack: true }
-          );
-          const newToken = await askPassword(
-            {
-              message: "Jira API token:",
-              mask: true
-            },
-            { noBack: true }
-          );
+          const newEmail = await askInput({
+            message: "Jira account email:",
+            default: jiraEmail
+          });
+          const newToken = await askPassword({
+            message: "Jira API token:",
+            mask: true
+          });
           if (newEmail && newToken) {
             const retryResult = await testJiraConnection(jiraSite, newEmail, newToken);
             if (retryResult.ok) {
@@ -61093,55 +60868,37 @@ async function setupAction(subcommand, options) {
       }
     }
     console.log(import_picocolors12.default.bold("\n\u2500\u2500 VCS \u2500\u2500"));
-    const vcsProvider = await askSelect(
-      {
-        message: "VCS provider:",
-        default: "github",
-        choices: [
-          { name: "GitHub (gh)", value: "github", description: "Uses gh CLI for PR creation" },
-          { name: "GitLab (glab)", value: "gitlab", description: "Uses glab CLI for MR creation" }
-        ]
-      },
-      { noBack: true }
-    );
-    const githubOrg = await askInput(
-      {
-        message: "Default org:",
-        default: currentGithubOrg || "myorg"
-      },
-      { noBack: true }
-    );
+    const vcsProvider = await askSelect({
+      message: "VCS provider:",
+      default: "github",
+      choices: [
+        { name: "GitHub (gh)", value: "github", description: "Uses gh CLI for PR creation" },
+        { name: "GitLab (glab)", value: "gitlab", description: "Uses glab CLI for MR creation" }
+      ]
+    });
+    const githubOrg = await askInput({
+      message: "Default org:",
+      default: currentGithubOrg || "myorg"
+    });
     const results = [];
     const phaseSteps = [
       async () => {
         console.log(import_picocolors12.default.bold("\n\u2500\u2500 Planning Phase \u2500\u2500"));
         return selectCli("CLI for planning:", currentPlanningCli);
       },
-      async () => {
-        const cli = results[0];
-        if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, currentPlanningModel);
-      },
+      async () => selectModel(results[0], currentPlanningModel),
       async () => askInput({ message: "Timeout (minutes):", default: "15" }),
       async () => {
         console.log(import_picocolors12.default.bold("\n\u2500\u2500 Implementation Phase \u2500\u2500"));
         return selectCli("CLI for implementation:", currentImplCli);
       },
-      async () => {
-        const cli = results[3];
-        if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, currentImplModel);
-      },
+      async () => selectModel(results[3], currentImplModel),
       async () => askInput({ message: "Timeout (minutes):", default: "60" }),
       async () => {
         console.log(import_picocolors12.default.bold("\n\u2500\u2500 Review Phase \u2500\u2500"));
         return selectCli("CLI for review:", currentReviewCli);
       },
-      async () => {
-        const cli = results[6];
-        if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, currentReviewModel);
-      },
+      async () => selectModel(results[6], currentReviewModel),
       async () => askInput({ message: "Timeout (minutes):", default: "10" })
     ];
     await runWizard(phaseSteps, results);
@@ -61221,14 +60978,11 @@ async function setupProjectAction(options) {
         value: p.name
       }));
       projectChoices.push({ name: import_picocolors12.default.green("+ Create new project"), value: "__new__" });
-      const picked = await askSelect(
-        {
-          message: "Select project or create new:",
-          choices: projectChoices,
-          pageSize: 10
-        },
-        { firstStep: true }
-      );
+      const picked = await askSelect({
+        message: "Select project or create new:",
+        choices: projectChoices,
+        pageSize: 10
+      });
       if (picked !== "__new__") {
         selectedName = picked;
         const loadResult = await loadProjectConfig(selectedName);
@@ -61236,22 +60990,16 @@ async function setupProjectAction(options) {
           existingProject = loadResult.value;
         }
       } else {
-        selectedName = await askInput(
-          {
-            message: "Project name (lowercase, no spaces):",
-            validate: (v) => /^[a-z0-9][a-z0-9_-]*$/.test(v) || "Use lowercase letters, numbers, dashes, underscores"
-          },
-          { noBack: true }
-        );
-      }
-    } else {
-      selectedName = await askInput(
-        {
+        selectedName = await askInput({
           message: "Project name (lowercase, no spaces):",
           validate: (v) => /^[a-z0-9][a-z0-9_-]*$/.test(v) || "Use lowercase letters, numbers, dashes, underscores"
-        },
-        { firstStep: true }
-      );
+        });
+      }
+    } else {
+      selectedName = await askInput({
+        message: "Project name (lowercase, no spaces):",
+        validate: (v) => /^[a-z0-9][a-z0-9_-]*$/.test(v) || "Use lowercase letters, numbers, dashes, underscores"
+      });
     }
     if (existingProject?.context_paths?.length) {
       console.log(
@@ -61317,7 +61065,6 @@ async function setupProjectAction(options) {
           message: "Working directory (absolute path):",
           default: defaultWorkdir
         });
-        if (wd === BACK) return BACK;
         const workdirPath = wd || defaultWorkdir;
         if (!workdirPath) {
           console.error(import_picocolors12.default.red("Working directory is required."));
@@ -61351,9 +61098,7 @@ async function setupProjectAction(options) {
         if (wantInvestigate !== "yes") return void 0;
         console.log(import_picocolors12.default.bold("\n\u2500\u2500 Investigation Model \u2500\u2500"));
         const cli = await selectCli("CLI for investigation:", basePlanningCli);
-        if (cli === BACK) return BACK;
         const model = await selectModel(cli, basePlanningModel);
-        if (model === BACK) return BACK;
         return { cli, model };
       },
       async () => {
@@ -61373,12 +61118,10 @@ async function setupProjectAction(options) {
           message: "Jira site:",
           default: defaultJiraSite
         });
-        if (jiraSite === BACK) return BACK;
         const jiraProject = await askInput({
           message: "Jira project key:",
           default: defaultJiraProject
         });
-        if (jiraProject === BACK) return BACK;
         return { site: jiraSite, project: jiraProject };
       },
       async () => {
@@ -61387,7 +61130,6 @@ async function setupProjectAction(options) {
           message: "Default branch:",
           default: defaultBranch
         });
-        if (branch === BACK) return BACK;
         const workdir2 = results[0];
         const detected = detectContextFilesIn(workdir2);
         const defaults = existingProject?.context_files ?? (detected.length > 0 ? detected : ["AGENTS.md"]);
@@ -61396,7 +61138,6 @@ async function setupProjectAction(options) {
           defaults,
           "Context files (comma-separated, or @ to pick):"
         );
-        if (files === BACK) return BACK;
         return { branch, files };
       },
       async () => {
@@ -61419,19 +61160,16 @@ async function setupProjectAction(options) {
           const wd = await askInput({
             message: `Repo ${i + 1} workdir path:`
           });
-          if (wd === BACK) return BACK;
           const name = await askInput({
             message: `Repo ${i + 1} friendly name (optional):`,
             default: wd.split(/[\\/]/).pop() ?? ""
           });
-          if (name === BACK) return BACK;
           const detected = existsSync23(wd) ? detectContextFilesIn(wd) : [];
           const files = await askContextFiles(
             wd,
             detected,
             `Context files for ${name || `repo ${i + 1}`} (comma-separated, or @ to pick):`
           );
-          if (files === BACK) return BACK;
           const entry = {
             workdir: wd
           };
@@ -61454,29 +61192,17 @@ async function setupProjectAction(options) {
         console.log(import_picocolors12.default.bold("\n\u2500\u2500 Planning Phase (override) \u2500\u2500"));
         return selectCli("CLI:", basePlanningCli);
       },
-      async () => {
-        const cli = results[9];
-        if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, basePlanningModel);
-      },
+      async () => selectModel(results[9], basePlanningModel),
       async () => {
         console.log(import_picocolors12.default.bold("\n\u2500\u2500 Implementation Phase (override) \u2500\u2500"));
         return selectCli("CLI:", baseImplCli);
       },
-      async () => {
-        const cli = results[11];
-        if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, baseImplModel);
-      },
+      async () => selectModel(results[11], baseImplModel),
       async () => {
         console.log(import_picocolors12.default.bold("\n\u2500\u2500 Review Phase (override) \u2500\u2500"));
         return selectCli("CLI:", baseReviewCli);
       },
-      async () => {
-        const cli = results[13];
-        if (cli === BACK || cli === void 0) return BACK;
-        return selectModel(cli, baseReviewModel);
-      }
+      async () => selectModel(results[13], baseReviewModel)
     ];
     steps.push(...phaseSteps);
     await runWizard(steps, results);
@@ -61694,9 +61420,6 @@ async function setupTransitionsAction(options) {
         choices,
         default: def
       });
-      if (picked === BACK) {
-        handlePromptError(new Error("BACK"));
-      }
       picks[phase.key] = picked === skipValue ? "" : picked;
     }
   } catch (err) {

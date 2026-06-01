@@ -19,7 +19,6 @@ import {
 	askPassword,
 	askSearch,
 	handlePromptError,
-	BACK,
 	AT_TRIGGER,
 } from '~/utils/prompt.ts';
 import { testJiraConnection } from '~/adapters/jira/rest.ts';
@@ -29,57 +28,30 @@ import {
 	resolveProjectContextPath,
 } from './setup-project-investigate.ts';
 
-type WizardStep<T = unknown> = (firstStep: boolean) => Promise<T | typeof BACK>;
+type WizardStep<T = unknown> = () => Promise<T>;
 
 async function runWizard(steps: WizardStep[], results: unknown[]): Promise<void> {
-	let cursor = 0;
-	let camFromBack = false;
-	while (cursor < steps.length) {
+	for (let cursor = 0; cursor < steps.length; cursor++) {
 		const step = steps[cursor]!;
-		const isFirst = cursor === 0;
-		// v2.1.8: directional indicator. Without this, ESC-going-back looks
-		// identical to Enter-advancing because new prompts render below old
-		// ones — terminals don't scroll backwards. The arrow + colour make
-		// the user's visual intuition match reality.
-		const bar = '─'.repeat(40);
-		const arrow = camFromBack ? pc.yellow('  ← back to  ') : pc.dim('  step ');
-		console.log(
-			pc.dim(bar) + arrow + pc.bold(`${cursor + 1} / ${steps.length}`) + pc.dim(`  ${bar}`)
-		);
-		const result = await step(isFirst);
-		if (result === BACK) {
-			cursor = Math.max(0, cursor - 1);
-			camFromBack = true;
-		} else {
-			results[cursor] = result;
-			cursor++;
-			camFromBack = false;
-		}
+		results[cursor] = await step();
 	}
 }
 
-async function selectCli(
-	question: string,
-	defaultCli: string,
-	firstStep = false
-): Promise<string | typeof BACK> {
+async function selectCli(question: string, defaultCli: string): Promise<string> {
 	const adapters = listAdapterNames();
 	const choices = adapters.map((name) => ({
 		name,
 		value: name,
 		description: cliDescription(name),
 	}));
-	return askSelect<string>(
-		{
-			message: question,
-			default: defaultCli,
-			choices,
-		},
-		{ firstStep }
-	);
+	return askSelect<string>({
+		message: question,
+		default: defaultCli,
+		choices,
+	});
 }
 
-async function selectModel(cliName: string, currentModel: string): Promise<string | typeof BACK> {
+async function selectModel(cliName: string, currentModel: string): Promise<string> {
 	const models = getModelsForCli(cliName);
 	if (models.length === 0) {
 		return askInput({ message: 'Model:', default: currentModel });
@@ -91,7 +63,6 @@ async function selectModel(cliName: string, currentModel: string): Promise<strin
 		default: currentModel,
 		choices,
 	});
-	if (chosen === BACK) return BACK;
 	if (chosen === '__custom__') {
 		return askInput({ message: 'Custom model name:', default: currentModel });
 	}
@@ -135,7 +106,7 @@ async function askContextFiles(
 	workdir: string,
 	defaults: string[],
 	message: string
-): Promise<string[] | typeof BACK> {
+): Promise<string[]> {
 	const absWorkdir = resolveWorkdirForPicker(workdir);
 	let selected = uniqueStrings(defaults);
 	const hint = pc.dim('Type @ to open file picker. Comma-separated for multiple files.');
@@ -146,10 +117,8 @@ async function askContextFiles(
 			message,
 			default: selected.join(', '),
 		});
-		if (raw === BACK) return BACK;
 		if (raw === AT_TRIGGER) {
 			const picked = await pickContextFile(absWorkdir, 'Pick a context file:');
-			if (picked === BACK) return BACK;
 			selected = uniqueStrings([...selected, picked]);
 			continue;
 		}
@@ -163,7 +132,6 @@ async function askContextFiles(
 		for (const entry of entries) {
 			if (entry.startsWith('@')) {
 				const picked = await pickContextFile(absWorkdir, 'Pick a context file:', entry.slice(1));
-				if (picked === BACK) return BACK;
 				expanded.push(picked);
 			} else {
 				expanded.push(entry);
@@ -177,15 +145,14 @@ async function pickContextFile(
 	workdir: string,
 	message: string,
 	initialQuery = ''
-): Promise<string | typeof BACK> {
-	const picked = await askSearch<string>({
+): Promise<string> {
+	return askSearch<string>({
 		message,
 		source: async (input) => {
 			const files = await scanWorkdirFiles(workdir, input ?? initialQuery);
 			return files.map((f) => ({ name: f, value: f }));
 		},
 	});
-	return picked;
 }
 
 function uniqueStrings(values: string[]): string[] {
@@ -252,34 +219,22 @@ export async function setupAction(
 
 	try {
 		console.log(pc.bold('── Jira ──'));
-		const jiraSite = (await askInput(
-			{
-				message: 'Jira site (e.g. mycompany.atlassian.net):',
-				default: currentJiraSite || 'yourcompany.atlassian.net',
-			},
-			{ firstStep: true }
-		)) as string;
-		const jiraProject = (await askInput(
-			{
-				message: 'Default project key (e.g. KD):',
-				default: currentProject || 'KD',
-			},
-			{ noBack: true }
-		)) as string;
-		let jiraEmail = (await askInput(
-			{
-				message: 'Jira account email (for API token auth):',
-				default: currentJiraEmail,
-			},
-			{ noBack: true }
-		)) as string;
-		let jiraToken = (await askPassword(
-			{
-				message: 'Jira API token (leave blank to keep existing or use mock):',
-				mask: true,
-			},
-			{ noBack: true }
-		)) as string;
+		const jiraSite = await askInput({
+			message: 'Jira site (e.g. mycompany.atlassian.net):',
+			default: currentJiraSite || 'yourcompany.atlassian.net',
+		});
+		const jiraProject = await askInput({
+			message: 'Default project key (e.g. KD):',
+			default: currentProject || 'KD',
+		});
+		let jiraEmail = await askInput({
+			message: 'Jira account email (for API token auth):',
+			default: currentJiraEmail,
+		});
+		let jiraToken = await askPassword({
+			message: 'Jira API token (leave blank to keep existing or use mock):',
+			mask: true,
+		});
 		if (!jiraToken) jiraToken = currentJiraToken;
 
 		if (jiraEmail && jiraToken) {
@@ -289,31 +244,22 @@ export async function setupAction(
 				spinner.succeed('Jira connection successful!');
 			} else {
 				spinner.fail(`Connection failed: ${testResult.error.message}`);
-				const action = await askSelect<'retry' | 'skip'>(
-					{
-						message: 'What would you like to do?',
-						choices: [
-							{ name: 'Retry with different credentials', value: 'retry' },
-							{ name: 'Skip (mock adapter will be used)', value: 'skip' },
-						],
-					},
-					{ noBack: true }
-				);
+				const action = await askSelect<'retry' | 'skip'>({
+					message: 'What would you like to do?',
+					choices: [
+						{ name: 'Retry with different credentials', value: 'retry' },
+						{ name: 'Skip (mock adapter will be used)', value: 'skip' },
+					],
+				});
 				if (action === 'retry') {
-					const newEmail = (await askInput(
-						{
-							message: 'Jira account email:',
-							default: jiraEmail,
-						},
-						{ noBack: true }
-					)) as string;
-					const newToken = (await askPassword(
-						{
-							message: 'Jira API token:',
-							mask: true,
-						},
-						{ noBack: true }
-					)) as string;
+					const newEmail = await askInput({
+						message: 'Jira account email:',
+						default: jiraEmail,
+					});
+					const newToken = await askPassword({
+						message: 'Jira API token:',
+						mask: true,
+					});
 					if (newEmail && newToken) {
 						const retryResult = await testJiraConnection(jiraSite, newEmail, newToken);
 						if (retryResult.ok) {
@@ -333,24 +279,18 @@ export async function setupAction(
 		}
 
 		console.log(pc.bold('\n── VCS ──'));
-		const vcsProvider = (await askSelect<'github' | 'gitlab'>(
-			{
-				message: 'VCS provider:',
-				default: 'github',
-				choices: [
-					{ name: 'GitHub (gh)', value: 'github', description: 'Uses gh CLI for PR creation' },
-					{ name: 'GitLab (glab)', value: 'gitlab', description: 'Uses glab CLI for MR creation' },
-				],
-			},
-			{ noBack: true }
-		)) as 'github' | 'gitlab';
-		const githubOrg = (await askInput(
-			{
-				message: 'Default org:',
-				default: currentGithubOrg || 'myorg',
-			},
-			{ noBack: true }
-		)) as string;
+		const vcsProvider = await askSelect<'github' | 'gitlab'>({
+			message: 'VCS provider:',
+			default: 'github',
+			choices: [
+				{ name: 'GitHub (gh)', value: 'github', description: 'Uses gh CLI for PR creation' },
+				{ name: 'GitLab (glab)', value: 'gitlab', description: 'Uses glab CLI for MR creation' },
+			],
+		});
+		const githubOrg = await askInput({
+			message: 'Default org:',
+			default: currentGithubOrg || 'myorg',
+		});
 
 		const results: unknown[] = [];
 		const phaseSteps: WizardStep[] = [
@@ -358,31 +298,19 @@ export async function setupAction(
 				console.log(pc.bold('\n── Planning Phase ──'));
 				return selectCli('CLI for planning:', currentPlanningCli);
 			},
-			async () => {
-				const cli = results[0];
-				if (cli === BACK || cli === undefined) return BACK;
-				return selectModel(cli as string, currentPlanningModel);
-			},
+			async () => selectModel(results[0] as string, currentPlanningModel),
 			async () => askInput({ message: 'Timeout (minutes):', default: '15' }),
 			async () => {
 				console.log(pc.bold('\n── Implementation Phase ──'));
 				return selectCli('CLI for implementation:', currentImplCli);
 			},
-			async () => {
-				const cli = results[3];
-				if (cli === BACK || cli === undefined) return BACK;
-				return selectModel(cli as string, currentImplModel);
-			},
+			async () => selectModel(results[3] as string, currentImplModel),
 			async () => askInput({ message: 'Timeout (minutes):', default: '60' }),
 			async () => {
 				console.log(pc.bold('\n── Review Phase ──'));
 				return selectCli('CLI for review:', currentReviewCli);
 			},
-			async () => {
-				const cli = results[6];
-				if (cli === BACK || cli === undefined) return BACK;
-				return selectModel(cli as string, currentReviewModel);
-			},
+			async () => selectModel(results[6] as string, currentReviewModel),
 			async () => askInput({ message: 'Timeout (minutes):', default: '10' }),
 		];
 
@@ -474,14 +402,11 @@ async function setupProjectAction(options: {
 			}));
 			projectChoices.push({ name: pc.green('+ Create new project'), value: '__new__' });
 
-			const picked = (await askSelect<string>(
-				{
-					message: 'Select project or create new:',
-					choices: projectChoices,
-					pageSize: 10,
-				},
-				{ firstStep: true }
-			)) as string;
+			const picked = await askSelect<string>({
+				message: 'Select project or create new:',
+				choices: projectChoices,
+				pageSize: 10,
+			});
 
 			if (picked !== '__new__') {
 				selectedName = picked;
@@ -490,26 +415,19 @@ async function setupProjectAction(options: {
 					existingProject = loadResult.value;
 				}
 			} else {
-				selectedName = (await askInput(
-					{
-						message: 'Project name (lowercase, no spaces):',
-						validate: (v: string) =>
-							/^[a-z0-9][a-z0-9_-]*$/.test(v) ||
-							'Use lowercase letters, numbers, dashes, underscores',
-					},
-					{ noBack: true }
-				)) as string;
-			}
-		} else {
-			selectedName = (await askInput(
-				{
+				selectedName = await askInput({
 					message: 'Project name (lowercase, no spaces):',
 					validate: (v: string) =>
 						/^[a-z0-9][a-z0-9_-]*$/.test(v) ||
 						'Use lowercase letters, numbers, dashes, underscores',
-				},
-				{ firstStep: true }
-			)) as string;
+				});
+			}
+		} else {
+			selectedName = await askInput({
+				message: 'Project name (lowercase, no spaces):',
+				validate: (v: string) =>
+					/^[a-z0-9][a-z0-9_-]*$/.test(v) || 'Use lowercase letters, numbers, dashes, underscores',
+			});
 		}
 
 		if (existingProject?.context_paths?.length) {
@@ -593,7 +511,6 @@ async function setupProjectAction(options: {
 					message: 'Working directory (absolute path):',
 					default: defaultWorkdir,
 				});
-				if (wd === BACK) return BACK;
 				const workdirPath = wd || defaultWorkdir;
 				if (!workdirPath) {
 					console.error(pc.red('Working directory is required.'));
@@ -627,9 +544,7 @@ async function setupProjectAction(options: {
 				if (wantInvestigate !== 'yes') return undefined;
 				console.log(pc.bold('\n── Investigation Model ──'));
 				const cli = await selectCli('CLI for investigation:', basePlanningCli);
-				if (cli === BACK) return BACK;
 				const model = await selectModel(cli, basePlanningModel);
-				if (model === BACK) return BACK;
 				return { cli, model };
 			},
 			async () => {
@@ -649,12 +564,10 @@ async function setupProjectAction(options: {
 					message: 'Jira site:',
 					default: defaultJiraSite,
 				});
-				if (jiraSite === BACK) return BACK;
 				const jiraProject = await askInput({
 					message: 'Jira project key:',
 					default: defaultJiraProject,
 				});
-				if (jiraProject === BACK) return BACK;
 				return { site: jiraSite, project: jiraProject } as const;
 			},
 			async () => {
@@ -663,7 +576,6 @@ async function setupProjectAction(options: {
 					message: 'Default branch:',
 					default: defaultBranch,
 				});
-				if (branch === BACK) return BACK;
 				const workdir = results[0] as string;
 				const detected = detectContextFilesIn(workdir);
 				const defaults =
@@ -673,7 +585,6 @@ async function setupProjectAction(options: {
 					defaults,
 					'Context files (comma-separated, or @ to pick):'
 				);
-				if (files === BACK) return BACK;
 				return { branch, files } as const;
 			},
 			async () => {
@@ -696,19 +607,16 @@ async function setupProjectAction(options: {
 					const wd = await askInput({
 						message: `Repo ${i + 1} workdir path:`,
 					});
-					if (wd === BACK) return BACK;
 					const name = await askInput({
 						message: `Repo ${i + 1} friendly name (optional):`,
 						default: wd.split(/[\\/]/).pop() ?? '',
 					});
-					if (name === BACK) return BACK;
 					const detected = existsSync(wd) ? detectContextFilesIn(wd) : [];
 					const files = await askContextFiles(
 						wd,
 						detected,
 						`Context files for ${name || `repo ${i + 1}`} (comma-separated, or @ to pick):`
 					);
-					if (files === BACK) return BACK;
 					const entry: { workdir: string; name?: string; context_files?: string[] } = {
 						workdir: wd,
 					};
@@ -732,29 +640,17 @@ async function setupProjectAction(options: {
 				console.log(pc.bold('\n── Planning Phase (override) ──'));
 				return selectCli('CLI:', basePlanningCli);
 			},
-			async () => {
-				const cli = results[9];
-				if (cli === BACK || cli === undefined) return BACK;
-				return selectModel(cli as string, basePlanningModel);
-			},
+			async () => selectModel(results[9] as string, basePlanningModel),
 			async () => {
 				console.log(pc.bold('\n── Implementation Phase (override) ──'));
 				return selectCli('CLI:', baseImplCli);
 			},
-			async () => {
-				const cli = results[11];
-				if (cli === BACK || cli === undefined) return BACK;
-				return selectModel(cli as string, baseImplModel);
-			},
+			async () => selectModel(results[11] as string, baseImplModel),
 			async () => {
 				console.log(pc.bold('\n── Review Phase (override) ──'));
 				return selectCli('CLI:', baseReviewCli);
 			},
-			async () => {
-				const cli = results[13];
-				if (cli === BACK || cli === undefined) return BACK;
-				return selectModel(cli as string, baseReviewModel);
-			},
+			async () => selectModel(results[13] as string, baseReviewModel),
 		];
 
 		steps.push(...phaseSteps);

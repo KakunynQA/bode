@@ -7,7 +7,6 @@ import { getAdapter } from '~/adapters/cli/registry.ts';
 import { loadSkillPrompt } from '~/skills/resolver.ts';
 import { buildPrompt } from '~/skills/prompt-builder.ts';
 import { askSelect } from '~/utils/prompt.ts';
-import { BACK } from '~/utils/prompt.ts';
 
 export type InvestigateOptions = {
 	workdir: string;
@@ -57,7 +56,7 @@ export async function investigateProjectContext(
 				{ name: 'Yes, overwrite', value: 'yes' },
 			],
 		});
-		if (overwrite === BACK || overwrite === 'no') {
+		if (overwrite === 'no') {
 			console.log(pc.dim(`Keeping existing ${target}`));
 			return {
 				path: target,

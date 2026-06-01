@@ -1,5 +1,5 @@
 import pc from 'picocolors';
-import { askSelect, BACK } from '~/utils/prompt.ts';
+import { askSelect } from '~/utils/prompt.ts';
 import { writeFile, readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -120,10 +120,7 @@ export async function setupTransitionsAction(options: { project?: string }): Pro
 				choices,
 				default: def,
 			});
-			if (picked === BACK) {
-				handlePromptError(new Error('BACK'));
-			}
-			picks[phase.key] = picked === skipValue ? '' : (picked as string);
+			picks[phase.key] = picked === skipValue ? '' : picked;
 		}
 	} catch (err) {
 		handlePromptError(err);

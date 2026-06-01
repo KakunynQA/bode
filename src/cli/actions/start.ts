@@ -5,7 +5,7 @@ import { advancePhase } from '~/orchestrator/engine.ts';
 import { resolveProject } from '~/config/project-resolver.ts';
 import { mergePR } from '~/orchestrator/branch-manager.ts';
 import { abortRun } from './abort.ts';
-import { handlePromptError, askSelect, BACK } from '~/utils/prompt.ts';
+import { handlePromptError, askSelect } from '~/utils/prompt.ts';
 import { planDangerousMode } from '~/cli/dangerous-check.ts';
 import { handleMissingArtifact } from '~/cli/missing-artifact.ts';
 import { printTaskSummary } from '~/cli/summary.ts';
@@ -157,11 +157,6 @@ export async function startAction(
 				],
 			});
 
-			if (action === BACK) {
-				console.log(pc.dim('Aborted.'));
-				process.exit(0);
-			}
-
 			if (action === 'cancel') process.exit(0);
 			if (action === 'restart') {
 				const abortResult = await abortRun(taskKey);
@@ -238,7 +233,7 @@ export async function startAction(
 					{ name: 'No — abort so I can re-run with --dangerously-approve-all', value: 'no' },
 				],
 			});
-			if (choice === BACK || choice !== 'yes') {
+			if (choice !== 'yes') {
 				console.log(pc.dim('Aborted by user.'));
 				process.exit(0);
 			}

@@ -4,15 +4,7 @@ import pc from 'picocolors';
 // Public API — sentinels, error classes, types
 // ---------------------------------------------------------------------------
 
-export const BACK = Symbol('__BACK__');
 export const AT_TRIGGER = Symbol('__AT_TRIGGER__');
-
-export class BackError extends Error {
-	constructor() {
-		super('__BACK__');
-		this.name = 'BackError';
-	}
-}
 
 export class CancelledError extends Error {
 	constructor() {
@@ -29,20 +21,8 @@ export class TerminateShellError extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Shared types for all prompts
+// Shared helpers
 // ---------------------------------------------------------------------------
-
-type WrapOptions = {
-	firstStep?: boolean;
-	noBack?: boolean;
-};
-
-const FOOTER_HINT = pc.dim('  (esc to go back · ctrl+c to exit bode)');
-const ESC_DEBOUNCE_MS = 60;
-
-function printFooterHint(opts: WrapOptions): void {
-	if (!opts.firstStep && !opts.noBack) console.log(FOOTER_HINT);
-}
 
 function reRefStdin(): void {
 	try {
@@ -80,7 +60,6 @@ type KeyKind =
 	| 'down'
 	| 'home'
 	| 'end'
-	| 'esc'
 	| 'ctrlC'
 	| 'at';
 
@@ -101,7 +80,7 @@ export function parseChunk(chunk: string): KeyEvent[] {
 				i = j + 1;
 				continue;
 			}
-			if (i === chunk.length - 1) out.push({ kind: 'esc' });
+			// Lone ESC and unrecognized escape sequences are swallowed (no back-nav).
 			i++;
 			continue;
 		}
@@ -164,7 +143,7 @@ function csiEvent(seq: string): KeyEvent | null {
 // Reducers — pure state machines for each prompt type
 // ---------------------------------------------------------------------------
 
-export type PromptExit = 'AT_TRIGGER' | 'BACK' | 'DONE' | 'CANCELLED';
+export type PromptExit = 'AT_TRIGGER' | 'DONE' | 'CANCELLED';
 
 export type PromptState = {
 	buffer: string;
@@ -179,8 +158,6 @@ export function reduceKeystroke(state: PromptState, key: KeyEvent): PromptState 
 			return { ...state, exit: 'AT_TRIGGER' };
 		case 'enter':
 			return { ...state, exit: 'DONE' };
-		case 'esc':
-			return { ...state, exit: 'BACK' };
 		case 'ctrlC':
 			return { ...state, exit: 'CANCELLED' };
 		case 'up':
@@ -219,7 +196,7 @@ export function reduceKeystroke(state: PromptState, key: KeyEvent): PromptState 
 export type InputPromptState = {
 	buffer: string;
 	cursor: number;
-	exit?: 'DONE' | 'BACK' | 'CANCELLED' | undefined;
+	exit?: 'DONE' | 'CANCELLED' | undefined;
 	validateError?: string | undefined;
 };
 
@@ -229,8 +206,6 @@ export function reduceInputState(state: InputPromptState, key: KeyEvent): InputP
 		case 'enter': {
 			return { ...state, exit: 'DONE', validateError: undefined };
 		}
-		case 'esc':
-			return { ...state, exit: 'BACK' };
 		case 'ctrlC':
 			return { ...state, exit: 'CANCELLED' };
 		case 'at': {
@@ -299,7 +274,7 @@ export type SelectPromptState<T> = {
 	cursor: number;
 	scrollOffset: number;
 	pageSize: number;
-	exit?: 'DONE' | 'BACK' | 'CANCELLED' | undefined;
+	exit?: 'DONE' | 'CANCELLED' | undefined;
 };
 
 function clampCursor<T>(state: SelectPromptState<T>): SelectPromptState<T> {
@@ -344,8 +319,6 @@ export function reduceSelectState<T>(
 			)
 				return state;
 			return { ...state, exit: 'DONE' };
-		case 'esc':
-			return { ...state, exit: 'BACK' };
 		case 'ctrlC':
 			return { ...state, exit: 'CANCELLED' };
 		default:
@@ -372,7 +345,7 @@ export type SearchPromptState<T> = {
 	pageSize: number;
 	loading: boolean;
 	focusMode: 'input' | 'list';
-	exit?: 'DONE' | 'BACK' | 'CANCELLED' | undefined;
+	exit?: 'DONE' | 'CANCELLED' | undefined;
 };
 
 export function reduceSearchState<T>(
@@ -409,8 +382,6 @@ export function reduceSearchState<T>(
 			if (state.listCursor >= state.items.length) return state;
 			return { ...state, exit: 'DONE' };
 		}
-		case 'esc':
-			return { ...state, exit: 'BACK' };
 		case 'ctrlC':
 			return { ...state, exit: 'CANCELLED' };
 		case 'char': {
@@ -522,14 +493,10 @@ export type AskInputOpts = {
 	validate?: (value: string) => boolean | string | Promise<boolean | string>;
 };
 
-export async function askInput(
-	opts: AskInputOpts,
-	wrap: WrapOptions = {}
-): Promise<string | typeof BACK> {
-	printFooterHint(wrap);
+export async function askInput(opts: AskInputOpts): Promise<string> {
 	reRefStdin();
 
-	return new Promise<string | typeof BACK>((resolve, reject) => {
+	return new Promise<string>((resolve, reject) => {
 		const session = acquireStdin();
 		const stdin = process.stdin;
 		const prefix = `? ${pc.bold(opts.message)} `;
@@ -537,12 +504,15 @@ export async function askInput(
 			buffer: opts.default ?? '',
 			cursor: (opts.default ?? '').length,
 		};
-		let escTimer: ReturnType<typeof setTimeout> | null = null;
 		let closed = false;
 		let lastRenderHeight = 1;
+		let firstRender = true;
 
 		function render(): void {
-			process.stdout.write(`\x1b[${lastRenderHeight}A\x1b[0J`);
+			if (!firstRender) {
+				process.stdout.write(`\x1b[${lastRenderHeight}A\x1b[0J`);
+			}
+			firstRender = false;
 			const lines: string[] = [];
 			const trailing = state.buffer.length - state.cursor;
 			let line = '\r\x1b[2K' + prefix + state.buffer;
@@ -559,20 +529,11 @@ export async function askInput(
 			if (closed) return;
 			closed = true;
 			stdin.removeListener('data', onData);
-			if (escTimer) {
-				clearTimeout(escTimer);
-				escTimer = null;
-			}
 			session.restore();
 			process.stdout.write('\n');
 		}
 
-		async function finish(exit: 'DONE' | 'BACK' | 'CANCELLED'): Promise<void> {
-			if (exit === 'BACK' && wrap.noBack) {
-				state = { ...state, exit: undefined };
-				render();
-				return;
-			}
+		async function finish(exit: 'DONE' | 'CANCELLED'): Promise<void> {
 			if (exit === 'DONE' && opts.validate) {
 				try {
 					const result = opts.validate(state.buffer);
@@ -590,39 +551,12 @@ export async function askInput(
 				}
 			}
 			cleanup();
-			switch (exit) {
-				case 'DONE':
-					resolve(state.buffer);
-					return;
-				case 'BACK':
-					if (wrap.firstStep) {
-						console.log(pc.dim('  Cancelled.'));
-						reject(new CancelledError());
-						return;
-					}
-					resolve(BACK);
-					return;
-				case 'CANCELLED':
-					reject(new TerminateShellError());
-					return;
-			}
+			if (exit === 'DONE') resolve(state.buffer);
+			else reject(new TerminateShellError());
 		}
 
 		function onData(chunk: Buffer | string): void {
 			const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-			if (text === '\x1b' && !escTimer) {
-				escTimer = setTimeout(() => {
-					escTimer = null;
-					finish('BACK');
-				}, ESC_DEBOUNCE_MS);
-				return;
-			}
-			if (escTimer) {
-				clearTimeout(escTimer);
-				escTimer = null;
-				const merged = '\x1b' + text;
-				return handleEvents(parseChunk(merged));
-			}
 			handleEvents(parseChunk(text));
 		}
 
@@ -653,14 +587,10 @@ export type AskSelectOpts<T> = {
 	pageSize?: number;
 };
 
-export async function askSelect<T>(
-	opts: AskSelectOpts<T>,
-	wrap: WrapOptions = {}
-): Promise<T | typeof BACK> {
-	printFooterHint(wrap);
+export async function askSelect<T>(opts: AskSelectOpts<T>): Promise<T> {
 	reRefStdin();
 
-	return new Promise<T | typeof BACK>((resolve, reject) => {
+	return new Promise<T>((resolve, reject) => {
 		const session = acquireStdin();
 		const stdin = process.stdin;
 		const prefix = `? ${pc.bold(opts.message)}`;
@@ -676,12 +606,15 @@ export async function askSelect<T>(
 			scrollOffset: 0,
 			pageSize: effectivePageSize,
 		});
-		let escTimer: ReturnType<typeof setTimeout> | null = null;
 		let closed = false;
 		let lastRenderHeight = 1;
+		let firstRender = true;
 
 		function render(): void {
-			process.stdout.write(`\x1b[${lastRenderHeight}A\x1b[0J`);
+			if (!firstRender) {
+				process.stdout.write(`\x1b[${lastRenderHeight}A\x1b[0J`);
+			}
+			firstRender = false;
 			const lines: string[] = [];
 			lines.push('\r\x1b[2K' + prefix);
 			const visibleStart = state.scrollOffset;
@@ -713,54 +646,18 @@ export async function askSelect<T>(
 			if (closed) return;
 			closed = true;
 			stdin.removeListener('data', onData);
-			if (escTimer) {
-				clearTimeout(escTimer);
-				escTimer = null;
-			}
 			session.restore();
 			process.stdout.write('\n');
 		}
 
-		function finish(exit: 'DONE' | 'BACK' | 'CANCELLED'): void {
-			if (exit === 'BACK' && wrap.noBack) {
-				state = { ...state, exit: undefined };
-				render();
-				return;
-			}
+		function finish(exit: 'DONE' | 'CANCELLED'): void {
 			cleanup();
-			switch (exit) {
-				case 'DONE':
-					resolve(state.items[state.cursor]!.value);
-					return;
-				case 'BACK':
-					if (wrap.firstStep) {
-						console.log(pc.dim('  Cancelled.'));
-						reject(new CancelledError());
-						return;
-					}
-					resolve(BACK);
-					return;
-				case 'CANCELLED':
-					reject(new TerminateShellError());
-					return;
-			}
+			if (exit === 'DONE') resolve(state.items[state.cursor]!.value);
+			else reject(new TerminateShellError());
 		}
 
 		function onData(chunk: Buffer | string): void {
 			const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-			if (text === '\x1b' && !escTimer) {
-				escTimer = setTimeout(() => {
-					escTimer = null;
-					finish('BACK');
-				}, ESC_DEBOUNCE_MS);
-				return;
-			}
-			if (escTimer) {
-				clearTimeout(escTimer);
-				escTimer = null;
-				const merged = '\x1b' + text;
-				return handleEvents(parseChunk(merged));
-			}
 			handleEvents(parseChunk(text));
 		}
 
@@ -790,14 +687,10 @@ export type AskSearchOpts<T> = {
 	pageSize?: number;
 };
 
-export async function askSearch<T>(
-	opts: AskSearchOpts<T>,
-	wrap: WrapOptions = {}
-): Promise<T | typeof BACK> {
-	printFooterHint(wrap);
+export async function askSearch<T>(opts: AskSearchOpts<T>): Promise<T> {
 	reRefStdin();
 
-	return new Promise<T | typeof BACK>((resolve, reject) => {
+	return new Promise<T>((resolve, reject) => {
 		const session = acquireStdin();
 		const stdin = process.stdin;
 		const prefix = `? ${pc.bold(opts.message)} `;
@@ -813,13 +706,16 @@ export async function askSearch<T>(
 			loading: false,
 			focusMode: 'input',
 		};
-		let escTimer: ReturnType<typeof setTimeout> | null = null;
 		let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 		let closed = false;
 		let lastRenderHeight = 1;
+		let firstRender = true;
 
 		function render(): void {
-			process.stdout.write(`\x1b[${lastRenderHeight}A\x1b[0J`);
+			if (!firstRender) {
+				process.stdout.write(`\x1b[${lastRenderHeight}A\x1b[0J`);
+			}
+			firstRender = false;
 			const lines: string[] = [];
 			const trailing = state.buffer.length - state.inputCursor;
 			let inputLine = '\r\x1b[2K' + prefix + state.buffer;
@@ -852,10 +748,6 @@ export async function askSearch<T>(
 			if (closed) return;
 			closed = true;
 			stdin.removeListener('data', onData);
-			if (escTimer) {
-				clearTimeout(escTimer);
-				escTimer = null;
-			}
 			if (debounceTimer) {
 				clearTimeout(debounceTimer);
 				debounceTimer = null;
@@ -864,35 +756,18 @@ export async function askSearch<T>(
 			process.stdout.write('\n');
 		}
 
-		function finish(exit: 'DONE' | 'BACK' | 'CANCELLED'): void {
-			if (exit === 'BACK' && wrap.noBack) {
-				state = { ...state, exit: undefined };
-				render();
+		function finish(exit: 'DONE' | 'CANCELLED'): void {
+			cleanup();
+			if (exit === 'CANCELLED') {
+				reject(new TerminateShellError());
 				return;
 			}
-			cleanup();
-			switch (exit) {
-				case 'DONE': {
-					if (state.focusMode === 'list' && state.listCursor < state.items.length) {
-						resolve(state.items[state.listCursor]!.value);
-					} else if (state.items.length > 0) {
-						resolve(state.items[0]!.value);
-					} else {
-						resolve(undefined as T);
-					}
-					return;
-				}
-				case 'BACK':
-					if (wrap.firstStep) {
-						console.log(pc.dim('  Cancelled.'));
-						reject(new CancelledError());
-						return;
-					}
-					resolve(BACK);
-					return;
-				case 'CANCELLED':
-					reject(new TerminateShellError());
-					return;
+			if (state.focusMode === 'list' && state.listCursor < state.items.length) {
+				resolve(state.items[state.listCursor]!.value);
+			} else if (state.items.length > 0) {
+				resolve(state.items[0]!.value);
+			} else {
+				resolve(undefined as T);
 			}
 		}
 
@@ -926,19 +801,6 @@ export async function askSearch<T>(
 
 		function onData(chunk: Buffer | string): void {
 			const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-			if (text === '\x1b' && !escTimer) {
-				escTimer = setTimeout(() => {
-					escTimer = null;
-					finish('BACK');
-				}, ESC_DEBOUNCE_MS);
-				return;
-			}
-			if (escTimer) {
-				clearTimeout(escTimer);
-				escTimer = null;
-				const merged = '\x1b' + text;
-				return handleEvents(parseChunk(merged));
-			}
 			handleEvents(parseChunk(text));
 		}
 
@@ -974,14 +836,10 @@ export type AskPasswordOpts = {
 	default?: string;
 };
 
-export async function askPassword(
-	opts: AskPasswordOpts,
-	wrap: WrapOptions = {}
-): Promise<string | typeof BACK> {
-	printFooterHint(wrap);
+export async function askPassword(opts: AskPasswordOpts): Promise<string> {
 	reRefStdin();
 
-	return new Promise<string | typeof BACK>((resolve, reject) => {
+	return new Promise<string>((resolve, reject) => {
 		const session = acquireStdin();
 		const stdin = process.stdin;
 		const prefix = `? ${pc.bold(opts.message)} `;
@@ -990,12 +848,15 @@ export async function askPassword(
 			buffer: opts.default ?? '',
 			cursor: (opts.default ?? '').length,
 		};
-		let escTimer: ReturnType<typeof setTimeout> | null = null;
 		let closed = false;
 		let lastRenderHeight = 1;
+		let firstRender = true;
 
 		function render(): void {
-			process.stdout.write(`\x1b[${lastRenderHeight}A\x1b[0J`);
+			if (!firstRender) {
+				process.stdout.write(`\x1b[${lastRenderHeight}A\x1b[0J`);
+			}
+			firstRender = false;
 			const lines: string[] = [];
 			const display = showMask ? '*'.repeat(state.buffer.length) : '';
 			const trailing = display.length - state.cursor;
@@ -1010,54 +871,18 @@ export async function askPassword(
 			if (closed) return;
 			closed = true;
 			stdin.removeListener('data', onData);
-			if (escTimer) {
-				clearTimeout(escTimer);
-				escTimer = null;
-			}
 			session.restore();
 			process.stdout.write('\n');
 		}
 
-		function finish(exit: 'DONE' | 'BACK' | 'CANCELLED'): void {
-			if (exit === 'BACK' && wrap.noBack) {
-				state = { ...state, exit: undefined };
-				render();
-				return;
-			}
+		function finish(exit: 'DONE' | 'CANCELLED'): void {
 			cleanup();
-			switch (exit) {
-				case 'DONE':
-					resolve(state.buffer);
-					return;
-				case 'BACK':
-					if (wrap.firstStep) {
-						console.log(pc.dim('  Cancelled.'));
-						reject(new CancelledError());
-						return;
-					}
-					resolve(BACK);
-					return;
-				case 'CANCELLED':
-					reject(new TerminateShellError());
-					return;
-			}
+			if (exit === 'DONE') resolve(state.buffer);
+			else reject(new TerminateShellError());
 		}
 
 		function onData(chunk: Buffer | string): void {
 			const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-			if (text === '\x1b' && !escTimer) {
-				escTimer = setTimeout(() => {
-					escTimer = null;
-					finish('BACK');
-				}, ESC_DEBOUNCE_MS);
-				return;
-			}
-			if (escTimer) {
-				clearTimeout(escTimer);
-				escTimer = null;
-				const merged = '\x1b' + text;
-				return handleEvents(parseChunk(merged));
-			}
 			handleEvents(parseChunk(text));
 		}
 
@@ -1087,13 +912,11 @@ type AtTriggerOptions = {
 };
 
 export async function askInputWithAtTrigger(
-	opts: AtTriggerOptions,
-	wrap: WrapOptions = {}
-): Promise<string | typeof BACK | typeof AT_TRIGGER> {
-	printFooterHint(wrap);
+	opts: AtTriggerOptions
+): Promise<string | typeof AT_TRIGGER> {
 	reRefStdin();
 
-	return new Promise<string | typeof BACK | typeof AT_TRIGGER>((resolve, reject) => {
+	return new Promise<string | typeof AT_TRIGGER>((resolve, reject) => {
 		const session = acquireStdin();
 		const stdin = process.stdin;
 		const prefix = `? ${pc.bold(opts.message)} `;
@@ -1101,12 +924,15 @@ export async function askInputWithAtTrigger(
 			buffer: opts.default ?? '',
 			cursor: (opts.default ?? '').length,
 		};
-		let escTimer: ReturnType<typeof setTimeout> | null = null;
 		let closed = false;
 		let lastRenderHeight = 1;
+		let firstRender = true;
 
 		function render(): void {
-			process.stdout.write(`\x1b[${lastRenderHeight}A\x1b[0J`);
+			if (!firstRender) {
+				process.stdout.write(`\x1b[${lastRenderHeight}A\x1b[0J`);
+			}
+			firstRender = false;
 			const lines: string[] = [];
 			const trailing = state.buffer.length - state.cursor;
 			let line = '\r\x1b[2K' + prefix + state.buffer;
@@ -1120,10 +946,6 @@ export async function askInputWithAtTrigger(
 			if (closed) return;
 			closed = true;
 			stdin.removeListener('data', onData);
-			if (escTimer) {
-				clearTimeout(escTimer);
-				escTimer = null;
-			}
 			session.restore();
 			process.stdout.write('\n');
 		}
@@ -1137,14 +959,6 @@ export async function askInputWithAtTrigger(
 				case 'AT_TRIGGER':
 					resolve(AT_TRIGGER);
 					return;
-				case 'BACK':
-					if (wrap.firstStep) {
-						console.log(pc.dim('  Cancelled.'));
-						reject(new CancelledError());
-						return;
-					}
-					resolve(BACK);
-					return;
 				case 'CANCELLED':
 					reject(new TerminateShellError());
 					return;
@@ -1153,19 +967,6 @@ export async function askInputWithAtTrigger(
 
 		function onData(chunk: Buffer | string): void {
 			const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-			if (text === '\x1b' && !escTimer) {
-				escTimer = setTimeout(() => {
-					escTimer = null;
-					finish('BACK');
-				}, ESC_DEBOUNCE_MS);
-				return;
-			}
-			if (escTimer) {
-				clearTimeout(escTimer);
-				escTimer = null;
-				const merged = '\x1b' + text;
-				return handleEvents(parseChunk(merged));
-			}
 			handleEvents(parseChunk(text));
 		}
 

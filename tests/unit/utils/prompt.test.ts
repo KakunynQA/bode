@@ -1,11 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-	BackError,
 	CancelledError,
 	TerminateShellError,
 	AT_TRIGGER,
-	BACK,
 	Separator,
 	__testing,
 	type PromptState,
@@ -46,15 +44,6 @@ void _feedInput;
 // Error classes and sentinels
 // ---------------------------------------------------------------------------
 
-describe('BackError', () => {
-	it('is an Error subclass with name "BackError"', () => {
-		const err = new BackError();
-		assert.ok(err instanceof Error);
-		assert.equal(err.name, 'BackError');
-		assert.equal(err.message, '__BACK__');
-	});
-});
-
 describe('CancelledError', () => {
 	it('is an Error subclass with name "CancelledError"', () => {
 		const err = new CancelledError();
@@ -70,13 +59,6 @@ describe('TerminateShellError', () => {
 		assert.ok(err instanceof Error);
 		assert.equal(err.name, 'TerminateShellError');
 		assert.equal(err.message, '__TERMINATE_SHELL__');
-	});
-});
-
-describe('BACK sentinel', () => {
-	it('is a unique symbol', () => {
-		assert.equal(typeof BACK, 'symbol');
-		assert.equal(BACK === BACK, true);
 	});
 });
 
@@ -188,11 +170,6 @@ describe('reduceKeystroke', () => {
 		assert.deepEqual(next, { buffer: 'hello', cursor: 5, exit: 'DONE' });
 	});
 
-	it('Escape returns exit=BACK', () => {
-		const next = reduceKeystroke(abc, { kind: 'esc' });
-		assert.deepEqual(next, { ...abc, exit: 'BACK' });
-	});
-
 	it('Ctrl+C returns exit=CANCELLED', () => {
 		const next = reduceKeystroke(abc, { kind: 'ctrlC' });
 		assert.deepEqual(next, { ...abc, exit: 'CANCELLED' });
@@ -228,13 +205,6 @@ describe('reduceInputState', () => {
 		assert.equal(next.buffer, 'abc');
 		assert.equal(next.cursor, 3);
 		assert.equal(next.exit, 'DONE');
-	});
-
-	it('Escape returns exit=BACK', () => {
-		const next = reduceInputState(abcInput, { kind: 'esc' });
-		assert.equal(next.buffer, 'abc');
-		assert.equal(next.cursor, 3);
-		assert.equal(next.exit, 'BACK');
 	});
 
 	it('Ctrl+C returns exit=CANCELLED', () => {
@@ -333,11 +303,6 @@ describe('reduceSelectState', () => {
 	it('Enter selects current item', () => {
 		const next = reduceSelectState(makeState(1), { kind: 'enter' });
 		assert.equal(next.exit, 'DONE');
-	});
-
-	it('Escape returns BACK', () => {
-		const next = reduceSelectState(makeState(0), { kind: 'esc' });
-		assert.equal(next.exit, 'BACK');
 	});
 
 	it('Ctrl+C returns CANCELLED', () => {
@@ -489,11 +454,6 @@ describe('reduceSearchState', () => {
 		assert.equal(next.exit, 'DONE');
 	});
 
-	it('escape returns BACK', () => {
-		const next = reduceSearchState(makeSearch(), { kind: 'esc' });
-		assert.equal(next.exit, 'BACK');
-	});
-
 	it('ctrlC returns CANCELLED', () => {
 		const next = reduceSearchState(makeSearch(), { kind: 'ctrlC' });
 		assert.equal(next.exit, 'CANCELLED');
@@ -574,8 +534,8 @@ describe('parseChunk', () => {
 		assert.deepEqual(parseChunk('\x1b[3~'), [{ kind: 'delete' }]);
 	});
 
-	it('lone trailing ESC at end of chunk parses as esc', () => {
-		assert.deepEqual(parseChunk('a\x1b'), [{ kind: 'char', value: 'a' }, { kind: 'esc' }]);
+	it('lone trailing ESC at end of chunk is dropped', () => {
+		assert.deepEqual(parseChunk('a\x1b'), [{ kind: 'char', value: 'a' }]);
 	});
 
 	it('mid-chunk lone ESC is dropped (likely Alt-prefix)', () => {

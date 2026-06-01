@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] — 2026-06-01
+
+### Removed
+
+- **ESC back-navigation removed from setup wizards.** The `noBack` option, `BACK` sentinel, `BackError`, `WrapOptions`, the `'esc'` `KeyKind`, and every back-navigation branch in `src/utils/prompt.ts` reducers and finishers have been deleted. ESC is now a no-op everywhere — lone ESC bytes from PowerShell readline are swallowed by `parseChunk`. Callers (`setup.ts`, `start.ts`, `setup-transitions.ts`, `setup-project-investigate.ts`, `missing-artifact.ts`, `dangerous-check.ts`) updated to drop the `firstStep` / `noBack` plumbing and the directional step-divider hint.
+
+### Fixed
+
+- **First-render no longer eats the previous line.** Every raw-mode prompt (`askInput`, `askSelect`, `askSearch`, `askPassword`, `askInputWithAtTrigger`) used to start its render loop with `\x1b[1A\x1b[0J`, which moved the cursor onto the previous prompt's confirmed output (or a wizard divider like `── Planning Phase ──`) and erased it. Render closures now track a `firstRender` flag and skip the cursor-up-and-clear on the first paint. The bug shipped silently with the v2.2.0 raw-mode rewrite; only became visible once the printFooterHint compensation went away.
+
 ## [2.2.0] — 2026-06-01
 
 ### Changed

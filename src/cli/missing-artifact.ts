@@ -1,6 +1,5 @@
-import { askSelect, BACK } from '~/utils/prompt.ts';
+import { askSelect, handlePromptError } from '~/utils/prompt.ts';
 import pc from 'picocolors';
-import { handlePromptError } from '~/utils/prompt.ts';
 
 export type MissingArtifactDecision = 'retry' | 'continue' | 'abort';
 
@@ -38,8 +37,7 @@ export async function handleMissingArtifact(
 				},
 			],
 		});
-		if (choice === BACK) return 'abort';
-		return choice as MissingArtifactDecision;
+		return choice;
 	} catch (err) {
 		handlePromptError(err);
 		return 'abort';

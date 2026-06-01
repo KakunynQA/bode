@@ -1,8 +1,7 @@
-import { askSelect, BACK } from '~/utils/prompt.ts';
+import { askSelect, handlePromptError } from '~/utils/prompt.ts';
 import pc from 'picocolors';
 import type { BodeConfig } from '~/config/schema.ts';
 import { getAdapter } from '~/adapters/cli/registry.ts';
-import { handlePromptError } from '~/utils/prompt.ts';
 
 export type DangerousPlan = {
 	approved: boolean;
@@ -65,7 +64,7 @@ export async function planDangerousMode(config: BodeConfig): Promise<DangerousPl
 					{ name: 'No — abort and let me reconfigure those phases', value: 'no' },
 				],
 			});
-			if (choice === BACK || choice !== 'yes') {
+			if (choice !== 'yes') {
 				return { approved: false, unsupported };
 			}
 		} catch (err) {
