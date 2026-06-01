@@ -33,20 +33,27 @@ type WizardStep<T = unknown> = (firstStep: boolean) => Promise<T | typeof BACK>;
 
 async function runWizard(steps: WizardStep[], results: unknown[]): Promise<void> {
 	let cursor = 0;
+	let camFromBack = false;
 	while (cursor < steps.length) {
 		const step = steps[cursor]!;
 		const isFirst = cursor === 0;
-		// v2.1.6: progress indicator above each step. Not a true sticky
-		// footer (that would need an Ink rewrite of the wizard itself);
-		// scrolls up with subsequent output but keeps the user oriented.
+		// v2.1.8: directional indicator. Without this, ESC-going-back looks
+		// identical to Enter-advancing because new prompts render below old
+		// ones — terminals don't scroll backwards. The arrow + colour make
+		// the user's visual intuition match reality.
 		const bar = '─'.repeat(40);
-		console.log(pc.dim(`\n${bar}  step ${cursor + 1} / ${steps.length}  ${bar}`));
+		const arrow = camFromBack ? pc.yellow('  ← back to  ') : pc.dim('  step ');
+		console.log(
+			pc.dim(bar) + arrow + pc.bold(`${cursor + 1} / ${steps.length}`) + pc.dim(`  ${bar}`)
+		);
 		const result = await step(isFirst);
 		if (result === BACK) {
 			cursor = Math.max(0, cursor - 1);
+			camFromBack = true;
 		} else {
 			results[cursor] = result;
 			cursor++;
+			camFromBack = false;
 		}
 	}
 }

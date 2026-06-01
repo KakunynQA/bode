@@ -7,12 +7,12 @@ import { join } from 'node:path';
 import pc from 'picocolors';
 
 // ---------------------------------------------------------------------------
-// ESC debug log. v2.1.6: ON by default to guarantee we capture stdin events
-// for the open ESC-in-wizard bug. Opt out with BODE_ESC_DEBUG=0. The log is
-// small (one JSONL line per keystroke) and rotates on each new wizard so it
-// does not grow unbounded.
+// ESC debug log. Opt-in via BODE_ESC_DEBUG=1. The 2.1.6 default-on flipped
+// back off in 2.1.8 now that the root cause (meta=true on standalone ESC in
+// PowerShell + Windows Terminal) is fixed in 2.1.7. Keep the hook around so
+// the next mystery is easier to diagnose.
 // ---------------------------------------------------------------------------
-const ESC_DEBUG = process.env.BODE_ESC_DEBUG !== '0';
+const ESC_DEBUG = process.env.BODE_ESC_DEBUG === '1';
 const ESC_LOG_PATH = join(homedir(), '.bode', 'esc-debug.log');
 let escLogInited = false;
 

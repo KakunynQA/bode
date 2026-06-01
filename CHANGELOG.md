@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.8] — 2026-06-01
+
+### Changed
+
+- Wizard step divider now shows direction: `── ← back to 3 / 8 ──` (yellow
+  arrow) when ESC navigates back; `── step 4 / 8 ──` (dim) on a normal
+  advance. Without this cue the back navigation looked identical to
+  Enter-advancing because new prompts render below old ones — terminals
+  don't scroll backwards.
+- `BODE_ESC_DEBUG` is opt-in again (default off). The 2.1.6 default-on
+  served its purpose: the captured log revealed PowerShell readline marks
+  standalone ESC presses with `key.meta = true`, which was the root cause
+  fixed in 2.1.7. Set `BODE_ESC_DEBUG=1` to re-enable for future debugging.
+
 ## [2.1.7] — 2026-06-01
 
 ### Fixed

@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.1.7") {
-    return "2.1.7";
+  if ("2.1.8") {
+    return "2.1.8";
   }
   const base = moduleDir();
   if (base) {
@@ -66454,7 +66454,7 @@ var init_prompt = __esm({
     init_dist5();
     init_dist17();
     import_picocolors2 = __toESM(require_picocolors(), 1);
-    ESC_DEBUG = process.env.BODE_ESC_DEBUG !== "0";
+    ESC_DEBUG = process.env.BODE_ESC_DEBUG === "1";
     ESC_LOG_PATH = join8(homedir2(), ".bode", "esc-debug.log");
     escLogInited = false;
     BACK = Symbol("__BACK__");
@@ -72691,18 +72691,23 @@ import { existsSync as existsSync23 } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 async function runWizard(steps, results) {
   let cursor = 0;
+  let camFromBack = false;
   while (cursor < steps.length) {
     const step = steps[cursor];
     const isFirst = cursor === 0;
     const bar = "\u2500".repeat(40);
-    console.log(import_picocolors12.default.dim(`
-${bar}  step ${cursor + 1} / ${steps.length}  ${bar}`));
+    const arrow = camFromBack ? import_picocolors12.default.yellow("  \u2190 back to  ") : import_picocolors12.default.dim("  step ");
+    console.log(
+      import_picocolors12.default.dim(bar) + arrow + import_picocolors12.default.bold(`${cursor + 1} / ${steps.length}`) + import_picocolors12.default.dim(`  ${bar}`)
+    );
     const result = await step(isFirst);
     if (result === BACK) {
       cursor = Math.max(0, cursor - 1);
+      camFromBack = true;
     } else {
       results[cursor] = result;
       cursor++;
+      camFromBack = false;
     }
   }
 }
