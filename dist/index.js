@@ -53454,6 +53454,12 @@ function parseChunk(chunk) {
         i = j + 1;
         continue;
       }
+      if (i + 1 < chunk.length && chunk[i + 1] >= " " && chunk[i + 1] !== "\x7F") {
+        out.push({ kind: "char", value: chunk[i + 1] });
+        i += 2;
+        continue;
+      }
+      out.push({ kind: "escape" });
       i++;
       continue;
     }
@@ -53519,6 +53525,8 @@ function reduceKeystroke(state, key) {
       return { ...state, exit: "DONE" };
     case "ctrlC":
       return { ...state, exit: "CANCELLED" };
+    case "escape":
+      return { buffer: "", cursor: 0 };
     case "up":
     case "down":
       return state;
@@ -53557,6 +53565,8 @@ function reduceInputState(state, key) {
     }
     case "ctrlC":
       return { ...state, exit: "CANCELLED" };
+    case "escape":
+      return { buffer: "", cursor: 0, validateError: void 0 };
     case "at": {
       const before = state.buffer.slice(0, state.cursor);
       const after = state.buffer.slice(state.cursor);
@@ -53635,6 +53645,8 @@ function reduceSelectState(state, key) {
       return { ...state, exit: "DONE" };
     case "ctrlC":
       return { ...state, exit: "CANCELLED" };
+    case "escape":
+      return { ...state, exit: "CANCELLED" };
     default:
       return state;
   }
@@ -53661,13 +53673,15 @@ function reduceSearchState(state, key) {
     }
     case "enter": {
       if (state.focusMode === "input") {
-        if (state.items.length === 0) return { ...state, exit: "DONE" };
+        if (state.items.length === 0) return state;
         return { ...state, focusMode: "list", listCursor: 0, exit: "DONE" };
       }
       if (state.listCursor >= state.items.length) return state;
       return { ...state, exit: "DONE" };
     }
     case "ctrlC":
+      return { ...state, exit: "CANCELLED" };
+    case "escape":
       return { ...state, exit: "CANCELLED" };
     case "char": {
       const before = state.buffer.slice(0, state.inputCursor);
@@ -53756,6 +53770,21 @@ function acquireStdin() {
     }
   };
 }
+function stripAnsi2(s) {
+  const ESC2 = "\x1B";
+  return s.replace(new RegExp(`${ESC2}\\[[0-9;]*[A-Za-z]`, "g"), "");
+}
+function visualRowHeight(text) {
+  const cols = process.stdout.columns || 80;
+  if (cols <= 0) return 1;
+  const logicalLines = text.split("\n");
+  let rows = 0;
+  for (const line of logicalLines) {
+    const visible = stripAnsi2(line).length;
+    rows += visible === 0 ? 1 : Math.ceil(visible / cols);
+  }
+  return Math.max(1, rows);
+}
 async function askInput(opts) {
   reRefStdin();
   return new Promise((resolve, reject) => {
@@ -53769,11 +53798,12 @@ async function askInput(opts) {
     let closed = false;
     let lastRenderHeight = 0;
     function render2() {
+      let buf = "";
       if (lastRenderHeight > 0) {
         if (lastRenderHeight > 1) {
-          process.stdout.write(`\x1B[${lastRenderHeight - 1}A`);
+          buf += `\x1B[${lastRenderHeight - 1}A`;
         }
-        process.stdout.write("\r\x1B[0J");
+        buf += "\r\x1B[0J";
       }
       const lines = [];
       const trailing = state.buffer.length - state.cursor;
@@ -53783,8 +53813,10 @@ async function askInput(opts) {
       if (state.validateError) {
         lines.push(`\r\x1B[2K  ${import_picocolors2.default.red(state.validateError)}`);
       }
-      lastRenderHeight = lines.length;
-      process.stdout.write(lines.join("\n"));
+      const content = lines.join("\n");
+      lastRenderHeight = visualRowHeight(content);
+      buf += content;
+      process.stdout.write(buf);
     }
     function cleanup() {
       if (closed) return;
@@ -53854,11 +53886,12 @@ async function askSelect(opts) {
     let closed = false;
     let lastRenderHeight = 0;
     function render2() {
+      let buf = "";
       if (lastRenderHeight > 0) {
         if (lastRenderHeight > 1) {
-          process.stdout.write(`\x1B[${lastRenderHeight - 1}A`);
+          buf += `\x1B[${lastRenderHeight - 1}A`;
         }
-        process.stdout.write("\r\x1B[0J");
+        buf += "\r\x1B[0J";
       }
       const lines = [];
       lines.push("\r\x1B[2K" + prefix);
@@ -53883,8 +53916,10 @@ async function askSelect(opts) {
         const pct = Math.round((state.cursor + 1) / state.items.length * 100);
         lines.push(`\r\x1B[2K${import_picocolors2.default.dim(`  (${pct}%)`)}`);
       }
-      lastRenderHeight = lines.length;
-      process.stdout.write(lines.join("\n"));
+      const content = lines.join("\n");
+      lastRenderHeight = visualRowHeight(content);
+      buf += content;
+      process.stdout.write(buf);
     }
     function cleanup() {
       if (closed) return;
@@ -53919,7 +53954,7 @@ async function askSelect(opts) {
 }
 async function askSearch(opts) {
   reRefStdin();
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const session = acquireStdin();
     const stdin = process.stdin;
     const prefix = `? ${import_picocolors2.default.bold(opts.message)} `;
@@ -53939,11 +53974,12 @@ async function askSearch(opts) {
     let closed = false;
     let lastRenderHeight = 0;
     function render2() {
+      let buf = "";
       if (lastRenderHeight > 0) {
         if (lastRenderHeight > 1) {
-          process.stdout.write(`\x1B[${lastRenderHeight - 1}A`);
+          buf += `\x1B[${lastRenderHeight - 1}A`;
         }
-        process.stdout.write("\r\x1B[0J");
+        buf += "\r\x1B[0J";
       }
       const lines = [];
       const trailing = state.buffer.length - state.inputCursor;
@@ -53969,8 +54005,10 @@ async function askSearch(opts) {
           lines.push(line);
         }
       }
-      lastRenderHeight = lines.length;
-      process.stdout.write(lines.join("\n"));
+      const content = lines.join("\n");
+      lastRenderHeight = visualRowHeight(content);
+      buf += content;
+      process.stdout.write(buf);
     }
     function cleanup() {
       if (closed) return;
@@ -53986,7 +54024,7 @@ async function askSearch(opts) {
     function finish(exit) {
       cleanup();
       if (exit === "CANCELLED") {
-        reject(new TerminateShellError());
+        resolve(PICKER_DISMISSED);
         return;
       }
       if (state.focusMode === "list" && state.listCursor < state.items.length) {
@@ -53994,7 +54032,7 @@ async function askSearch(opts) {
       } else if (state.items.length > 0) {
         resolve(state.items[0].value);
       } else {
-        resolve(void 0);
+        resolve(PICKER_DISMISSED);
       }
     }
     async function fetchSource() {
@@ -54062,11 +54100,12 @@ async function askPassword(opts) {
     let closed = false;
     let lastRenderHeight = 0;
     function render2() {
+      let buf = "";
       if (lastRenderHeight > 0) {
         if (lastRenderHeight > 1) {
-          process.stdout.write(`\x1B[${lastRenderHeight - 1}A`);
+          buf += `\x1B[${lastRenderHeight - 1}A`;
         }
-        process.stdout.write("\r\x1B[0J");
+        buf += "\r\x1B[0J";
       }
       const lines = [];
       const display = showMask ? "*".repeat(state.buffer.length) : "";
@@ -54074,8 +54113,10 @@ async function askPassword(opts) {
       let line = "\r\x1B[2K" + prefix + display;
       if (trailing > 0) line += `\x1B[${trailing}D`;
       lines.push(line);
-      lastRenderHeight = lines.length;
-      process.stdout.write(lines.join("\n"));
+      const content = lines.join("\n");
+      lastRenderHeight = visualRowHeight(content);
+      buf += content;
+      process.stdout.write(buf);
     }
     function cleanup() {
       if (closed) return;
@@ -54121,19 +54162,22 @@ async function askInputWithAtTrigger(opts) {
     let closed = false;
     let lastRenderHeight = 0;
     function render2() {
+      let buf = "";
       if (lastRenderHeight > 0) {
         if (lastRenderHeight > 1) {
-          process.stdout.write(`\x1B[${lastRenderHeight - 1}A`);
+          buf += `\x1B[${lastRenderHeight - 1}A`;
         }
-        process.stdout.write("\r\x1B[0J");
+        buf += "\r\x1B[0J";
       }
       const lines = [];
       const trailing = state.buffer.length - state.cursor;
       let line = "\r\x1B[2K" + prefix + state.buffer;
       if (trailing > 0) line += `\x1B[${trailing}D`;
       lines.push(line);
-      lastRenderHeight = lines.length;
-      process.stdout.write(lines.join("\n"));
+      const content = lines.join("\n");
+      lastRenderHeight = visualRowHeight(content);
+      buf += content;
+      process.stdout.write(buf);
     }
     function cleanup() {
       if (closed) return;
@@ -54175,12 +54219,13 @@ async function askInputWithAtTrigger(opts) {
     render2();
   });
 }
-var import_picocolors2, AT_TRIGGER, CancelledError, TerminateShellError;
+var import_picocolors2, AT_TRIGGER, PICKER_DISMISSED, CancelledError, TerminateShellError;
 var init_prompt = __esm({
   "src/utils/prompt.ts"() {
     "use strict";
     import_picocolors2 = __toESM(require_picocolors(), 1);
     AT_TRIGGER = Symbol("__AT_TRIGGER__");
+    PICKER_DISMISSED = Symbol("__PICKER_DISMISSED__");
     CancelledError = class extends Error {
       constructor() {
         super("__CANCELLED__");
@@ -60740,7 +60785,7 @@ async function askContextFiles(workdir, defaults, message) {
     });
     if (raw === AT_TRIGGER) {
       const picked = await pickContextFile(absWorkdir, "Pick a context file:");
-      selected = uniqueStrings([...selected, picked]);
+      if (picked !== null) selected = uniqueStrings([...selected, picked]);
       continue;
     }
     const entries = raw.split(",").map((s) => s.trim()).filter(Boolean);
@@ -60748,7 +60793,7 @@ async function askContextFiles(workdir, defaults, message) {
     for (const entry of entries) {
       if (entry.startsWith("@")) {
         const picked = await pickContextFile(absWorkdir, "Pick a context file:", entry.slice(1));
-        expanded.push(picked);
+        if (picked !== null) expanded.push(picked);
       } else {
         expanded.push(entry);
       }
@@ -60757,13 +60802,15 @@ async function askContextFiles(workdir, defaults, message) {
   }
 }
 async function pickContextFile(workdir, message, initialQuery = "") {
-  return askSearch({
+  const result = await askSearch({
     message,
     source: async (input) => {
       const files = await scanWorkdirFiles(workdir, input ?? initialQuery);
       return files.map((f) => ({ name: f, value: f }));
     }
   });
+  if (result === PICKER_DISMISSED) return null;
+  return result;
 }
 function uniqueStrings(values) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];

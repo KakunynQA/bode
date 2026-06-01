@@ -20,6 +20,7 @@ import {
 	askSearch,
 	handlePromptError,
 	AT_TRIGGER,
+	PICKER_DISMISSED,
 } from '~/utils/prompt.ts';
 import { testJiraConnection } from '~/adapters/jira/rest.ts';
 import { getVersion } from '~/utils/version.ts';
@@ -83,15 +84,6 @@ function cliDescription(name: string): string {
 }
 
 /**
- * Asks for a comma-separated list of context files with `@` triggering a
- * fuzzy file picker. Auto-detected defaults are pre-filled.
- *
- * `workdir` is normalised to an absolute path before any picker call so a
- * relative or `.` workdir cannot leak the cwd of the launching shell into
- * the picker (which would scan bode's own project folder when the TUI
- * shell was launched from there).
- */
-/**
  * Pins the workdir-normalisation contract for the `@` picker. Exposed via
  * `__testing` for a regression test that asserts a relative path becomes
  * absolute before any picker call, so the picker can't silently scan the
@@ -102,6 +94,15 @@ function resolveWorkdirForPicker(workdir: string): string {
 	return resolvePath(workdir);
 }
 
+/**
+ * Asks for a comma-separated list of context files with `@` triggering a
+ * fuzzy file picker. Auto-detected defaults are pre-filled.
+ *
+ * `workdir` is normalised to an absolute path before any picker call so a
+ * relative or `.` workdir cannot leak the cwd of the launching shell into
+ * the picker (which would scan bode's own project folder when the TUI
+ * shell was launched from there).
+ */
 async function askContextFiles(
 	workdir: string,
 	defaults: string[],
@@ -119,7 +120,7 @@ async function askContextFiles(
 		});
 		if (raw === AT_TRIGGER) {
 			const picked = await pickContextFile(absWorkdir, 'Pick a context file:');
-			selected = uniqueStrings([...selected, picked]);
+			if (picked !== null) selected = uniqueStrings([...selected, picked]);
 			continue;
 		}
 
@@ -132,7 +133,7 @@ async function askContextFiles(
 		for (const entry of entries) {
 			if (entry.startsWith('@')) {
 				const picked = await pickContextFile(absWorkdir, 'Pick a context file:', entry.slice(1));
-				expanded.push(picked);
+				if (picked !== null) expanded.push(picked);
 			} else {
 				expanded.push(entry);
 			}
@@ -145,14 +146,16 @@ async function pickContextFile(
 	workdir: string,
 	message: string,
 	initialQuery = ''
-): Promise<string> {
-	return askSearch<string>({
+): Promise<string | null> {
+	const result = await askSearch<string>({
 		message,
 		source: async (input) => {
 			const files = await scanWorkdirFiles(workdir, input ?? initialQuery);
 			return files.map((f) => ({ name: f, value: f }));
 		},
 	});
+	if (result === PICKER_DISMISSED) return null;
+	return result;
 }
 
 function uniqueStrings(values: string[]): string[] {

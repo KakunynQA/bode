@@ -4,6 +4,7 @@ import {
 	CancelledError,
 	TerminateShellError,
 	AT_TRIGGER,
+	PICKER_DISMISSED,
 	Separator,
 	__testing,
 	type PromptState,
@@ -18,6 +19,8 @@ const {
 	reduceSearchState,
 	parseChunk,
 	clampCursor,
+	stripAnsi,
+	visualRowHeight,
 } = __testing;
 
 const empty: PromptState = { buffer: '', cursor: 0 };
@@ -32,13 +35,6 @@ function feed(state: PromptState, keys: KeyEvent[]): PromptState {
 	for (const k of keys) s = reduceKeystroke(s, k);
 	return s;
 }
-
-function _feedInput(state: InputPromptState, keys: KeyEvent[]): InputPromptState {
-	let s = state;
-	for (const k of keys) s = reduceInputState(s, k);
-	return s;
-}
-void _feedInput;
 
 // ---------------------------------------------------------------------------
 // Error classes and sentinels
@@ -66,6 +62,16 @@ describe('AT_TRIGGER sentinel', () => {
 	it('is a unique symbol', () => {
 		assert.equal(typeof AT_TRIGGER, 'symbol');
 		assert.equal(AT_TRIGGER === AT_TRIGGER, true);
+	});
+});
+
+describe('PICKER_DISMISSED sentinel', () => {
+	it('is a unique symbol', () => {
+		assert.equal(typeof PICKER_DISMISSED, 'symbol');
+		assert.equal(PICKER_DISMISSED === PICKER_DISMISSED, true);
+	});
+	it('differs from AT_TRIGGER', () => {
+		assert.notEqual(PICKER_DISMISSED, AT_TRIGGER);
 	});
 });
 
@@ -160,6 +166,11 @@ describe('reduceKeystroke', () => {
 		assert.deepEqual(next, abc);
 	});
 
+	it('Escape clears buffer and cursor', () => {
+		const next = reduceKeystroke(abc, { kind: 'escape' });
+		assert.deepEqual(next, { buffer: '', cursor: 0 });
+	});
+
 	it('@ keypress returns exit=AT_TRIGGER and does not mutate buffer', () => {
 		const next = reduceKeystroke({ buffer: 'foo', cursor: 3 }, { kind: 'at' });
 		assert.deepEqual(next, { buffer: 'foo', cursor: 3, exit: 'AT_TRIGGER' });
@@ -214,6 +225,14 @@ describe('reduceInputState', () => {
 		assert.equal(next.exit, 'CANCELLED');
 	});
 
+	it('Escape clears buffer and resets cursor', () => {
+		const next = reduceInputState(abcInput, { kind: 'escape' });
+		assert.equal(next.buffer, '');
+		assert.equal(next.cursor, 0);
+		assert.equal(next.exit, undefined);
+		assert.equal(next.validateError, undefined);
+	});
+
 	it('Up and Down are no-ops', () => {
 		const up = reduceInputState(abcInput, { kind: 'up' });
 		assert.equal(up.cursor, 3);
@@ -266,6 +285,8 @@ describe('reduceInputState', () => {
 // reduceSelectState (askSelect)
 // ---------------------------------------------------------------------------
 
+type SelectItem<T> = { name: string; value: T; description?: string; disabled?: boolean };
+
 describe('reduceSelectState', () => {
 	type S = SelectItem<{ label: string }>;
 	type SelState = ReturnType<typeof reduceSelectState<S>>;
@@ -307,6 +328,11 @@ describe('reduceSelectState', () => {
 
 	it('Ctrl+C returns CANCELLED', () => {
 		const next = reduceSelectState(makeState(0), { kind: 'ctrlC' });
+		assert.equal(next.exit, 'CANCELLED');
+	});
+
+	it('Escape returns CANCELLED', () => {
+		const next = reduceSelectState(makeState(1), { kind: 'escape' });
 		assert.equal(next.exit, 'CANCELLED');
 	});
 
@@ -377,8 +403,6 @@ describe('reduceSelectState', () => {
 	});
 });
 
-type SelectItem<T> = { name: string; value: T; description?: string; disabled?: boolean };
-
 // ---------------------------------------------------------------------------
 // reduceSearchState (askSearch)
 // ---------------------------------------------------------------------------
@@ -416,6 +440,20 @@ describe('reduceSearchState', () => {
 		const next = reduceSearchState(makeSearch('ab', 2), { kind: 'backspace' });
 		assert.equal(next.buffer, 'a');
 		assert.equal(next.inputCursor, 1);
+	});
+
+	it('delete removes char after inputCursor without moving cursor', () => {
+		const next = reduceSearchState(makeSearch('ab', 1), { kind: 'delete' });
+		assert.equal(next.buffer, 'a');
+		assert.equal(next.inputCursor, 1);
+		assert.equal(next.loading, true);
+	});
+
+	it('delete at end of buffer is a no-op', () => {
+		const next = reduceSearchState(makeSearch('ab', 2), { kind: 'delete' });
+		assert.equal(next.buffer, 'ab');
+		assert.equal(next.inputCursor, 2);
+		assert.equal(next.exit, undefined);
 	});
 
 	it('down switches to list focus', () => {
@@ -457,6 +495,24 @@ describe('reduceSearchState', () => {
 	it('ctrlC returns CANCELLED', () => {
 		const next = reduceSearchState(makeSearch(), { kind: 'ctrlC' });
 		assert.equal(next.exit, 'CANCELLED');
+	});
+
+	it('escape returns CANCELLED', () => {
+		const next = reduceSearchState(makeSearch('ab', 2), { kind: 'escape' });
+		assert.equal(next.exit, 'CANCELLED');
+	});
+
+	it('backspace with empty buffer at cursor 0 is a no-op', () => {
+		const next = reduceSearchState(makeSearch('', 0), { kind: 'backspace' });
+		assert.equal(next.buffer, '');
+		assert.equal(next.inputCursor, 0);
+		assert.equal(next.exit, undefined);
+	});
+
+	it('enter with 0 items in input mode is a no-op', () => {
+		const state = { ...makeSearch(), items: [], focusMode: 'input' as const };
+		const next = reduceSearchState(state, { kind: 'enter' });
+		assert.equal(next.exit, undefined);
 	});
 
 	it('left/right move inputCursor', () => {
@@ -534,12 +590,32 @@ describe('parseChunk', () => {
 		assert.deepEqual(parseChunk('\x1b[3~'), [{ kind: 'delete' }]);
 	});
 
-	it('lone trailing ESC at end of chunk is dropped', () => {
-		assert.deepEqual(parseChunk('a\x1b'), [{ kind: 'char', value: 'a' }]);
+	it('lone trailing ESC emits escape event', () => {
+		assert.deepEqual(parseChunk('a\x1b'), [{ kind: 'char', value: 'a' }, { kind: 'escape' }]);
 	});
 
-	it('mid-chunk lone ESC is dropped (likely Alt-prefix)', () => {
+	it('lone ESC alone emits escape event', () => {
+		assert.deepEqual(parseChunk('\x1b'), [{ kind: 'escape' }]);
+	});
+
+	it('mid-chunk lone ESC before printable char emits char (Alt prefix)', () => {
 		assert.deepEqual(parseChunk('\x1ba'), [{ kind: 'char', value: 'a' }]);
+	});
+
+	it('ESC followed by Ctrl+C emits escape then ctrlC', () => {
+		assert.deepEqual(parseChunk('\x1b\x03'), [{ kind: 'escape' }, { kind: 'ctrlC' }]);
+	});
+
+	it('ESC followed by DEL (0x7f) emits escape then backspace', () => {
+		assert.deepEqual(parseChunk('\x1b\x7f'), [{ kind: 'escape' }, { kind: 'backspace' }]);
+	});
+
+	it('ESC followed by BS (0x08) emits escape then backspace', () => {
+		assert.deepEqual(parseChunk('\x1b\x08'), [{ kind: 'escape' }, { kind: 'backspace' }]);
+	});
+
+	it('double ESC emits two escape events', () => {
+		assert.deepEqual(parseChunk('\x1b\x1b'), [{ kind: 'escape' }, { kind: 'escape' }]);
 	});
 
 	it('parses a paste containing @', () => {
@@ -588,5 +664,60 @@ describe('clampCursor', () => {
 		const state = { items, cursor: 0, scrollOffset: 0, pageSize: 7 };
 		const clamped = clampCursor(state);
 		assert.equal(clamped.cursor, 1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// stripAnsi + visualRowHeight
+// ---------------------------------------------------------------------------
+
+describe('stripAnsi', () => {
+	it('returns plain text unchanged', () => {
+		assert.equal(stripAnsi('hello world'), 'hello world');
+	});
+
+	it('strips CSI sequences', () => {
+		assert.equal(stripAnsi('\x1b[31mred\x1b[0m'), 'red');
+	});
+
+	it('strips cursor movement sequences', () => {
+		assert.equal(stripAnsi('\x1b[5A\r\x1b[0J'), '\r');
+	});
+
+	it('strips mixed sequences', () => {
+		assert.equal(stripAnsi('\x1b[2K\r\x1b[31mfoo\x1b[0m\x1b[3D'), '\rfoo');
+	});
+});
+
+describe('visualRowHeight', () => {
+	it('single short line = 1 row', () => {
+		assert.equal(visualRowHeight('hello'), 1);
+	});
+
+	it('single line exactly at col width = 1 row', () => {
+		const cols = process.stdout.columns || 80;
+		const line = 'a'.repeat(cols);
+		assert.equal(visualRowHeight(line), 1);
+	});
+
+	it('single line over col width by 1 = 2 rows', () => {
+		const cols = process.stdout.columns || 80;
+		const line = 'a'.repeat(cols + 1);
+		assert.equal(visualRowHeight(line), 2);
+	});
+
+	it('two short lines = 2 rows', () => {
+		assert.equal(visualRowHeight('hello\nworld'), 2);
+	});
+
+	it('long line with ANSI codes counts visible chars only', () => {
+		const cols = process.stdout.columns || 80;
+		const visible = 'x'.repeat(cols + 10);
+		const withAnsi = `\x1b[31m${visible}\x1b[0m`;
+		assert.equal(visualRowHeight(withAnsi), 2);
+	});
+
+	it('empty string = 1 row', () => {
+		assert.equal(visualRowHeight(''), 1);
 	});
 });

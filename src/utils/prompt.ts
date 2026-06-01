@@ -5,6 +5,7 @@ import pc from 'picocolors';
 // ---------------------------------------------------------------------------
 
 export const AT_TRIGGER = Symbol('__AT_TRIGGER__');
+export const PICKER_DISMISSED = Symbol('__PICKER_DISMISSED__');
 
 export class CancelledError extends Error {
 	constructor() {
@@ -61,7 +62,8 @@ type KeyKind =
 	| 'home'
 	| 'end'
 	| 'ctrlC'
-	| 'at';
+	| 'at'
+	| 'escape';
 
 export type KeyEvent = { kind: Exclude<KeyKind, 'char'> } | { kind: 'char'; value: string };
 
@@ -80,7 +82,12 @@ export function parseChunk(chunk: string): KeyEvent[] {
 				i = j + 1;
 				continue;
 			}
-			// Lone ESC and unrecognized escape sequences are swallowed (no back-nav).
+			if (i + 1 < chunk.length && chunk[i + 1]! >= ' ' && chunk[i + 1]! !== '\x7f') {
+				out.push({ kind: 'char', value: chunk[i + 1]! });
+				i += 2;
+				continue;
+			}
+			out.push({ kind: 'escape' });
 			i++;
 			continue;
 		}
@@ -160,6 +167,8 @@ export function reduceKeystroke(state: PromptState, key: KeyEvent): PromptState 
 			return { ...state, exit: 'DONE' };
 		case 'ctrlC':
 			return { ...state, exit: 'CANCELLED' };
+		case 'escape':
+			return { buffer: '', cursor: 0 };
 		case 'up':
 		case 'down':
 			return state;
@@ -208,6 +217,8 @@ export function reduceInputState(state: InputPromptState, key: KeyEvent): InputP
 		}
 		case 'ctrlC':
 			return { ...state, exit: 'CANCELLED' };
+		case 'escape':
+			return { buffer: '', cursor: 0, validateError: undefined };
 		case 'at': {
 			const before = state.buffer.slice(0, state.cursor);
 			const after = state.buffer.slice(state.cursor);
@@ -321,6 +332,8 @@ export function reduceSelectState<T>(
 			return { ...state, exit: 'DONE' };
 		case 'ctrlC':
 			return { ...state, exit: 'CANCELLED' };
+		case 'escape':
+			return { ...state, exit: 'CANCELLED' };
 		default:
 			return state;
 	}
@@ -376,13 +389,15 @@ export function reduceSearchState<T>(
 		}
 		case 'enter': {
 			if (state.focusMode === 'input') {
-				if (state.items.length === 0) return { ...state, exit: 'DONE' };
+				if (state.items.length === 0) return state;
 				return { ...state, focusMode: 'list', listCursor: 0, exit: 'DONE' };
 			}
 			if (state.listCursor >= state.items.length) return state;
 			return { ...state, exit: 'DONE' };
 		}
 		case 'ctrlC':
+			return { ...state, exit: 'CANCELLED' };
+		case 'escape':
 			return { ...state, exit: 'CANCELLED' };
 		case 'char': {
 			const before = state.buffer.slice(0, state.inputCursor);
@@ -483,6 +498,23 @@ function acquireStdin(): RawModeSession {
 	};
 }
 
+function stripAnsi(s: string): string {
+	const ESC = '\x1b';
+	return s.replace(new RegExp(`${ESC}\\[[0-9;]*[A-Za-z]`, 'g'), '');
+}
+
+function visualRowHeight(text: string): number {
+	const cols = process.stdout.columns || 80;
+	if (cols <= 0) return 1;
+	const logicalLines = text.split('\n');
+	let rows = 0;
+	for (const line of logicalLines) {
+		const visible = stripAnsi(line).length;
+		rows += visible === 0 ? 1 : Math.ceil(visible / cols);
+	}
+	return Math.max(1, rows);
+}
+
 // ---------------------------------------------------------------------------
 // askInput — raw-mode single-line text input
 // ---------------------------------------------------------------------------
@@ -508,11 +540,12 @@ export async function askInput(opts: AskInputOpts): Promise<string> {
 		let lastRenderHeight = 0;
 
 		function render(): void {
+			let buf = '';
 			if (lastRenderHeight > 0) {
 				if (lastRenderHeight > 1) {
-					process.stdout.write(`\x1b[${lastRenderHeight - 1}A`);
+					buf += `\x1b[${lastRenderHeight - 1}A`;
 				}
-				process.stdout.write('\r\x1b[0J');
+				buf += '\r\x1b[0J';
 			}
 			const lines: string[] = [];
 			const trailing = state.buffer.length - state.cursor;
@@ -522,8 +555,10 @@ export async function askInput(opts: AskInputOpts): Promise<string> {
 			if (state.validateError) {
 				lines.push(`\r\x1b[2K  ${pc.red(state.validateError)}`);
 			}
-			lastRenderHeight = lines.length;
-			process.stdout.write(lines.join('\n'));
+			const content = lines.join('\n');
+			lastRenderHeight = visualRowHeight(content);
+			buf += content;
+			process.stdout.write(buf);
 		}
 
 		function cleanup(): void {
@@ -612,11 +647,12 @@ export async function askSelect<T>(opts: AskSelectOpts<T>): Promise<T> {
 		let lastRenderHeight = 0;
 
 		function render(): void {
+			let buf = '';
 			if (lastRenderHeight > 0) {
 				if (lastRenderHeight > 1) {
-					process.stdout.write(`\x1b[${lastRenderHeight - 1}A`);
+					buf += `\x1b[${lastRenderHeight - 1}A`;
 				}
-				process.stdout.write('\r\x1b[0J');
+				buf += '\r\x1b[0J';
 			}
 			const lines: string[] = [];
 			lines.push('\r\x1b[2K' + prefix);
@@ -641,8 +677,10 @@ export async function askSelect<T>(opts: AskSelectOpts<T>): Promise<T> {
 				const pct = Math.round(((state.cursor + 1) / state.items.length) * 100);
 				lines.push(`\r\x1b[2K${pc.dim(`  (${pct}%)`)}`);
 			}
-			lastRenderHeight = lines.length;
-			process.stdout.write(lines.join('\n'));
+			const content = lines.join('\n');
+			lastRenderHeight = visualRowHeight(content);
+			buf += content;
+			process.stdout.write(buf);
 		}
 
 		function cleanup(): void {
@@ -691,10 +729,10 @@ export type AskSearchOpts<T> = {
 	pageSize?: number;
 };
 
-export async function askSearch<T>(opts: AskSearchOpts<T>): Promise<T> {
+export async function askSearch<T>(opts: AskSearchOpts<T>): Promise<T | typeof PICKER_DISMISSED> {
 	reRefStdin();
 
-	return new Promise<T>((resolve, reject) => {
+	return new Promise<T | typeof PICKER_DISMISSED>((resolve) => {
 		const session = acquireStdin();
 		const stdin = process.stdin;
 		const prefix = `? ${pc.bold(opts.message)} `;
@@ -715,11 +753,12 @@ export async function askSearch<T>(opts: AskSearchOpts<T>): Promise<T> {
 		let lastRenderHeight = 0;
 
 		function render(): void {
+			let buf = '';
 			if (lastRenderHeight > 0) {
 				if (lastRenderHeight > 1) {
-					process.stdout.write(`\x1b[${lastRenderHeight - 1}A`);
+					buf += `\x1b[${lastRenderHeight - 1}A`;
 				}
-				process.stdout.write('\r\x1b[0J');
+				buf += '\r\x1b[0J';
 			}
 			const lines: string[] = [];
 			const trailing = state.buffer.length - state.inputCursor;
@@ -745,8 +784,10 @@ export async function askSearch<T>(opts: AskSearchOpts<T>): Promise<T> {
 					lines.push(line);
 				}
 			}
-			lastRenderHeight = lines.length;
-			process.stdout.write(lines.join('\n'));
+			const content = lines.join('\n');
+			lastRenderHeight = visualRowHeight(content);
+			buf += content;
+			process.stdout.write(buf);
 		}
 
 		function cleanup(): void {
@@ -764,7 +805,7 @@ export async function askSearch<T>(opts: AskSearchOpts<T>): Promise<T> {
 		function finish(exit: 'DONE' | 'CANCELLED'): void {
 			cleanup();
 			if (exit === 'CANCELLED') {
-				reject(new TerminateShellError());
+				resolve(PICKER_DISMISSED);
 				return;
 			}
 			if (state.focusMode === 'list' && state.listCursor < state.items.length) {
@@ -772,7 +813,7 @@ export async function askSearch<T>(opts: AskSearchOpts<T>): Promise<T> {
 			} else if (state.items.length > 0) {
 				resolve(state.items[0]!.value);
 			} else {
-				resolve(undefined as T);
+				resolve(PICKER_DISMISSED);
 			}
 		}
 
@@ -858,11 +899,12 @@ export async function askPassword(opts: AskPasswordOpts): Promise<string> {
 		let lastRenderHeight = 0;
 
 		function render(): void {
+			let buf = '';
 			if (lastRenderHeight > 0) {
 				if (lastRenderHeight > 1) {
-					process.stdout.write(`\x1b[${lastRenderHeight - 1}A`);
+					buf += `\x1b[${lastRenderHeight - 1}A`;
 				}
-				process.stdout.write('\r\x1b[0J');
+				buf += '\r\x1b[0J';
 			}
 			const lines: string[] = [];
 			const display = showMask ? '*'.repeat(state.buffer.length) : '';
@@ -870,8 +912,10 @@ export async function askPassword(opts: AskPasswordOpts): Promise<string> {
 			let line = '\r\x1b[2K' + prefix + display;
 			if (trailing > 0) line += `\x1b[${trailing}D`;
 			lines.push(line);
-			lastRenderHeight = lines.length;
-			process.stdout.write(lines.join('\n'));
+			const content = lines.join('\n');
+			lastRenderHeight = visualRowHeight(content);
+			buf += content;
+			process.stdout.write(buf);
 		}
 
 		function cleanup(): void {
@@ -936,19 +980,22 @@ export async function askInputWithAtTrigger(
 		let lastRenderHeight = 0;
 
 		function render(): void {
+			let buf = '';
 			if (lastRenderHeight > 0) {
 				if (lastRenderHeight > 1) {
-					process.stdout.write(`\x1b[${lastRenderHeight - 1}A`);
+					buf += `\x1b[${lastRenderHeight - 1}A`;
 				}
-				process.stdout.write('\r\x1b[0J');
+				buf += '\r\x1b[0J';
 			}
 			const lines: string[] = [];
 			const trailing = state.buffer.length - state.cursor;
 			let line = '\r\x1b[2K' + prefix + state.buffer;
 			if (trailing > 0) line += `\x1b[${trailing}D`;
 			lines.push(line);
-			lastRenderHeight = lines.length;
-			process.stdout.write(lines.join('\n'));
+			const content = lines.join('\n');
+			lastRenderHeight = visualRowHeight(content);
+			buf += content;
+			process.stdout.write(buf);
 		}
 
 		function cleanup(): void {
@@ -1028,4 +1075,6 @@ export const __testing = {
 	reduceSearchState,
 	parseChunk,
 	clampCursor,
+	stripAnsi,
+	visualRowHeight,
 };
