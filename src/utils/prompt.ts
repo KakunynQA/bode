@@ -1,5 +1,6 @@
 import { ExitPromptError, AbortPromptError } from '@inquirer/core';
 import { input, password, select, search, Separator } from '@inquirer/prompts';
+import { emitKeypressEvents } from 'node:readline';
 import pc from 'picocolors';
 
 /**
@@ -33,24 +34,51 @@ type WrapOptions = {
 };
 
 /**
- * Creates an AbortSignal that aborts with `BackError` on single ESC.
- * The 60ms debounce window lets arrow-key escape sequences (which start with
- * 0x1b) pass through without being interpreted as ESC.
+ * Creates an AbortSignal that aborts with `BackError` on a standalone ESC
+ * press. Two listeners run in parallel for maximum portability:
  *
- * Ctrl+C is handled by inquirer itself (ExitPromptError) — we don't intercept
- * it here. The terminal's SIGINT also propagates normally.
+ *   1. `keypress` events from `readline.emitKeypressEvents` — the same path
+ *      inquirer uses internally. Reliable on PowerShell + Windows Terminal
+ *      where the raw `'data'` event may not deliver ESC as a 1-byte chunk.
+ *      Fires `{ name: 'escape' }` after readline's own CSI debounce.
+ *   2. Raw `'data'` byte sniff with a 60ms debounce — kept as a fallback for
+ *      environments where keypress events are not emitted (older Node /
+ *      exotic terminals). Skips arrow-key CSI sequences (those start with
+ *      0x1B but have more bytes following within the debounce window).
+ *
+ * Whichever fires first wins; cleanup removes both listeners.
+ *
+ * Ctrl+C is handled by inquirer itself (ExitPromptError) — we don't
+ * intercept it here.
  */
 function createBackSignal(): { signal: AbortSignal; cleanup: () => void } {
 	const ac = new AbortController();
 	let escTimer: ReturnType<typeof setTimeout> | null = null;
+	let done = false;
+
+	function trigger(): void {
+		if (done) return;
+		done = true;
+		ac.abort(new BackError());
+		cleanup();
+	}
+
+	function onKeypress(
+		_str: string | undefined,
+		key: { name?: string; ctrl?: boolean; meta?: boolean; shift?: boolean } | undefined
+	): void {
+		if (!key) return;
+		if (key.name === 'escape' && !key.ctrl && !key.meta && !key.shift) {
+			trigger();
+		}
+	}
 
 	function onData(chunk: Buffer): void {
 		if (chunk.length === 1 && chunk[0] === 0x1b) {
 			if (escTimer) clearTimeout(escTimer);
 			escTimer = setTimeout(() => {
 				escTimer = null;
-				ac.abort(new BackError());
-				cleanup();
+				trigger();
 			}, 60);
 		} else if (escTimer) {
 			clearTimeout(escTimer);
@@ -58,9 +86,18 @@ function createBackSignal(): { signal: AbortSignal; cleanup: () => void } {
 		}
 	}
 
+	// Idempotent — readline guards against double-init internally.
+	try {
+		emitKeypressEvents(process.stdin);
+	} catch {
+		/* keypress emission unavailable — fall back to byte sniff */
+	}
+
+	process.stdin.on('keypress', onKeypress);
 	process.stdin.on('data', onData);
 
 	function cleanup(): void {
+		process.stdin.removeListener('keypress', onKeypress);
 		process.stdin.removeListener('data', onData);
 		if (escTimer) {
 			clearTimeout(escTimer);

@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.1.3") {
-    return "2.1.3";
+  if ("2.1.4") {
+    return "2.1.4";
   }
   const base = moduleDir();
   if (base) {
@@ -66076,24 +66076,43 @@ var init_dist17 = __esm({
 });
 
 // src/utils/prompt.ts
+import { emitKeypressEvents } from "node:readline";
 function createBackSignal() {
   const ac = new AbortController();
   let escTimer = null;
+  let done = false;
+  function trigger() {
+    if (done) return;
+    done = true;
+    ac.abort(new BackError());
+    cleanup();
+  }
+  function onKeypress(_str, key) {
+    if (!key) return;
+    if (key.name === "escape" && !key.ctrl && !key.meta && !key.shift) {
+      trigger();
+    }
+  }
   function onData(chunk) {
     if (chunk.length === 1 && chunk[0] === 27) {
       if (escTimer) clearTimeout(escTimer);
       escTimer = setTimeout(() => {
         escTimer = null;
-        ac.abort(new BackError());
-        cleanup();
+        trigger();
       }, 60);
     } else if (escTimer) {
       clearTimeout(escTimer);
       escTimer = null;
     }
   }
+  try {
+    emitKeypressEvents(process.stdin);
+  } catch {
+  }
+  process.stdin.on("keypress", onKeypress);
   process.stdin.on("data", onData);
   function cleanup() {
+    process.stdin.removeListener("keypress", onKeypress);
     process.stdin.removeListener("data", onData);
     if (escTimer) {
       clearTimeout(escTimer);

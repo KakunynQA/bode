@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.4] — 2026-06-01
+
+### Fixed
+
+- ESC inside `setup` / `setup-project` / `setup-transitions` wizards did
+  not navigate back (or cancel the wizard at the first step) on PowerShell
+  - Windows Terminal. Root cause: `createBackSignal` in `src/utils/prompt.ts`
+    relied on the raw stdin `'data'` event delivering ESC as a 1-byte chunk
+    (`chunk.length === 1 && chunk[0] === 0x1B`). PowerShell + inquirer's
+    readline does not consistently deliver ESC this way. Same fundamental
+    issue we fixed for the `@` trigger in v2.0.4.
+- Fix: `createBackSignal` now runs two listeners in parallel — readline
+  `keypress` events (the path inquirer itself uses) AND the existing
+  byte-sniff fallback. Whichever fires first wins. Reliable across
+  PowerShell, Windows Terminal, Git Bash, and POSIX TTYs.
+
 ## [2.1.3] — 2026-05-31
 
 ### Fixed
