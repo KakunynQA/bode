@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.3.0") {
-    return "2.3.0";
+  if ("2.3.1") {
+    return "2.3.1";
   }
   const base = moduleDir();
   if (base) {
