@@ -5,7 +5,7 @@ import { advancePhase } from '~/orchestrator/engine.ts';
 import { resolveProject } from '~/config/project-resolver.ts';
 import { mergePR } from '~/orchestrator/branch-manager.ts';
 import { abortRun } from './abort.ts';
-import { handlePromptError } from '~/utils/prompt.ts';
+import { handlePromptError, askSelect, BACK } from '~/utils/prompt.ts';
 import { planDangerousMode } from '~/cli/dangerous-check.ts';
 import { handleMissingArtifact } from '~/cli/missing-artifact.ts';
 import { printTaskSummary } from '~/cli/summary.ts';
@@ -17,7 +17,6 @@ import {
 	updateSchedulerTask,
 	upsertSchedulerTask,
 } from '~/orchestrator/scheduler.ts';
-import { select } from '@inquirer/prompts';
 import pc from 'picocolors';
 import ora from 'ora';
 
@@ -141,7 +140,7 @@ export async function startAction(
 		console.log(pc.yellow(`Task ${taskKey} already has a run (status: ${existing.value.status})`));
 
 		try {
-			const action = await select({
+			const action = await askSelect<'restart' | 'continue' | 'cancel'>({
 				message: 'What to do?',
 				choices: [
 					{
@@ -157,6 +156,11 @@ export async function startAction(
 					{ name: 'Cancel', value: 'cancel' },
 				],
 			});
+
+			if (action === BACK) {
+				console.log(pc.dim('Aborted.'));
+				process.exit(0);
+			}
 
 			if (action === 'cancel') process.exit(0);
 			if (action === 'restart') {
@@ -205,7 +209,6 @@ export async function startAction(
 	// actually changes. Users hit this and don't realize why nothing happened.
 	if ((isAuto || isDangerous) && !dangerousBypass) {
 		try {
-			const { select } = await import('@inquirer/prompts');
 			console.log('');
 			console.log(
 				pc.yellow('⚠ --auto / --dangerously-auto-merge runs the AI in HEADLESS text-only mode.')
@@ -228,14 +231,14 @@ export async function startAction(
 			);
 			console.log(pc.dim('  CLI bypass-approvals flag).'));
 			console.log('');
-			const choice = await select({
+			const choice = await askSelect<'yes' | 'no'>({
 				message: 'Proceed in text-only mode?',
 				choices: [
 					{ name: 'Yes — I want the markdown artifacts only', value: 'yes' },
 					{ name: 'No — abort so I can re-run with --dangerously-approve-all', value: 'no' },
 				],
 			});
-			if (choice !== 'yes') {
+			if (choice === BACK || choice !== 'yes') {
 				console.log(pc.dim('Aborted by user.'));
 				process.exit(0);
 			}

@@ -44,7 +44,7 @@ bode                           # launches the TUI shell (needs a TTY)
 - Summary comments posted to Jira cards for every phase
 - Config in YAML (`~/.bode/config.yml`, project `.bode.yml`, project configs `~/.bode/projects/<name>.yml`)
 - Skill prompts in markdown (`~/.bode/skills/`, project `.bode/skills/`)
-- Interactive setup uses `@inquirer/prompts` for arrow-key selection
+- Interactive setup uses custom raw-mode prompts in `src/utils/prompt.ts` (v2.2.0 replaced @inquirer/prompts)
 - ASCII art embedded via esbuild `define` from `src/assets/bode.art`
 
 ## Supported AI CLIs
@@ -64,7 +64,7 @@ Available models per CLI are defined in `src/adapters/cli/models.ts`.
 | `src/index.ts` | CLI entry point |
 | `src/cli/program.ts` | Commander program setup, version |
 | `src/cli/commands.ts` | All command definitions |
-| `src/cli/actions/setup.ts` | Interactive setup wizard with @inquirer/prompts |
+| `src/cli/actions/setup.ts` | Interactive setup wizard with custom raw-mode prompts |
 | `src/cli/actions/start.ts` | Start task (planning phase) with interactive prompts for dirty workdir + existing run |
 | `src/cli/actions/init.ts` | Scaffold AGENTS.md for a repo |
 | `src/cli/actions/learn.ts` | Generate .bode/context.md project context |

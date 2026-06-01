@@ -26,7 +26,7 @@ const MAX_SCANNED = 5000;
 /**
  * Walks `workdir` (skipping the ignore set) and returns relative paths matching
  * the optional fuzzy query. Used by the `@`-trigger file picker in
- * `bode setup-project` to feed candidates to `@inquirer/search`.
+ * `bode setup-project` to feed candidates to `askSearch`.
  *
  * - Empty/undefined query returns the first MAX_RESULTS files in deterministic
  *   directory-first order.

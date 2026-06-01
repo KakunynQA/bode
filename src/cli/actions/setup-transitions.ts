@@ -1,5 +1,5 @@
 import pc from 'picocolors';
-import { select } from '@inquirer/prompts';
+import { askSelect, BACK } from '~/utils/prompt.ts';
 import { writeFile, readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -115,11 +115,14 @@ export async function setupTransitionsAction(options: { project?: string }): Pro
 				phase.defaultName && available.some((t) => (t.toStatusName ?? t.name) === phase.defaultName)
 					? phase.defaultName
 					: skipValue;
-			const picked = await select({
+			const picked = await askSelect<string>({
 				message: `${phase.label}:`,
 				choices,
 				default: def,
 			});
+			if (picked === BACK) {
+				handlePromptError(new Error('BACK'));
+			}
 			picks[phase.key] = picked === skipValue ? '' : (picked as string);
 		}
 	} catch (err) {

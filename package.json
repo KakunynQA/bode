@@ -1,6 +1,6 @@
 {
   "name": "bode",
-  "version": "2.1.8",
+  "version": "2.2.0",
   "description": "Local CLI that orchestrates AI coding work through configurable phases",
   "type": "module",
   "author": "Kakunyn",
@@ -35,7 +35,6 @@
     "test:all": "node scripts/test.mjs --all"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.5.0",
     "commander": "^14.0.3",
     "ink": "^5.2.1",
     "ink-text-input": "^6.0.0",

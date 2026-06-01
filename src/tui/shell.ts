@@ -50,7 +50,7 @@ async function renderShellOnce(
 	await instance.waitUntilExit();
 	// Re-ref stdin. Ink's componentWillUnmount calls stdin.unref() when it
 	// disables raw mode. If we don't undo it before the dispatcher hands
-	// the terminal to @inquirer/prompts, the only handle keeping the event
+	// the terminal to the prompt dispatcher, the only handle keeping the event
 	// loop alive is gone — inquirer's readline.createInterface schedules
 	// its first render via setImmediate, the loop empties between those
 	// two ticks, Node fires 'beforeExit' and the process exits cleanly

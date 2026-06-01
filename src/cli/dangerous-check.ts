@@ -1,4 +1,4 @@
-import { select } from '@inquirer/prompts';
+import { askSelect, BACK } from '~/utils/prompt.ts';
 import pc from 'picocolors';
 import type { BodeConfig } from '~/config/schema.ts';
 import { getAdapter } from '~/adapters/cli/registry.ts';
@@ -58,14 +58,14 @@ export async function planDangerousMode(config: BodeConfig): Promise<DangerousPl
 		console.log('');
 
 		try {
-			const choice = await select({
+			const choice = await askSelect<'yes' | 'no'>({
 				message: 'Proceed anyway?',
 				choices: [
 					{ name: 'Yes — I will approve interactively when prompted', value: 'yes' },
 					{ name: 'No — abort and let me reconfigure those phases', value: 'no' },
 				],
 			});
-			if (choice !== 'yes') {
+			if (choice === BACK || choice !== 'yes') {
 				return { approved: false, unsupported };
 			}
 		} catch (err) {

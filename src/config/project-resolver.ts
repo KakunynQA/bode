@@ -1,4 +1,4 @@
-import { select } from '@inquirer/prompts';
+import { askSelect } from '~/utils/prompt.ts';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -116,10 +116,20 @@ export async function resolveProject(
 		if (choices.length === 1) {
 			selectedName = choices[0]!.value;
 		} else {
-			selectedName = await select({
-				message: 'Which project?',
-				choices,
-			});
+			try {
+				const picked = await askSelect<string>({
+					message: 'Which project?',
+					choices,
+				});
+				if (typeof picked === 'string') {
+					selectedName = picked;
+				} else {
+					return { ok: false, error: new Error('Project selection cancelled') };
+				}
+			} catch (err) {
+				if (err instanceof Error && err.message === '__TERMINATE_SHELL__') throw err;
+				throw err;
+			}
 		}
 	}
 

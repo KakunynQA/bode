@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] — 2026-06-01
+
+### Changed
+
+- **Prompt layer rewritten from scratch.** `askInput`, `askSelect`, `askPassword`, and `askSearch` in `src/utils/prompt.ts` no longer delegate to `@inquirer/prompts`. Each prompt now owns stdin in raw mode with its own keypress parser (`parseChunk` + per-prompt reducer), matching the architecture that `askInputWithAtTrigger` already used successfully. This eliminates the root cause of v2.1.4–v2.1.8 ESC handling bugs: three actors (readline, inquirer, our BackError signal) fighting over stdin in PowerShell + Windows Terminal.
+- `parseChunk` now emits `up` / `down` key events for `\x1b[A` / `\x1b[B` CSI sequences (previously ignored). Required for `askSelect` and `askSearch` arrow-key navigation.
+- `handlePromptError` simplified — no longer checks for `ExitPromptError` / `AbortPromptError` from inquirer. Ctrl+C in prompts now throws `TerminateShellError` directly.
+- All direct `@inquirer/prompts` imports in `project-resolver.ts`, `start.ts`, `setup-transitions.ts`, `dangerous-check.ts`, and `missing-artifact.ts` replaced with `askSelect` / `BACK` from `~/utils/prompt.ts`.
+- `Separator` is now a custom class (no longer re-exported from inquirer).
+
+### Removed
+
+- `@inquirer/prompts` and `@inquirer/core` dependencies removed from `package.json`.
+- `createBackSignal()`, `runWithBackSignal()`, `isBackAbort()` internal helpers removed (no longer needed).
+- `createCancelSignal()` deprecated shim now returns a no-op signal.
+- ESC debug log infrastructure (`BODE_ESC_DEBUG`, `esc-debug.log`) removed.
+
+### Added
+
+- `reduceInputState` reducer for `askInput` (same as `reduceKeystroke` but `@` is a regular char).
+- `reduceSelectState` reducer for `askSelect` with arrow navigation, pagination, and disabled-item skipping.
+- `reduceSearchState` reducer for `askSearch` with input editing, list navigation, and async source debouncing.
+- `clampCursor` helper for select pagination.
+- Comprehensive unit tests for all new reducers and extended `parseChunk`.
+
 ## [2.1.8] — 2026-06-01
 
 ### Changed
