@@ -124,10 +124,14 @@ export function formatActivityForSnapshot(activity: ActivityState): string {
 				lines.push(`     ! ${entry.text}`);
 				break;
 			case 'error':
-				lines.push(`     error: ${entry.text}${entry.exitCode ? ` (exit ${entry.exitCode})` : ''}`);
+				lines.push(
+					`     error: ${entry.text}${entry.exitCode !== undefined && entry.exitCode !== 0 ? ` (exit ${entry.exitCode})` : ''}`
+				);
 				break;
 			case 'success':
-				lines.push(`     ✓ ${entry.text}${entry.exitCode ? ` (exit ${entry.exitCode})` : ''}`);
+				lines.push(
+					`     ✓ ${entry.text}${entry.exitCode !== undefined && entry.exitCode !== 0 ? ` (exit ${entry.exitCode})` : ''}`
+				);
 				break;
 		}
 	}

@@ -54,6 +54,8 @@ async function runActionGuarded(invoke: () => Promise<number>): Promise<Dispatch
 		if (originalReallyExit) {
 			(process as unknown as { reallyExit: (code: number) => void }).reallyExit =
 				originalReallyExit;
+		} else {
+			delete (process as unknown as { reallyExit?: (code: number) => void }).reallyExit;
 		}
 	}
 }

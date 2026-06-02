@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.2] — 2026-06-02
+
+### Fixed
+
+- **`formatActivityForSnapshot` exit code display bug** (`src/tui/components/run-view.tsx`): `exitCode` was checked with truthiness instead of `!== undefined && !== 0`, causing exit code 0 to be silently dropped in snapshot output. Now consistent with the JSX render path.
+- **`process.reallyExit` restoration** (`src/tui/dispatcher.ts`): when `reallyExit` was originally `undefined`, the `finally` block skipped restoration, leaving it as a permanent no-op. Now deletes the property to restore original behavior.
+- **Unhandled promise rejection** (`src/index.ts`): async IIFEs for explicit commands and TUI shell now have `.catch()` handlers, preventing `unhandledRejection` crashes on non-Error throws.
+- **Help text column alignment** (`src/tui/builtins.ts`): `padEnd(48)` was too short for the longest usage string (53 chars). Now dynamically computed from actual usage lengths.
+
 ## [2.5.1] — 2026-06-02
 
 ### Added

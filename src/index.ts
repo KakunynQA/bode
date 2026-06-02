@@ -38,7 +38,10 @@ if (isExplicitCommand) {
 			console.error(pc.red((error as Error).message ?? String(error)));
 			process.exit(1);
 		}
-	})();
+	})().catch((err) => {
+		console.error(pc.red(String(err)));
+		process.exit(1);
+	});
 } else if (!process.stdin.isTTY) {
 	console.error(pc.red('bode requires an interactive terminal (TTY).'));
 	console.error(pc.dim('Use --version or --help for headless info.'));
@@ -52,5 +55,8 @@ if (isExplicitCommand) {
 			console.error(pc.red((error as Error).message ?? String(error)));
 			process.exit(1);
 		}
-	})();
+	})().catch((err) => {
+		console.error(pc.red(String(err)));
+		process.exit(1);
+	});
 }

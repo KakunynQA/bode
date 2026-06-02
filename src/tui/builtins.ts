@@ -134,13 +134,16 @@ export const ALL_SUBCOMMANDS = new Set([
 ]);
 
 export function renderHelp(): string {
+	const allItems = Object.values(COMMAND_HELP).flat();
+	const maxUsage = Math.max(...allItems.map((i) => i.usage.length));
+	const colWidth = maxUsage + 2;
 	const lines: string[] = [];
 	lines.push(pc.bold('Available commands:'));
 	for (const [category, items] of Object.entries(COMMAND_HELP)) {
 		lines.push('');
 		lines.push(pc.cyan(category));
 		for (const item of items) {
-			lines.push(`  ${pc.bold(item.usage.padEnd(48))} ${pc.dim(item.description)}`);
+			lines.push(`  ${pc.bold(item.usage.padEnd(colWidth))} ${pc.dim(item.description)}`);
 		}
 	}
 	lines.push('');

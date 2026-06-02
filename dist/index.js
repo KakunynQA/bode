@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.5.1") {
-    return "2.5.1";
+  if ("2.5.2") {
+    return "2.5.2";
   }
   const base = moduleDir();
   if (base) {
@@ -63146,13 +63146,16 @@ var ALL_SUBCOMMANDS = /* @__PURE__ */ new Set([
   "memory"
 ]);
 function renderHelp() {
+  const allItems = Object.values(COMMAND_HELP).flat();
+  const maxUsage = Math.max(...allItems.map((i) => i.usage.length));
+  const colWidth = maxUsage + 2;
   const lines = [];
   lines.push(import_picocolors.default.bold("Available commands:"));
   for (const [category, items] of Object.entries(COMMAND_HELP)) {
     lines.push("");
     lines.push(import_picocolors.default.cyan(category));
     for (const item of items) {
-      lines.push(`  ${import_picocolors.default.bold(item.usage.padEnd(48))} ${import_picocolors.default.dim(item.description)}`);
+      lines.push(`  ${import_picocolors.default.bold(item.usage.padEnd(colWidth))} ${import_picocolors.default.dim(item.description)}`);
     }
   }
   lines.push("");
@@ -69923,6 +69926,8 @@ async function runActionGuarded(invoke) {
     process.exit = originalExit;
     if (originalReallyExit) {
       process.reallyExit = originalReallyExit;
+    } else {
+      delete process.reallyExit;
     }
   }
 }
@@ -70501,7 +70506,10 @@ if (isExplicitCommand) {
       console.error(import_picocolors32.default.red(error52.message ?? String(error52)));
       process.exit(1);
     }
-  })();
+  })().catch((err) => {
+    console.error(import_picocolors32.default.red(String(err)));
+    process.exit(1);
+  });
 } else if (!process.stdin.isTTY) {
   console.error(import_picocolors32.default.red("bode requires an interactive terminal (TTY)."));
   console.error(import_picocolors32.default.dim("Use --version or --help for headless info."));
@@ -70515,7 +70523,10 @@ if (isExplicitCommand) {
       console.error(import_picocolors32.default.red(error52.message ?? String(error52)));
       process.exit(1);
     }
-  })();
+  })().catch((err) => {
+    console.error(import_picocolors32.default.red(String(err)));
+    process.exit(1);
+  });
 }
 /*! Bundled license information:
 
