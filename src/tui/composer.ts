@@ -16,7 +16,11 @@ export type ComposerAction =
 	| { kind: 'end' }
 	| { kind: 'newline' }
 	| { kind: 'submit' }
-	| { kind: 'clear' };
+	| { kind: 'clear' }
+	| { kind: 'setText'; value: string }
+	| { kind: 'killLine' }
+	| { kind: 'killToStart' }
+	| { kind: 'deleteWord' };
 
 export function createComposerState(): ComposerState {
 	return { lines: [''], cursorLine: 0, cursorCol: 0 };
@@ -30,7 +34,7 @@ export function reduceComposer(state: ComposerState, action: ComposerAction): Co
 			const line = lines[state.cursorLine] ?? '';
 			lines[state.cursorLine] =
 				line.slice(0, state.cursorCol) + action.value + line.slice(state.cursorCol);
-			return { ...state, lines, cursorCol: state.cursorCol + 1 };
+			return { ...state, lines, cursorCol: state.cursorCol + action.value.length };
 		}
 		case 'backspace': {
 			if (state.cursorCol === 0 && state.cursorLine === 0) return state;
@@ -119,6 +123,35 @@ export function reduceComposer(state: ComposerState, action: ComposerAction): Co
 			return state;
 		case 'clear':
 			return createComposerState();
+		case 'setText': {
+			const newLines = action.value.split('\n');
+			return {
+				lines: newLines,
+				cursorLine: newLines.length - 1,
+				cursorCol: (newLines[newLines.length - 1] ?? '').length,
+			};
+		}
+		case 'killLine': {
+			const lines = [...state.lines];
+			const line = lines[state.cursorLine] ?? '';
+			lines[state.cursorLine] = line.slice(0, state.cursorCol);
+			return { ...state, lines };
+		}
+		case 'killToStart': {
+			const lines = [...state.lines];
+			const line = lines[state.cursorLine] ?? '';
+			lines[state.cursorLine] = line.slice(state.cursorCol);
+			return { ...state, lines, cursorCol: 0 };
+		}
+		case 'deleteWord': {
+			const lines = [...state.lines];
+			const line = lines[state.cursorLine] ?? '';
+			let col = state.cursorCol;
+			while (col > 0 && line[col - 1] === ' ') col--;
+			while (col > 0 && line[col - 1] !== ' ') col--;
+			lines[state.cursorLine] = line.slice(0, col) + line.slice(state.cursorCol);
+			return { ...state, lines, cursorCol: col };
+		}
 		default:
 			return state;
 	}
@@ -130,4 +163,13 @@ export function composerText(state: ComposerState): string {
 
 export function composerIsEmpty(state: ComposerState): boolean {
 	return state.lines.length === 1 && state.lines[0] === '';
+}
+
+export function linearCursorOffset(state: ComposerState): number {
+	let offset = 0;
+	for (let i = 0; i < state.cursorLine; i++) {
+		offset += (state.lines[i] ?? '').length + 1;
+	}
+	offset += state.cursorCol;
+	return offset;
 }

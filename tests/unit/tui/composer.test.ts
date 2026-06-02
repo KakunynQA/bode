@@ -5,6 +5,7 @@ import {
 	reduceComposer,
 	composerText,
 	composerIsEmpty,
+	linearCursorOffset,
 	type ComposerState,
 } from '~/tui/composer.ts';
 
@@ -59,6 +60,14 @@ describe('reduceComposer — char', () => {
 		s = reduceComposer(s, { kind: 'left' });
 		s = reduceComposer(s, { kind: 'char', value: 'X' });
 		assert.equal(s.lines[0], 'aXb');
+		assert.equal(s.cursorCol, 2);
+	});
+
+	it('multi-char insert advances cursor by value length', () => {
+		let s = typeChars(createComposerState(), 'hello');
+		s = reduceComposer(s, { kind: 'home' });
+		s = reduceComposer(s, { kind: 'char', value: 'XX' });
+		assert.equal(s.lines[0], 'XXhello');
 		assert.equal(s.cursorCol, 2);
 	});
 });
@@ -198,5 +207,108 @@ describe('reduceComposer — clear', () => {
 		assert.deepEqual(s.lines, ['']);
 		assert.equal(s.cursorLine, 0);
 		assert.equal(s.cursorCol, 0);
+	});
+});
+
+describe('reduceComposer — setText', () => {
+	it('sets single-line text with cursor at end', () => {
+		const s = reduceComposer(createComposerState(), {
+			kind: 'setText',
+			value: 'hello',
+		});
+		assert.deepEqual(s.lines, ['hello']);
+		assert.equal(s.cursorLine, 0);
+		assert.equal(s.cursorCol, 5);
+	});
+
+	it('sets multi-line text with cursor at end of last line', () => {
+		const s = reduceComposer(createComposerState(), {
+			kind: 'setText',
+			value: 'hello\nworld',
+		});
+		assert.deepEqual(s.lines, ['hello', 'world']);
+		assert.equal(s.cursorLine, 1);
+		assert.equal(s.cursorCol, 5);
+	});
+
+	it('sets empty text', () => {
+		const s = reduceComposer(createComposerState(), {
+			kind: 'setText',
+			value: '',
+		});
+		assert.deepEqual(s.lines, ['']);
+		assert.equal(s.cursorLine, 0);
+		assert.equal(s.cursorCol, 0);
+	});
+});
+
+describe('reduceComposer — killLine', () => {
+	it('kills text from cursor to end of line', () => {
+		let s = typeChars(createComposerState(), 'hello world');
+		s = reduceComposer(s, { kind: 'home' });
+		s = reduceComposer(s, { kind: 'right' });
+		s = reduceComposer(s, { kind: 'right' });
+		s = reduceComposer(s, { kind: 'right' });
+		s = reduceComposer(s, { kind: 'right' });
+		s = reduceComposer(s, { kind: 'right' });
+		s = reduceComposer(s, { kind: 'killLine' });
+		assert.equal(s.lines[0], 'hello');
+		assert.equal(s.cursorCol, 5);
+	});
+});
+
+describe('reduceComposer — killToStart', () => {
+	it('kills text from start of line to cursor', () => {
+		let s = typeChars(createComposerState(), 'hello world');
+		s = reduceComposer(s, { kind: 'home' });
+		s = reduceComposer(s, { kind: 'right' });
+		s = reduceComposer(s, { kind: 'right' });
+		s = reduceComposer(s, { kind: 'right' });
+		s = reduceComposer(s, { kind: 'right' });
+		s = reduceComposer(s, { kind: 'right' });
+		s = reduceComposer(s, { kind: 'killToStart' });
+		assert.equal(s.lines[0], ' world');
+		assert.equal(s.cursorCol, 0);
+	});
+});
+
+describe('reduceComposer — deleteWord', () => {
+	it('deletes word before cursor', () => {
+		let s = typeChars(createComposerState(), 'hello world');
+		s = reduceComposer(s, { kind: 'deleteWord' });
+		assert.equal(s.lines[0], 'hello ');
+	});
+
+	it('deletes word including leading spaces', () => {
+		let s = typeChars(createComposerState(), 'hello   world');
+		s = reduceComposer(s, { kind: 'deleteWord' });
+		assert.equal(s.lines[0], 'hello   ');
+	});
+
+	it('deletes partial word when cursor is mid-word', () => {
+		let s = typeChars(createComposerState(), 'hello   world');
+		s = reduceComposer(s, { kind: 'left' });
+		s = reduceComposer(s, { kind: 'deleteWord' });
+		assert.equal(s.lines[0], 'hello   d');
+	});
+});
+
+describe('linearCursorOffset', () => {
+	it('returns 0 for initial state', () => {
+		assert.equal(linearCursorOffset(createComposerState()), 0);
+	});
+
+	it('returns cursor col on single line', () => {
+		let s = typeChars(createComposerState(), 'abc');
+		s = reduceComposer(s, { kind: 'left' });
+		assert.equal(linearCursorOffset(s), 2);
+	});
+
+	it('accounts for newlines', () => {
+		let s = typeChars(createComposerState(), 'ab');
+		s = reduceComposer(s, { kind: 'newline' });
+		s = typeChars(s, 'cd');
+		s = reduceComposer(s, { kind: 'home' });
+		assert.equal(linearCursorOffset(s), 3); // 'ab\n' = 3, cursor at col 0 of 'cd'
 	});
 });

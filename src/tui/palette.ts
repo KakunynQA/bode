@@ -3,6 +3,7 @@ export type PaletteCommand = {
 	label: string;
 	shortcut?: string;
 	category: string;
+	insertText: string;
 };
 
 export type PaletteState = {
@@ -15,13 +16,80 @@ export type PaletteState = {
 };
 
 export const PALETTE_COMMANDS: PaletteCommand[] = [
-	{ id: 'new-task', label: 'New task/run', shortcut: 'ctrl+x n', category: 'Suggested' },
-	{ id: 'view-status', label: 'View status', shortcut: 'ctrl+x s', category: 'Suggested' },
-	{ id: 'clear-prompt', label: 'Clear prompt', category: 'Prompt' },
-	{ id: 'open-help', label: 'Open help', category: 'Prompt' },
-	{ id: 'view-project', label: 'View project information', category: 'System' },
-	{ id: 'view-version', label: 'View version', category: 'System' },
-	{ id: 'exit', label: 'Exit', shortcut: 'ctrl+x q', category: 'System' },
+	{ id: 'cmd-setup', label: 'Setup bode', category: 'Setup', insertText: 'setup' },
+	{
+		id: 'cmd-setup-project',
+		label: 'Setup project config',
+		category: 'Setup',
+		insertText: 'setup-project ',
+	},
+	{
+		id: 'cmd-setup-transitions',
+		label: 'Setup tracker transitions',
+		category: 'Setup',
+		shortcut: '--project',
+		insertText: 'setup-transitions ',
+	},
+	{
+		id: 'cmd-init',
+		label: 'Scaffold AGENTS.md',
+		category: 'Setup',
+		insertText: 'init',
+	},
+	{
+		id: 'cmd-learn',
+		label: 'Generate project context',
+		category: 'Setup',
+		insertText: 'learn',
+	},
+	{ id: 'cmd-start', label: 'Start a task', category: 'Run', insertText: 'start ' },
+	{
+		id: 'cmd-continue',
+		label: 'Continue task to next phase',
+		category: 'Run',
+		insertText: 'continue ',
+	},
+	{ id: 'cmd-done', label: 'Mark task done', category: 'Run', insertText: 'done ' },
+	{ id: 'cmd-abort', label: 'Abort task', category: 'Run', insertText: 'abort ' },
+	{ id: 'cmd-new', label: 'Create local task', category: 'Run', insertText: 'new ' },
+	{ id: 'cmd-cancel', label: 'Cancel scheduled task', category: 'Run', insertText: 'cancel ' },
+	{ id: 'cmd-status', label: 'View task status', category: 'Inspect', insertText: 'status ' },
+	{
+		id: 'cmd-list',
+		label: 'List tracked tasks',
+		category: 'Inspect',
+		shortcut: 'ctrl+x l',
+		insertText: 'list',
+	},
+	{ id: 'cmd-log', label: 'Show task log', category: 'Inspect', insertText: 'log ' },
+	{
+		id: 'cmd-doctor',
+		label: 'Diagnose environment',
+		category: 'Inspect',
+		shortcut: 'ctrl+x s',
+		insertText: 'doctor',
+	},
+	{ id: 'cmd-skills', label: 'Manage skills', category: 'Inspect', insertText: 'skills' },
+	{
+		id: 'cmd-clear',
+		label: 'Clear screen',
+		category: 'Built-ins',
+		insertText: 'clear',
+	},
+	{
+		id: 'cmd-help',
+		label: 'Show help',
+		category: 'Built-ins',
+		shortcut: 'ctrl+x h',
+		insertText: 'help',
+	},
+	{
+		id: 'cmd-exit',
+		label: 'Exit bode',
+		category: 'Built-ins',
+		shortcut: 'ctrl+x q',
+		insertText: 'exit',
+	},
 ];
 
 function filterItems(items: PaletteCommand[], query: string): PaletteCommand[] {
@@ -31,6 +99,7 @@ function filterItems(items: PaletteCommand[], query: string): PaletteCommand[] {
 		(item) =>
 			item.label.toLowerCase().includes(lower) ||
 			item.category.toLowerCase().includes(lower) ||
+			item.insertText.toLowerCase().includes(lower) ||
 			(item.shortcut?.toLowerCase().includes(lower) ?? false)
 	);
 }

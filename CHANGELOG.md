@@ -4,6 +4,62 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] — 2026-06-02
+
+### Fixed
+
+- **Interactive commands (setup, setup-project, setup-transitions) no longer break the layout.** The shell now fully exits Ink before running raw-mode wizards and creates a fresh Ink instance afterward. Never calls `rerender()` on an unmounted instance.
+- **ESC key behavior cleaned up.** Single clear hierarchy: ESC closes palette/help/leader overlays first; only when in idle composer mode does ESC clear the input. No more competing `useInput` handlers for ESC.
+- **`setup project` and `setup transitions` aliases.** Typing `setup project` inside the TUI now normalizes to `setup-project` before dispatch, matching user expectations.
+- **Composer input deactivates when overlays are open.** New `active` prop on `ComposerPanel` prevents keyboard input from leaking into the composer while the command palette, help, or leader-key overlay is visible.
+
+### Changed
+
+- `src/tui/shell.ts` rewritten as a recursive `renderOnce()` loop. Each Ink instance lives exactly as long as one "session segment" — normal commands reuse the same instance via `rerender()`, interactive commands exit cleanly and re-enter via a fresh `render()`.
+- `src/tui/components/composer-panel.tsx` now accepts an `active` prop (default `true`). When `false`, all `useInput` handling is disabled.
+- `src/tui/components/landing-app.tsx` now controls composer `active` state based on view mode and leader hint visibility.
+
+### Tests
+
+- Added `normalizeAlias` tests: `setup project` → `setup-project`, case-insensitive, preserves flags.
+- Added `isInteractiveCommand` tests: setup/setup-project/setup-transitions are interactive, list/start/help are not.
+
+## [2.4.1] — 2026-06-01
+
+### Fixed
+
+- **Persistent TUI shell — no more full remount after every command.** The Ink app stays mounted for the entire session. Only interactive commands (`setup`, `setup-project`, `setup-transitions`) temporarily unmount to run their raw-mode wizards; all other commands run with stdout/stderr captured inline into a scrollable timeline above the composer.
+- **Backspace works everywhere.** Raw terminal bytes `\x7f` and `\b` are now handled alongside Ink's `key.backspace`, so regular Backspace erases characters on all terminals.
+- **Tab autocomplete wired in.** Pressing Tab accepts the ghost completion suggestion from the existing `ghostCompletion()` engine.
+- **Ctrl key editing shortcuts:** Ctrl+A (home), Ctrl+E (end), Ctrl+B (left), Ctrl+F (right), Ctrl+U (kill to start), Ctrl+K (kill to end), Ctrl+W (delete word back), Ctrl+J (newline).
+- **Ctrl+P command palette inserts text, not executes.** Selecting a command from the palette populates the composer input with the real Bode command text for editing. Palette is now centered horizontally. Commands now map to real Bode subcommands (`setup`, `start `, `list`, `doctor`, etc.).
+- **Multi-character paste advances cursor correctly.** The composer reducer now advances the cursor by `value.length` instead of always `1`, so pasting text places the cursor at the right position.
+- **Goat art only shows on initial empty state.** After the first command, the timeline replaces the splash; the big goat never redraws automatically.
+- **Composer is now externally controlled.** State ownership moved from `ComposerPanel` to `LandingApp`, enabling palette/history to insert text into the input.
+- **Dark gray docked composer background** (`#1a1a2e`) with peach border for clear visual separation from the timeline area.
+
+### Added
+
+- **Timeline model** (`src/tui/timeline.ts`) with typed entries: `user`, `stdout`, `stderr`, `info`, `error`, `success`. Output from non-interactive commands is captured and rendered in the timeline instead of being printed outside the UI.
+- **New composer actions:** `setText` (replaces entire content), `killLine`, `killToStart`, `deleteWord`.
+- **`linearCursorOffset()` helper** for computing the flat cursor position across multiline input (used by ghost completion).
+- **Real Bode command palette items** — 18 commands across Setup, Run, Inspect, and Built-ins categories with `insertText` templates.
+- **Timeline unit tests** (`tests/unit/tui/timeline.test.ts`).
+
+### Changed
+
+- `src/tui/shell.ts` no longer runs a submit/unmount/remount loop. A single `render()` + `rerender()` drives the entire session.
+- `src/tui/components/composer-panel.tsx` is now a controlled component (receives `state` + `onChange` props).
+- `src/tui/components/command-palette.tsx` emits `insertText` on selection and renders as a centered panel.
+- `src/tui/components/landing-app.tsx` owns composer state, renders timeline, and shows splash only when timeline is empty.
+- `src/tui/palette.ts` commands now include `insertText` field.
+
+### Tests
+
+- Updated `tests/unit/tui/composer.test.ts` with tests for multi-char insert, `setText`, `killLine`, `killToStart`, `deleteWord`, and `linearCursorOffset`.
+- Updated `tests/unit/tui/palette.test.ts` with tests for `insertText` field and insertText-based filtering.
+- Added `tests/unit/tui/timeline.test.ts` covering push, append, and isEmpty.
+
 ## [2.4.0] — 2026-06-01
 
 ### Added

@@ -21,8 +21,31 @@ describe('createPaletteState', () => {
 	it('categories are derived from items', () => {
 		const s = createPaletteState();
 		assert.ok(s.categories.length > 0);
-		assert.ok(s.categories.includes('Suggested'));
-		assert.ok(s.categories.includes('System'));
+		assert.ok(s.categories.includes('Setup'));
+		assert.ok(s.categories.includes('Run'));
+		assert.ok(s.categories.includes('Built-ins'));
+	});
+});
+
+describe('PALETTE_COMMANDS — insertText', () => {
+	it('every command has insertText', () => {
+		for (const cmd of PALETTE_COMMANDS) {
+			assert.ok(cmd.insertText !== undefined, `Command ${cmd.id} missing insertText`);
+		}
+	});
+
+	it('real bode commands have matching insertText', () => {
+		const setup = PALETTE_COMMANDS.find((c) => c.id === 'cmd-setup');
+		assert.ok(setup);
+		assert.equal(setup!.insertText, 'setup');
+
+		const start = PALETTE_COMMANDS.find((c) => c.id === 'cmd-start');
+		assert.ok(start);
+		assert.equal(start!.insertText, 'start ');
+
+		const list = PALETTE_COMMANDS.find((c) => c.id === 'cmd-list');
+		assert.ok(list);
+		assert.equal(list!.insertText, 'list');
 	});
 });
 
@@ -45,9 +68,9 @@ describe('reducePalette — open/close', () => {
 describe('reducePalette — type/filter', () => {
 	it('filters commands by query', () => {
 		let s = reducePalette(createPaletteState(), { kind: 'open' });
-		s = reducePalette(s, { kind: 'type', value: 'help' });
+		s = reducePalette(s, { kind: 'type', value: 'setup' });
 		assert.ok(s.filtered.length < PALETTE_COMMANDS.length);
-		assert.ok(s.filtered.some((c) => c.id === 'open-help'));
+		assert.ok(s.filtered.some((c) => c.id === 'cmd-setup'));
 		assert.equal(s.cursor, 0);
 	});
 
@@ -58,6 +81,12 @@ describe('reducePalette — type/filter', () => {
 		assert.ok(s.cursor > 0);
 		s = reducePalette(s, { kind: 'type', value: 'exit' });
 		assert.equal(s.cursor, 0);
+	});
+
+	it('filters by insertText', () => {
+		let s = reducePalette(createPaletteState(), { kind: 'open' });
+		s = reducePalette(s, { kind: 'type', value: 'start ' });
+		assert.ok(s.filtered.some((c) => c.id === 'cmd-start'));
 	});
 });
 
@@ -98,6 +127,7 @@ describe('selectedCommand', () => {
 		const cmd = selectedCommand(s);
 		assert.ok(cmd);
 		assert.equal(cmd!.id, s.filtered[1]!.id);
+		assert.ok(cmd!.insertText !== undefined);
 	});
 
 	it('returns null for empty filtered list', () => {

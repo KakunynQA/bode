@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.4.0") {
-    return "2.4.0";
+  if ("2.4.2") {
+    return "2.4.2";
   }
   const base = moduleDir();
   if (base) {
@@ -1483,7 +1483,7 @@ var require_react_development = __commonJS({
           }
           return dispatcher.useContext(Context);
         }
-        function useState5(initialState) {
+        function useState4(initialState) {
           var dispatcher = resolveDispatcher();
           return dispatcher.useState(initialState);
         }
@@ -2286,7 +2286,7 @@ var require_react_development = __commonJS({
         exports.useMemo = useMemo3;
         exports.useReducer = useReducer;
         exports.useRef = useRef;
-        exports.useState = useState5;
+        exports.useState = useState4;
         exports.useSyncExternalStore = useSyncExternalStore;
         exports.useTransition = useTransition;
         exports.version = ReactVersion;
@@ -3542,7 +3542,7 @@ var require_react_reconciler_production_min = __commonJS({
         v(x, b);
         v(z2, c);
       }
-      function pc34(a, b, c) {
+      function pc33(a, b, c) {
         var d = a.stateNode;
         b = b.childContextTypes;
         if ("function" !== typeof d.getChildContext) return c;
@@ -3560,7 +3560,7 @@ var require_react_reconciler_production_min = __commonJS({
       function rc(a, b, c) {
         var d = a.stateNode;
         if (!d) throw Error(n(169));
-        c ? (a = pc34(a, b, kc), d.__reactInternalMemoizedMergedChildContext = a, q(z2), q(x), v(x, a)) : q(z2);
+        c ? (a = pc33(a, b, kc), d.__reactInternalMemoizedMergedChildContext = a, q(z2), q(x), v(x, a)) : q(z2);
         v(z2, c);
       }
       var tc = Math.clz32 ? Math.clz32 : sc, uc = Math.log, vc = Math.LN2;
@@ -7673,7 +7673,7 @@ var require_react_reconciler_production_min = __commonJS({
         }
         if (1 === a.tag) {
           var c = a.type;
-          if (A(c)) return pc34(a, c, b);
+          if (A(c)) return pc33(a, c, b);
         }
         return b;
       }
@@ -63018,7 +63018,7 @@ var init_memory = __esm({
 });
 
 // src/index.ts
-var import_picocolors33 = __toESM(require_picocolors(), 1);
+var import_picocolors32 = __toESM(require_picocolors(), 1);
 init_version();
 
 // src/tui/builtins.ts
@@ -63164,7 +63164,7 @@ function clearScreen() {
 }
 
 // src/tui/shell.ts
-var import_react25 = __toESM(require_react(), 1);
+var import_react24 = __toESM(require_react(), 1);
 
 // node_modules/ink/build/render.js
 import { Stream } from "node:stream";
@@ -68855,6 +68855,8 @@ var use_input_default = useInput;
 
 // node_modules/ink/build/hooks/use-app.js
 var import_react17 = __toESM(require_react(), 1);
+var useApp = () => (0, import_react17.useContext)(AppContext_default);
+var use_app_default = useApp;
 
 // node_modules/ink/build/hooks/use-stdout.js
 var import_react18 = __toESM(require_react(), 1);
@@ -68868,11 +68870,8 @@ var import_react20 = __toESM(require_react(), 1);
 // node_modules/ink/build/hooks/use-focus-manager.js
 var import_react21 = __toESM(require_react(), 1);
 
-// src/tui/shell.ts
-var import_picocolors32 = __toESM(require_picocolors(), 1);
-
 // src/tui/components/landing-app.tsx
-var import_react24 = __toESM(require_react(), 1);
+var import_react23 = __toESM(require_react(), 1);
 
 // src/tui/logo.ts
 function measureArt(art) {
@@ -68913,9 +68912,6 @@ function centerArt(art, termCols) {
   }).join("\n");
 }
 
-// src/tui/components/composer-panel.tsx
-var import_react22 = __toESM(require_react(), 1);
-
 // src/tui/composer.ts
 function createComposerState() {
   return { lines: [""], cursorLine: 0, cursorCol: 0 };
@@ -68927,7 +68923,7 @@ function reduceComposer(state, action) {
       const lines = [...state.lines];
       const line = lines[state.cursorLine] ?? "";
       lines[state.cursorLine] = line.slice(0, state.cursorCol) + action.value + line.slice(state.cursorCol);
-      return { ...state, lines, cursorCol: state.cursorCol + 1 };
+      return { ...state, lines, cursorCol: state.cursorCol + action.value.length };
     }
     case "backspace": {
       if (state.cursorCol === 0 && state.cursorLine === 0) return state;
@@ -69016,6 +69012,35 @@ function reduceComposer(state, action) {
       return state;
     case "clear":
       return createComposerState();
+    case "setText": {
+      const newLines = action.value.split("\n");
+      return {
+        lines: newLines,
+        cursorLine: newLines.length - 1,
+        cursorCol: (newLines[newLines.length - 1] ?? "").length
+      };
+    }
+    case "killLine": {
+      const lines = [...state.lines];
+      const line = lines[state.cursorLine] ?? "";
+      lines[state.cursorLine] = line.slice(0, state.cursorCol);
+      return { ...state, lines };
+    }
+    case "killToStart": {
+      const lines = [...state.lines];
+      const line = lines[state.cursorLine] ?? "";
+      lines[state.cursorLine] = line.slice(state.cursorCol);
+      return { ...state, lines, cursorCol: 0 };
+    }
+    case "deleteWord": {
+      const lines = [...state.lines];
+      const line = lines[state.cursorLine] ?? "";
+      let col = state.cursorCol;
+      while (col > 0 && line[col - 1] === " ") col--;
+      while (col > 0 && line[col - 1] !== " ") col--;
+      lines[state.cursorLine] = line.slice(0, col) + line.slice(state.cursorCol);
+      return { ...state, lines, cursorCol: col };
+    }
     default:
       return state;
   }
@@ -69026,78 +69051,199 @@ function composerText(state) {
 function composerIsEmpty(state) {
   return state.lines.length === 1 && state.lines[0] === "";
 }
+function linearCursorOffset(state) {
+  let offset = 0;
+  for (let i = 0; i < state.cursorLine; i++) {
+    offset += (state.lines[i] ?? "").length + 1;
+  }
+  offset += state.cursorCol;
+  return offset;
+}
+
+// src/tui/completion.ts
+var COMMAND_FLAGS = {
+  setup: [],
+  "setup-project": ["--shared-in-repo", "--refresh-context"],
+  "setup-transitions": ["--project"],
+  init: ["--overwrite", "--from"],
+  learn: ["--refresh", "--detailed"],
+  start: [
+    "--auto",
+    "--strict",
+    "--dangerously-approve-all",
+    "--project",
+    "--with-cli",
+    "--with-model",
+    "--from-branch"
+  ],
+  continue: ["--dangerously-approve-all", "--phase"],
+  done: ["--auto-approve-pr-merge", "-y"],
+  abort: ["-y"],
+  new: ["--title"],
+  cancel: [],
+  status: [],
+  show: ["--diff", "--html"],
+  log: [],
+  list: ["--watch"],
+  skills: [],
+  doctor: ["--report"],
+  replay: ["--phase", "--with-cli", "--with-model", "--export", "--import", "--from", "--pick"],
+  compare: ["--agents"],
+  feedback: ["--title", "--open"],
+  telemetry: [],
+  memory: []
+};
+var BUILTIN_TOKENS = ["help", "clear", "exit", "quit", "?", ":q"];
+function ghostCompletion(buffer, cursor) {
+  if (buffer.length === 0) return "";
+  if (cursor !== buffer.length) return "";
+  const upToCursor = buffer.slice(0, cursor);
+  const lastSpace = upToCursor.lastIndexOf(" ");
+  const tokenStart = lastSpace + 1;
+  const partial2 = buffer.slice(tokenStart);
+  if (partial2.length === 0) return "";
+  const beforeToken = buffer.slice(0, tokenStart);
+  const isFirstToken = beforeToken.trim() === "";
+  let pool;
+  if (isFirstToken) {
+    pool = [...Array.from(ALL_SUBCOMMANDS), ...BUILTIN_TOKENS];
+  } else if (partial2.startsWith("-")) {
+    const firstToken = (buffer.match(/^\s*(\S+)/)?.[1] ?? "").toLowerCase();
+    pool = COMMAND_FLAGS[firstToken] ?? [];
+  } else {
+    return "";
+  }
+  const match = pool.find((c) => c.startsWith(partial2) && c.length > partial2.length);
+  if (!match) return "";
+  return match.slice(partial2.length);
+}
 
 // src/tui/components/composer-panel.tsx
 var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
 var PLACEHOLDER = "Ask Bode to plan, build, review, or ship something...";
 var PEACH = "#FAB283";
 function ComposerPanel({
-  metadata,
+  state,
+  onChange,
   onSubmit,
   onTerminate,
   onOpenPalette,
-  onLeaderKey
+  onLeaderKey,
+  disabled,
+  active = true
 }) {
-  const [state, setState] = (0, import_react22.useState)(createComposerState());
-  use_input_default((input, key) => {
-    if (key.ctrl && input === "c") {
-      onTerminate();
-      return;
-    }
-    if (key.ctrl && input === "p") {
-      onOpenPalette();
-      return;
-    }
-    if (key.ctrl && input === "x") {
-      onLeaderKey();
-      return;
-    }
-    if (key.return && !key.shift) {
-      const text = composerText(state);
-      if (!text.trim()) return;
-      setState(createComposerState());
-      onSubmit(text);
-      return;
-    }
-    if (key.return && key.shift) {
-      setState((s) => reduceComposer(s, { kind: "newline" }));
-      return;
-    }
-    if (key.escape) {
-      if (!composerIsEmpty(state)) {
-        setState(createComposerState());
+  use_input_default(
+    (input, key) => {
+      if (disabled || !active) return;
+      if (key.ctrl && input === "c") {
+        onTerminate();
+        return;
       }
-      return;
-    }
-    if (key.backspace || key.delete) {
-      setState((s) => reduceComposer(s, { kind: key.backspace ? "backspace" : "delete" }));
-      return;
-    }
-    if (key.leftArrow) {
-      setState((s) => reduceComposer(s, { kind: "left" }));
-      return;
-    }
-    if (key.rightArrow) {
-      setState((s) => reduceComposer(s, { kind: "right" }));
-      return;
-    }
-    if (key.upArrow) {
-      setState((s) => reduceComposer(s, { kind: "up" }));
-      return;
-    }
-    if (key.downArrow) {
-      setState((s) => reduceComposer(s, { kind: "down" }));
-      return;
-    }
-    if (input && !key.ctrl && !key.meta) {
-      const code = input.charCodeAt(0);
-      if (code < 32 && input !== "\n" && input !== "\r") return;
-      setState((s) => reduceComposer(s, { kind: "char", value: input }));
-    }
-  });
+      if (key.ctrl && input === "p") {
+        onOpenPalette();
+        return;
+      }
+      if (key.ctrl && input === "x") {
+        onLeaderKey();
+        return;
+      }
+      if (key.ctrl && input === "a") {
+        onChange(reduceComposer(state, { kind: "home" }));
+        return;
+      }
+      if (key.ctrl && input === "e") {
+        onChange(reduceComposer(state, { kind: "end" }));
+        return;
+      }
+      if (key.ctrl && input === "b") {
+        onChange(reduceComposer(state, { kind: "left" }));
+        return;
+      }
+      if (key.ctrl && input === "f") {
+        onChange(reduceComposer(state, { kind: "right" }));
+        return;
+      }
+      if (key.ctrl && input === "u") {
+        onChange(reduceComposer(state, { kind: "killToStart" }));
+        return;
+      }
+      if (key.ctrl && input === "k") {
+        onChange(reduceComposer(state, { kind: "killLine" }));
+        return;
+      }
+      if (key.ctrl && input === "w") {
+        onChange(reduceComposer(state, { kind: "deleteWord" }));
+        return;
+      }
+      if (key.tab) {
+        const text2 = composerText(state);
+        const offset2 = linearCursorOffset(state);
+        const ghost2 = ghostCompletion(text2, offset2);
+        if (ghost2) {
+          onChange(reduceComposer(state, { kind: "char", value: ghost2 }));
+        }
+        return;
+      }
+      if (key.return && !key.shift) {
+        const text2 = composerText(state);
+        if (!text2.trim()) return;
+        onChange(reduceComposer(state, { kind: "clear" }));
+        onSubmit(text2);
+        return;
+      }
+      if (key.return && key.shift) {
+        onChange(reduceComposer(state, { kind: "newline" }));
+        return;
+      }
+      if (key.escape) {
+        if (!composerIsEmpty(state)) {
+          onChange(reduceComposer(state, { kind: "clear" }));
+        }
+        return;
+      }
+      const isRawBackspace = input === "\x7F" || input === "\b";
+      if (key.backspace || isRawBackspace) {
+        onChange(reduceComposer(state, { kind: "backspace" }));
+        return;
+      }
+      if (key.delete) {
+        onChange(reduceComposer(state, { kind: "delete" }));
+        return;
+      }
+      if (key.leftArrow) {
+        onChange(reduceComposer(state, { kind: "left" }));
+        return;
+      }
+      if (key.rightArrow) {
+        onChange(reduceComposer(state, { kind: "right" }));
+        return;
+      }
+      if (key.upArrow) {
+        onChange(reduceComposer(state, { kind: "up" }));
+        return;
+      }
+      if (key.downArrow) {
+        onChange(reduceComposer(state, { kind: "down" }));
+        return;
+      }
+      if (key.ctrl && (input === "j" || input === "n" || input === "m")) {
+        onChange(reduceComposer(state, { kind: "newline" }));
+        return;
+      }
+      if (input && !key.ctrl && !key.meta) {
+        const code = input.charCodeAt(0);
+        if (code < 32 && input !== "\n" && input !== "\r") return;
+        onChange(reduceComposer(state, { kind: "char", value: input }));
+      }
+    },
+    { isActive: !disabled && active }
+  );
   const isEmpty = composerIsEmpty(state);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { flexDirection: "column", paddingX: 2, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { flexDirection: "row", borderStyle: "round", borderColor: PEACH, paddingX: 1, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { flexDirection: "column", flexGrow: 1, children: isEmpty ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
+  const text = composerText(state);
+  const offset = linearCursorOffset(state);
+  const ghost = ghostCompletion(text, offset);
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { flexDirection: "column", paddingX: 1, borderStyle: "round", borderColor: PEACH, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { flexDirection: "column", flexGrow: 1, children: isEmpty ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: PEACH, children: "\u2503" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: PLACEHOLDER })
     ] }) : state.lines.map((line, i) => {
@@ -69106,48 +69252,110 @@ function ComposerPanel({
       const before = line.slice(0, col);
       const at = line[col] ?? " ";
       const after = line.slice(col + 1);
+      const isLastLine = i === state.lines.length - 1;
+      const showGhost = isCurrent && isLastLine && ghost;
       return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: PEACH, children: "\u2503" }),
         isCurrent ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: before }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { inverse: true, children: at }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: after })
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: after }),
+          showGhost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: ghost })
         ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: line })
       ] }, i);
-    }) }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { marginTop: 0, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { dimColor: true, children: [
-        "  ",
-        metadata
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { dimColor: true, children: [
-        "          ",
-        "tab complete",
-        "  ",
-        "ctrl+p commands"
-      ] })
-    ] })
+    }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { marginTop: 0, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { dimColor: true, children: [
+      "  ",
+      disabled ? "running..." : "tab complete  \u2502  ctrl+p commands"
+    ] }) })
   ] });
 }
 
 // src/tui/components/command-palette.tsx
-var import_react23 = __toESM(require_react(), 1);
+var import_react22 = __toESM(require_react(), 1);
 
 // src/tui/palette.ts
 var PALETTE_COMMANDS = [
-  { id: "new-task", label: "New task/run", shortcut: "ctrl+x n", category: "Suggested" },
-  { id: "view-status", label: "View status", shortcut: "ctrl+x s", category: "Suggested" },
-  { id: "clear-prompt", label: "Clear prompt", category: "Prompt" },
-  { id: "open-help", label: "Open help", category: "Prompt" },
-  { id: "view-project", label: "View project information", category: "System" },
-  { id: "view-version", label: "View version", category: "System" },
-  { id: "exit", label: "Exit", shortcut: "ctrl+x q", category: "System" }
+  { id: "cmd-setup", label: "Setup bode", category: "Setup", insertText: "setup" },
+  {
+    id: "cmd-setup-project",
+    label: "Setup project config",
+    category: "Setup",
+    insertText: "setup-project "
+  },
+  {
+    id: "cmd-setup-transitions",
+    label: "Setup tracker transitions",
+    category: "Setup",
+    shortcut: "--project",
+    insertText: "setup-transitions "
+  },
+  {
+    id: "cmd-init",
+    label: "Scaffold AGENTS.md",
+    category: "Setup",
+    insertText: "init"
+  },
+  {
+    id: "cmd-learn",
+    label: "Generate project context",
+    category: "Setup",
+    insertText: "learn"
+  },
+  { id: "cmd-start", label: "Start a task", category: "Run", insertText: "start " },
+  {
+    id: "cmd-continue",
+    label: "Continue task to next phase",
+    category: "Run",
+    insertText: "continue "
+  },
+  { id: "cmd-done", label: "Mark task done", category: "Run", insertText: "done " },
+  { id: "cmd-abort", label: "Abort task", category: "Run", insertText: "abort " },
+  { id: "cmd-new", label: "Create local task", category: "Run", insertText: "new " },
+  { id: "cmd-cancel", label: "Cancel scheduled task", category: "Run", insertText: "cancel " },
+  { id: "cmd-status", label: "View task status", category: "Inspect", insertText: "status " },
+  {
+    id: "cmd-list",
+    label: "List tracked tasks",
+    category: "Inspect",
+    shortcut: "ctrl+x l",
+    insertText: "list"
+  },
+  { id: "cmd-log", label: "Show task log", category: "Inspect", insertText: "log " },
+  {
+    id: "cmd-doctor",
+    label: "Diagnose environment",
+    category: "Inspect",
+    shortcut: "ctrl+x s",
+    insertText: "doctor"
+  },
+  { id: "cmd-skills", label: "Manage skills", category: "Inspect", insertText: "skills" },
+  {
+    id: "cmd-clear",
+    label: "Clear screen",
+    category: "Built-ins",
+    insertText: "clear"
+  },
+  {
+    id: "cmd-help",
+    label: "Show help",
+    category: "Built-ins",
+    shortcut: "ctrl+x h",
+    insertText: "help"
+  },
+  {
+    id: "cmd-exit",
+    label: "Exit bode",
+    category: "Built-ins",
+    shortcut: "ctrl+x q",
+    insertText: "exit"
+  }
 ];
 function filterItems(items, query) {
   if (!query) return items;
   const lower = query.toLowerCase();
   return items.filter(
-    (item) => item.label.toLowerCase().includes(lower) || item.category.toLowerCase().includes(lower) || (item.shortcut?.toLowerCase().includes(lower) ?? false)
+    (item) => item.label.toLowerCase().includes(lower) || item.category.toLowerCase().includes(lower) || item.insertText.toLowerCase().includes(lower) || (item.shortcut?.toLowerCase().includes(lower) ?? false)
   );
 }
 function uniqueCategories(items) {
@@ -69205,8 +69413,11 @@ function selectedCommand(state) {
 var import_jsx_runtime2 = __toESM(require_jsx_runtime(), 1);
 var PEACH2 = "#FAB283";
 var PURPLE = "#9D7CD8";
-function CommandPalette({ onClose, onSelect, commands }) {
-  const [state, setState] = (0, import_react23.useState)(() => createPaletteState(commands));
+function CommandPalette({ onClose, onSelectInsert, termCols }) {
+  const cols = termCols ?? process.stdout.columns ?? 80;
+  const panelWidth = Math.min(60, cols - 4);
+  const marginLeft = Math.max(0, Math.floor((cols - panelWidth) / 2) - 2);
+  const [state, setState] = (0, import_react22.useState)(() => createPaletteState());
   use_input_default((input, key) => {
     if (key.escape) {
       onClose();
@@ -69223,11 +69434,11 @@ function CommandPalette({ onClose, onSelect, commands }) {
     if (key.return) {
       const cmd = selectedCommand(state);
       if (cmd) {
-        onSelect(cmd.id);
+        onSelectInsert(cmd.insertText);
       }
       return;
     }
-    if (key.backspace) {
+    if (key.backspace || input === "\x7F" || input === "\b") {
       setState((s) => reducePalette(s, { kind: "type", value: s.query.slice(0, -1) }));
       return;
     }
@@ -69237,35 +69448,49 @@ function CommandPalette({ onClose, onSelect, commands }) {
       setState((s) => reducePalette(s, { kind: "type", value: s.query + input }));
     }
   });
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "column", borderStyle: "round", borderColor: "gray", paddingX: 1, marginX: 4, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { marginBottom: 1, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { bold: true, children: "Commands" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { dimColor: true, children: [
-        "                                              ",
-        "esc"
-      ] })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { marginBottom: 1, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", children: "> " }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: state.query }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { inverse: true, children: " " })
-    ] }),
-    state.categories.map((cat) => {
-      const catItems = state.filtered.filter((item) => item.category === cat);
-      if (catItems.length === 0) return null;
-      return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "column", marginBottom: 1, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: PURPLE, bold: true, children: cat }),
-        catItems.map((item) => {
-          const idx = state.filtered.indexOf(item);
-          const isSelected = idx === state.cursor;
-          return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "row", justifyContent: "space-between", children: [
-            isSelected ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { backgroundColor: PEACH2, color: "black", bold: true, children: " " + item.label + " " }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: "  " + item.label }),
-            item.shortcut ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { dimColor: true, children: item.shortcut }) : null
-          ] }, item.id);
-        })
-      ] }, cat);
-    })
-  ] });
+  const maxVisible = 8;
+  const visibleStart = state.cursor >= maxVisible ? state.cursor - maxVisible + 1 : 0;
+  const visibleItems = state.filtered.slice(visibleStart, visibleStart + maxVisible);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box_default, { flexDirection: "column", marginLeft, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+    Box_default,
+    {
+      flexDirection: "column",
+      borderStyle: "round",
+      borderColor: "gray",
+      paddingX: 1,
+      width: panelWidth,
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { marginBottom: 1, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { bold: true, color: PURPLE, children: "Commands" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Text, { dimColor: true, children: [
+            "  ",
+            "esc to close"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { marginBottom: 1, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: "cyan", children: "> " }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: state.query }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { inverse: true, children: " " })
+        ] }),
+        state.categories.map((cat) => {
+          const catItems = visibleItems.filter((item) => item.category === cat);
+          if (catItems.length === 0) return null;
+          return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "column", marginBottom: 1, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { color: PURPLE, bold: true, dimColor: true, children: cat }),
+            catItems.map((item) => {
+              const idx = state.filtered.indexOf(item);
+              const isSelected = idx === state.cursor;
+              return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { flexDirection: "row", justifyContent: "space-between", children: [
+                isSelected ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { backgroundColor: PEACH2, color: "black", bold: true, children: " " + item.label + " " }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { children: "  " + item.label }),
+                item.shortcut ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { dimColor: true, children: item.shortcut }) : null
+              ] }, item.id);
+            })
+          ] }, cat);
+        }),
+        state.filtered.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { dimColor: true, children: "  No matching commands" })
+      ]
+    }
+  ) });
 }
 
 // src/tui/components/status-bar.tsx
@@ -69291,124 +69516,186 @@ function StatusBar({ state }) {
   ] });
 }
 
+// src/tui/timeline.ts
+function createTimelineState() {
+  return { entries: [] };
+}
+function pushEntry(state, entry) {
+  return { entries: [...state.entries, entry] };
+}
+function timelineIsEmpty(state) {
+  return state.entries.length === 0;
+}
+
 // src/tui/components/landing-app.tsx
 var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
 var PEACH3 = "#FAB283";
-var TIPS = [
-  "Press Ctrl+P to browse commands.",
-  "Run /help to view shortcuts.",
-  "Start with a task description and Bode will create an orchestrated run."
-];
+function TimelineView({ timeline }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", paddingX: 2, children: timeline.entries.map((entry, i) => {
+    switch (entry.kind) {
+      case "user":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { marginBottom: 0, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: PEACH3, children: "> " }),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: entry.text })
+        ] }, i);
+      case "stdout":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: entry.text }) }, i);
+      case "stderr":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "red", children: entry.text }) }, i);
+      case "error":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "red", children: "error: " + entry.text }) }, i);
+      case "info":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: entry.text }) }, i);
+      case "success":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "green", children: [
+          "\u2713 ",
+          entry.text,
+          entry.exitCode !== 0 ? ` (exit ${entry.exitCode})` : ""
+        ] }) }, i);
+    }
+  }) });
+}
 function LandingApp({
   state,
-  _lastExitCode,
-  _history,
   onSubmit,
-  onTerminate
+  onTerminate,
+  running,
+  timeline
 }) {
-  const [view, setView] = (0, import_react24.useState)("idle");
-  const [tipIdx] = (0, import_react24.useState)(() => Math.floor(Math.random() * TIPS.length));
-  const [showHelp, setShowHelp] = (0, import_react24.useState)(false);
-  const [leaderHint, setLeaderHint] = (0, import_react24.useState)(false);
+  const { exit: inkExit } = use_app_default();
+  const [view, setView] = (0, import_react23.useState)("idle");
+  const [composerState, setComposerState] = (0, import_react23.useState)(createComposerState());
+  const [leaderHint, setLeaderHint] = (0, import_react23.useState)(false);
   const termCols = process.stdout.columns ?? 80;
   const termRows = process.stdout.rows ?? 24;
-  const { art } = selectArt(termCols, termRows);
-  const centeredArt = centerArt(art, termCols);
-  const handlePaletteClose = (0, import_react24.useCallback)(() => setView("idle"), []);
-  const handlePaletteSelect = (0, import_react24.useCallback)(
-    (commandId) => {
-      setView("idle");
-      switch (commandId) {
-        case "open-help":
-          setShowHelp(true);
-          break;
-        case "clear-prompt":
-          break;
-        case "view-version":
-          break;
-        case "view-project":
-          break;
-        case "exit":
-          onTerminate();
-          break;
-      }
-    },
-    [onTerminate]
-  );
-  const handleSubmit = (0, import_react24.useCallback)(
+  const showSplash = timelineIsEmpty(timeline);
+  const handleTerminate = (0, import_react23.useCallback)(() => {
+    onTerminate();
+    inkExit();
+  }, [onTerminate, inkExit]);
+  const handleComposerSubmit = (0, import_react23.useCallback)(
     (text) => {
       const trimmed = text.trim();
       if (!trimmed) return;
-      if (trimmed === "/help") {
-        setShowHelp(true);
+      if (trimmed === "/help" || trimmed === "help") {
+        setView("help");
         return;
       }
       onSubmit(trimmed);
     },
     [onSubmit]
   );
-  const handleLeaderKey = (0, import_react24.useCallback)(() => {
-    setLeaderHint(true);
-  }, []);
+  const handleLeaderKey = (0, import_react23.useCallback)(() => {
+    if (view === "idle") {
+      setLeaderHint(true);
+    }
+  }, [view]);
+  const handlePaletteInsert = (0, import_react23.useCallback)(
+    (insertText) => {
+      setView("idle");
+      if (insertText === "exit") {
+        handleTerminate();
+        return;
+      }
+      const newState = reduceComposer(createComposerState(), {
+        kind: "setText",
+        value: insertText
+      });
+      setComposerState(newState);
+    },
+    [handleTerminate]
+  );
   use_input_default(
     (input, key) => {
-      if (key.escape) {
-        if (showHelp) {
-          setShowHelp(false);
-          return;
-        }
-        if (leaderHint) {
-          setLeaderHint(false);
-          return;
-        }
+      if (!key.escape) return;
+      if (view === "palette") {
+        setView("idle");
+        return;
+      }
+      if (view === "help") {
+        setView("idle");
+        return;
       }
       if (leaderHint) {
+        setLeaderHint(false);
+        return;
+      }
+    },
+    { isActive: view !== "idle" || leaderHint }
+  );
+  use_input_default(
+    (input, _key) => {
+      if (leaderHint && view === "idle") {
         setLeaderHint(false);
         const ch = input.toLowerCase();
         if (ch === "l") onSubmit("list");
         else if (ch === "s") onSubmit("doctor");
-        else if (ch === "h") setShowHelp(true);
-        else if (ch === "q") onTerminate();
+        else if (ch === "h") setView("help");
+        else if (ch === "q") handleTerminate();
       }
     },
-    { isActive: view === "idle" && (showHelp || leaderHint) }
+    { isActive: leaderHint && view === "idle" }
   );
-  const planningCli = "Plan";
-  const metadata = `${planningCli} \xB7 ${state.project?.trackerKind ?? "local"} tracker`;
   return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", minHeight: termRows, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: centeredArt }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 0, children: view === "idle" && !showHelp && !leaderHint && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", flexGrow: 1, children: [
+      showSplash ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: centerArt(selectArt(termCols, termRows).art, termCols) }) }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(TimelineView, { timeline }),
+      view === "help" && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", paddingX: 2, marginTop: 1, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: [
+          "Available commands:",
+          "",
+          "  setup                        Configure tracker, AI CLIs, VCS",
+          "  setup-project                Create or edit a project config",
+          "  start <KEY>                  Start a task (planning phase)",
+          "  continue <KEY>               Advance to next phase",
+          "  done <KEY>                   Mark task done",
+          "  abort <KEY>                  Cancel execution, clean up branch",
+          "  status <KEY>                 Show phase, branch, PR, cost",
+          "  list                         List locally tracked tasks",
+          "  doctor                       Diagnose env, config, CLIs, VCS",
+          "  new <summary>                Create local task",
+          "  log <KEY>                    Show current/last phase log",
+          "  skills                       Show or install skills",
+          "  clear                        Clear screen",
+          "  help                         Show this list",
+          "  exit                         Exit the shell",
+          "",
+          "Anything else is sent to the freeform fast path."
+        ].join("\n") }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: "Press Esc to close" }) })
+      ] }),
+      leaderHint && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { paddingX: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
+        "ctrl+x",
+        "  ",
+        "l list",
+        "  ",
+        "s doctor",
+        "  ",
+        "h help",
+        "  ",
+        "q quit"
+      ] }) }),
+      view === "palette" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+        CommandPalette,
+        {
+          onClose: () => setView("idle"),
+          onSelectInsert: handlePaletteInsert,
+          termCols
+        }
+      ) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
       ComposerPanel,
       {
-        metadata,
-        onSubmit: handleSubmit,
-        onTerminate,
+        state: composerState,
+        onChange: setComposerState,
+        onSubmit: handleComposerSubmit,
+        onTerminate: handleTerminate,
         onOpenPalette: () => setView("palette"),
-        onLeaderKey: handleLeaderKey
+        onLeaderKey: handleLeaderKey,
+        disabled: running,
+        active: view === "idle" && !leaderHint
       }
     ) }),
-    showHelp && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", paddingX: 2, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: renderHelp() }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: "Press Esc to close" }) })
-    ] }),
-    leaderHint && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { paddingX: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
-      "ctrl+x",
-      "  ",
-      "l list",
-      "  ",
-      "s doctor",
-      "  ",
-      "h help",
-      "  ",
-      "q quit"
-    ] }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { marginTop: 1, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: PEACH3, children: "  \u25CF" }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: " Tip  " }),
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: TIPS[tipIdx] })
-    ] }),
-    view === "palette" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(CommandPalette, { onClose: handlePaletteClose, onSelect: handlePaletteSelect }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexGrow: 1 }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(StatusBar, { state })
   ] });
 }
@@ -69915,57 +70202,195 @@ async function appendHistory(line, path = defaultHistoryPath()) {
 }
 
 // src/tui/shell.ts
-async function renderShellOnce(state, _lastExitCode, _history) {
-  let submitted = "";
-  let terminated = false;
-  const instance = render_default(
-    (0, import_react25.createElement)(LandingApp, {
-      state,
-      _lastExitCode,
-      _history,
-      onSubmit: (value) => {
-        submitted = value;
-        instance.unmount();
-      },
-      onTerminate: () => {
-        terminated = true;
-        instance.unmount();
-      }
-    }),
-    { exitOnCtrlC: false }
-  );
-  await instance.waitUntilExit();
-  try {
-    process.stdin.ref?.();
-  } catch {
+var INTERACTIVE_COMMANDS = /* @__PURE__ */ new Set(["setup", "setup-project", "setup-transitions"]);
+function normalizeAlias(line) {
+  const tokens = line.trim().split(/\s+/);
+  const first = tokens[0]?.toLowerCase() ?? "";
+  if (first === "setup" && tokens[1]?.toLowerCase() === "project") {
+    return ["setup-project", ...tokens.slice(2)].join(" ");
   }
-  await new Promise((r) => setImmediate(r));
-  return { value: submitted, terminated };
+  if (first === "setup" && tokens[1]?.toLowerCase() === "transitions") {
+    return ["setup-transitions", ...tokens.slice(2)].join(" ");
+  }
+  return line;
+}
+function isInteractiveCommand(line) {
+  const first = line.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  return INTERACTIVE_COMMANDS.has(first);
+}
+async function runWithOutputCapture(line) {
+  const stdoutChunks = [];
+  const stderrChunks = [];
+  const origStdoutWrite = process.stdout.write.bind(process.stdout);
+  const origStderrWrite = process.stderr.write.bind(process.stderr);
+  process.stdout.write = ((chunk, ...args2) => {
+    if (typeof chunk === "string") stdoutChunks.push(chunk);
+    else if (Buffer.isBuffer(chunk)) stdoutChunks.push(chunk.toString("utf8"));
+    const cb = args2.find((a) => typeof a === "function");
+    if (cb) cb();
+    return true;
+  });
+  process.stderr.write = ((chunk, ...args2) => {
+    if (typeof chunk === "string") stderrChunks.push(chunk);
+    else if (Buffer.isBuffer(chunk)) stderrChunks.push(chunk.toString("utf8"));
+    const cb = args2.find((a) => typeof a === "function");
+    if (cb) cb();
+    return true;
+  });
+  try {
+    const result = await dispatch(line);
+    return {
+      exitCode: result.exitCode,
+      stdout: stdoutChunks.join(""),
+      stderr: stderrChunks.join(""),
+      error: result.kind === "error" ? result.error : void 0
+    };
+  } finally {
+    process.stdout.write = origStdoutWrite;
+    process.stderr.write = origStderrWrite;
+  }
+}
+async function renderOnce(shellState, timeline) {
+  return new Promise((resolve) => {
+    let resolved = false;
+    const finish = (result) => {
+      if (resolved) return;
+      resolved = true;
+      instance.unmount();
+      resolve(result);
+    };
+    const instance = render_default(
+      (0, import_react24.createElement)(LandingApp, {
+        state: shellState,
+        onSubmit: (value) => {
+          if (resolved) return;
+          const trimmed = value.trim();
+          if (!trimmed) return;
+          void handleCommand(trimmed);
+        },
+        onTerminate: () => finish({ action: "exit" }),
+        running: false,
+        timeline
+      }),
+      { exitOnCtrlC: false }
+    );
+    async function handleCommand(line) {
+      const normalized = normalizeAlias(line);
+      await appendHistory(normalized);
+      let nextTimeline = pushEntry(timeline, { kind: "user", text: normalized });
+      if (normalized === "clear") {
+        clearScreen();
+        finish({ action: "continue", timeline: createTimelineState() });
+        return;
+      }
+      if (isInteractiveCommand(normalized)) {
+        instance.unmount();
+        try {
+          process.stdin.ref?.();
+        } catch {
+        }
+        await new Promise((r) => setImmediate(r));
+        try {
+          const result = await dispatch(normalized);
+          if (result.kind === "exit") {
+            resolve({ action: "exit" });
+            return;
+          }
+          nextTimeline = pushEntry(nextTimeline, {
+            kind: result.exitCode === 0 ? "success" : "error",
+            text: result.exitCode === 0 ? `${normalized} completed` : `${normalized} failed`,
+            exitCode: result.exitCode
+          });
+          if (result.kind === "error" && result.error) {
+            nextTimeline = pushEntry(nextTimeline, {
+              kind: "error",
+              text: result.error.message
+            });
+          }
+        } catch (err) {
+          if (err instanceof TerminateShellError) {
+            resolve({ action: "exit" });
+            return;
+          }
+          nextTimeline = pushEntry(nextTimeline, {
+            kind: "error",
+            text: err.message ?? String(err)
+          });
+        }
+        const freshState = await loadInitialState();
+        const subResult = await renderOnce(freshState, nextTimeline);
+        finish(subResult);
+        return;
+      }
+      instance.rerender(
+        (0, import_react24.createElement)(LandingApp, {
+          state: shellState,
+          onSubmit: (value) => {
+            if (resolved) return;
+            const t = value.trim();
+            if (!t) return;
+            void handleCommand(t);
+          },
+          onTerminate: () => finish({ action: "exit" }),
+          running: true,
+          timeline: nextTimeline
+        })
+      );
+      try {
+        const captured = await runWithOutputCapture(normalized);
+        const outText = captured.stdout.trim();
+        if (outText) {
+          nextTimeline = pushEntry(nextTimeline, { kind: "stdout", text: outText });
+        }
+        const errText = captured.stderr.trim();
+        if (errText) {
+          nextTimeline = pushEntry(nextTimeline, { kind: "stderr", text: errText });
+        }
+        if (captured.error) {
+          nextTimeline = pushEntry(nextTimeline, {
+            kind: "error",
+            text: captured.error.message
+          });
+        }
+        if (normalized !== "help" && normalized !== "?") {
+          nextTimeline = pushEntry(nextTimeline, {
+            kind: captured.exitCode === 0 ? "success" : "error",
+            text: captured.exitCode === 0 ? `${normalized} completed` : `${normalized} failed`,
+            exitCode: captured.exitCode
+          });
+        }
+      } catch (err) {
+        if (err instanceof TerminateShellError) {
+          finish({ action: "exit" });
+          return;
+        }
+        nextTimeline = pushEntry(nextTimeline, {
+          kind: "error",
+          text: err.message ?? String(err)
+        });
+      }
+      instance.rerender(
+        (0, import_react24.createElement)(LandingApp, {
+          state: shellState,
+          onSubmit: (value) => {
+            if (resolved) return;
+            const t = value.trim();
+            if (!t) return;
+            void handleCommand(t);
+          },
+          onTerminate: () => finish({ action: "exit" }),
+          running: false,
+          timeline: nextTimeline
+        })
+      );
+    }
+  });
 }
 async function runShell2() {
-  let lastExitCode = null;
-  let history = await loadHistory();
-  while (true) {
-    const state = await loadInitialState();
-    const { value, terminated } = await renderShellOnce(state, lastExitCode, history);
-    if (terminated) return;
-    const line = value.trim();
-    if (!line) continue;
-    await appendHistory(line);
-    history = await loadHistory();
-    let result;
-    try {
-      result = await dispatch(line);
-    } catch (err) {
-      if (err instanceof TerminateShellError) return;
-      throw err;
-    }
-    if (result.kind === "exit") return;
-    if (result.kind === "error" && result.error) {
-      console.error(import_picocolors32.default.red(`error: ${result.error.message}`));
-    }
-    lastExitCode = result.exitCode;
-  }
+  await loadHistory();
+  const initialState = await loadInitialState();
+  const result = await renderOnce(initialState, createTimelineState());
+  if (result.action === "exit") return;
 }
 
 // src/index.ts
@@ -69975,12 +70400,12 @@ if (args.includes("--version") || args.includes("-V")) {
   process.exit(0);
 }
 if (args.includes("--help") || args.includes("-h")) {
-  console.log(import_picocolors33.default.bold("bode") + import_picocolors33.default.dim(` v${getVersion()}`));
+  console.log(import_picocolors32.default.bold("bode") + import_picocolors32.default.dim(` v${getVersion()}`));
   console.log("Orchestrate AI coding work through configurable phases.");
   console.log("");
-  console.log(import_picocolors33.default.dim("Run `bode` to launch the interactive shell."));
-  console.log(import_picocolors33.default.dim("Inside the shell, type any command below without the `bode ` prefix."));
-  console.log(import_picocolors33.default.dim("You can also run commands directly: `bode setup`, `bode start KD-1`, etc."));
+  console.log(import_picocolors32.default.dim("Run `bode` to launch the interactive shell."));
+  console.log(import_picocolors32.default.dim("Inside the shell, type any command below without the `bode ` prefix."));
+  console.log(import_picocolors32.default.dim("You can also run commands directly: `bode setup`, `bode start KD-1`, etc."));
   console.log("");
   console.log(renderHelp());
   process.exit(0);
@@ -69992,25 +70417,25 @@ if (isExplicitCommand) {
     try {
       const result = await dispatch(line);
       if (result.kind === "error" && result.error) {
-        console.error(import_picocolors33.default.red(`error: ${result.error.message}`));
+        console.error(import_picocolors32.default.red(`error: ${result.error.message}`));
       }
       process.exit(result.exitCode);
     } catch (error52) {
-      console.error(import_picocolors33.default.red(error52.message ?? String(error52)));
+      console.error(import_picocolors32.default.red(error52.message ?? String(error52)));
       process.exit(1);
     }
   })();
 } else if (!process.stdin.isTTY) {
-  console.error(import_picocolors33.default.red("bode requires an interactive terminal (TTY)."));
-  console.error(import_picocolors33.default.dim("Use --version or --help for headless info."));
-  console.error(import_picocolors33.default.dim("Explicit commands like `bode setup` also work without a TTY."));
+  console.error(import_picocolors32.default.red("bode requires an interactive terminal (TTY)."));
+  console.error(import_picocolors32.default.dim("Use --version or --help for headless info."));
+  console.error(import_picocolors32.default.dim("Explicit commands like `bode setup` also work without a TTY."));
   process.exit(2);
 } else {
   void (async () => {
     try {
       await runShell2();
     } catch (error52) {
-      console.error(import_picocolors33.default.red(error52.message ?? String(error52)));
+      console.error(import_picocolors32.default.red(error52.message ?? String(error52)));
       process.exit(1);
     }
   })();
