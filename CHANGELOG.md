@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] — 2026-06-02
+
+### Added
+
+- **Structured activity model** (`src/tui/activity.ts`) replaces the old transcript timeline. Typed entries: `user-task`, `phase-start`, `phase-complete`, `command-output`, `artifact`, `info`, `warning`, `error`, `success`. UI renders structured panels instead of raw stdout/stderr dumps.
+- **New `App` component** (`src/tui/components/app.tsx`) replaces the old `LandingApp`. Manages home/run/dialog views with a single `dialog` state variable instead of overlapping `view` + `leaderHint` flags. Activity view renders structured entries with visual hierarchy (indentation, icons, color-coded phases).
+- **`isTaskCommand()` helper** in `shell.ts` identifies start/continue/done/abort/new for future phase-aware rendering.
+- **Status line** rendered below the composer: shows running spinner, active run info, or completion status. Replaces generic `running...` text.
+- **Metadata row** inside the composer panel: shows active run key + phase + tracker kind. Constrained max width of 75 columns with centered positioning.
+- **Left accent border composer**: replaces the full rounded box with a single left border bar (`┃`) for a cleaner, calmer aesthetic.
+- **Help dialog** renders as a centered bordered panel instead of inline content.
+- **Activity tests** (`tests/unit/tui/activity.test.ts`): 12 tests covering create, push, isEmpty, lastEntry, appendToLastOutput, all entry kinds.
+- **isTaskCommand tests** in `entrypoint.test.ts`: 7 new tests for start/continue/done/abort/new/list/doctor classification.
+
+### Changed
+
+- **`clear` no longer exits the shell.** The `runShell()` loop now correctly handles `continue` results by re-entering `renderSession()` with cleared activity and refreshed shell state. This was the primary bug: the old `renderOnce()` ignored `action: 'continue'` and returned, exiting the shell.
+- **Footer state refreshes after every command.** Non-interactive commands now call `loadInitialState()` after execution and rerender with fresh `ShellState`, so the footer (project, tracker, active run, version) is always current.
+- **`src/tui/shell.ts` rewritten with `renderSession()` loop.** The `runShell()` function loops on `continue` results instead of returning on the first session. Recursive `renderSession()` handles interactive commands; non-interactive commands use `instance.rerender()` within the same session.
+- **`src/tui/components/composer-panel.tsx` rewritten.** Left accent border instead of full box. Metadata row shows `taskKey · phase · tracker`. Status line rendered below the panel. Constrained to 75-column max width.
+- **`src/tui/components/command-palette.tsx` simplified.** Removed outer wrapper `Box` — palette renders its own border directly.
+- **`src/tui/components/status-bar.tsx` simplified.** Clean three-part footer: `cwd | tracker · run · phase | version`. Removed `/status` text.
+- **`src/tui/shell.ts` exports `__testing`** object with `normalizeAlias`, `isInteractiveCommand`, `isTaskCommand` for future test extraction.
+
+### Removed
+
+- **`src/tui/components/landing-app.tsx` deleted.** Replaced by `src/tui/components/app.tsx`.
+- **`src/tui/timeline.ts` removed from production imports.** Still exists but no longer imported by any component. `src/tui/activity.ts` is the replacement.
+- **`tests/unit/tui/timeline.test.ts` deleted.** Replaced by `tests/unit/tui/activity.test.ts`.
+
+### Fixed
+
+- **`clear` exits shell → `clear` clears activity and returns to home.** Root cause: `runShell()` did not loop on `action: 'continue'` results.
+- **Footer shows stale state after commands.** Root cause: non-interactive rerenders used the original `shellState` captured at session start. Now refreshes from `loadInitialState()` after every command.
+- **Ctrl+X then S documented consistently as `doctor`.** Help text, leader hint, palette shortcuts, and README all say `s doctor`.
+
 ## [2.4.2] — 2026-06-02
 
 ### Fixed

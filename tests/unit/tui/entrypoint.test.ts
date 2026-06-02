@@ -125,3 +125,40 @@ describe('isInteractiveCommand', () => {
 		assert.ok(!isInteractiveCommand('help'));
 	});
 });
+
+describe('isTaskCommand', () => {
+	const TASK_COMMANDS = new Set(['start', 'continue', 'done', 'abort', 'new']);
+
+	function isTaskCommand(line: string): boolean {
+		const first = line.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+		return TASK_COMMANDS.has(first);
+	}
+
+	it('recognizes start as task command', () => {
+		assert.ok(isTaskCommand('start KD-1'));
+	});
+
+	it('recognizes continue as task command', () => {
+		assert.ok(isTaskCommand('continue KD-1'));
+	});
+
+	it('recognizes done as task command', () => {
+		assert.ok(isTaskCommand('done KD-1'));
+	});
+
+	it('recognizes abort as task command', () => {
+		assert.ok(isTaskCommand('abort KD-1'));
+	});
+
+	it('recognizes new as task command', () => {
+		assert.ok(isTaskCommand('new fix the bug'));
+	});
+
+	it('does not flag list as task command', () => {
+		assert.ok(!isTaskCommand('list'));
+	});
+
+	it('does not flag doctor as task command', () => {
+		assert.ok(!isTaskCommand('doctor'));
+	});
+});

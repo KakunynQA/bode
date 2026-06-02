@@ -1,16 +1,16 @@
 import { createElement } from 'react';
 import { render } from 'ink';
-import { LandingApp } from './components/landing-app.tsx';
+import { App } from './components/app.tsx';
 import { loadInitialState, type ShellState } from './state.ts';
 import { dispatch } from './dispatcher.ts';
 import { TerminateShellError } from '~/utils/prompt.ts';
 import { loadHistory, appendHistory } from './history.ts';
 import {
-	createTimelineState,
-	pushEntry,
-	type TimelineState,
-	type TimelineEntry,
-} from './timeline.ts';
+	createActivityState,
+	pushActivity,
+	type ActivityState,
+	type ActivityEntry,
+} from './activity.ts';
 import { clearScreen } from './builtins.ts';
 
 const INTERACTIVE_COMMANDS = new Set(['setup', 'setup-project', 'setup-transitions']);
@@ -30,6 +30,17 @@ function normalizeAlias(line: string): string {
 function isInteractiveCommand(line: string): boolean {
 	const first = line.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
 	return INTERACTIVE_COMMANDS.has(first);
+}
+
+function isTaskCommand(line: string): boolean {
+	const first = line.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+	return (
+		first === 'start' ||
+		first === 'continue' ||
+		first === 'done' ||
+		first === 'abort' ||
+		first === 'new'
+	);
 }
 
 async function runWithOutputCapture(
@@ -70,9 +81,14 @@ async function runWithOutputCapture(
 	}
 }
 
-type ShellResult = { action: 'exit' } | { action: 'continue'; timeline: TimelineState };
+type ShellResult =
+	| { action: 'exit' }
+	| { action: 'continue'; activity: ActivityState; shellState: ShellState };
 
-async function renderOnce(shellState: ShellState, timeline: TimelineState): Promise<ShellResult> {
+async function renderSession(
+	shellState: ShellState,
+	activity: ActivityState
+): Promise<ShellResult> {
 	return new Promise<ShellResult>((resolve) => {
 		let resolved = false;
 		const finish = (result: ShellResult) => {
@@ -83,7 +99,7 @@ async function renderOnce(shellState: ShellState, timeline: TimelineState): Prom
 		};
 
 		const instance = render(
-			createElement(LandingApp, {
+			createElement(App, {
 				state: shellState,
 				onSubmit: (value: string) => {
 					if (resolved) return;
@@ -93,7 +109,7 @@ async function renderOnce(shellState: ShellState, timeline: TimelineState): Prom
 				},
 				onTerminate: () => finish({ action: 'exit' }),
 				running: false,
-				timeline,
+				activity,
 			}),
 			{ exitOnCtrlC: false }
 		);
@@ -102,11 +118,12 @@ async function renderOnce(shellState: ShellState, timeline: TimelineState): Prom
 			const normalized = normalizeAlias(line);
 			await appendHistory(normalized);
 
-			let nextTimeline = pushEntry(timeline, { kind: 'user', text: normalized });
+			let nextActivity = pushActivity(activity, { kind: 'user-task', text: normalized });
 
 			if (normalized === 'clear') {
 				clearScreen();
-				finish({ action: 'continue', timeline: createTimelineState() });
+				const freshState = await loadInitialState();
+				finish({ action: 'continue', activity: createActivityState(), shellState: freshState });
 				return;
 			}
 
@@ -125,13 +142,13 @@ async function renderOnce(shellState: ShellState, timeline: TimelineState): Prom
 						resolve({ action: 'exit' });
 						return;
 					}
-					nextTimeline = pushEntry(nextTimeline, {
+					nextActivity = pushActivity(nextActivity, {
 						kind: result.exitCode === 0 ? 'success' : 'error',
 						text: result.exitCode === 0 ? `${normalized} completed` : `${normalized} failed`,
 						exitCode: result.exitCode,
-					} as TimelineEntry);
+					} as ActivityEntry);
 					if (result.kind === 'error' && result.error) {
-						nextTimeline = pushEntry(nextTimeline, {
+						nextActivity = pushActivity(nextActivity, {
 							kind: 'error',
 							text: result.error.message,
 						});
@@ -141,20 +158,20 @@ async function renderOnce(shellState: ShellState, timeline: TimelineState): Prom
 						resolve({ action: 'exit' });
 						return;
 					}
-					nextTimeline = pushEntry(nextTimeline, {
+					nextActivity = pushActivity(nextActivity, {
 						kind: 'error',
 						text: (err as Error).message ?? String(err),
 					});
 				}
 
 				const freshState = await loadInitialState();
-				const subResult = await renderOnce(freshState, nextTimeline);
+				const subResult = await renderSession(freshState, nextActivity);
 				finish(subResult);
 				return;
 			}
 
 			instance.rerender(
-				createElement(LandingApp, {
+				createElement(App, {
 					state: shellState,
 					onSubmit: (value: string) => {
 						if (resolved) return;
@@ -164,7 +181,7 @@ async function renderOnce(shellState: ShellState, timeline: TimelineState): Prom
 					},
 					onTerminate: () => finish({ action: 'exit' }),
 					running: true,
-					timeline: nextTimeline,
+					activity: nextActivity,
 				})
 			);
 
@@ -173,39 +190,40 @@ async function renderOnce(shellState: ShellState, timeline: TimelineState): Prom
 
 				const outText = captured.stdout.trim();
 				if (outText) {
-					nextTimeline = pushEntry(nextTimeline, { kind: 'stdout', text: outText });
+					nextActivity = pushActivity(nextActivity, { kind: 'command-output', text: outText });
 				}
 				const errText = captured.stderr.trim();
 				if (errText) {
-					nextTimeline = pushEntry(nextTimeline, { kind: 'stderr', text: errText });
+					nextActivity = pushActivity(nextActivity, { kind: 'warning', text: errText });
 				}
 				if (captured.error) {
-					nextTimeline = pushEntry(nextTimeline, {
+					nextActivity = pushActivity(nextActivity, {
 						kind: 'error',
 						text: captured.error.message,
 					});
 				}
 				if (normalized !== 'help' && normalized !== '?') {
-					nextTimeline = pushEntry(nextTimeline, {
+					nextActivity = pushActivity(nextActivity, {
 						kind: captured.exitCode === 0 ? 'success' : 'error',
 						text: captured.exitCode === 0 ? `${normalized} completed` : `${normalized} failed`,
 						exitCode: captured.exitCode,
-					} as TimelineEntry);
+					} as ActivityEntry);
 				}
 			} catch (err) {
 				if (err instanceof TerminateShellError) {
 					finish({ action: 'exit' });
 					return;
 				}
-				nextTimeline = pushEntry(nextTimeline, {
+				nextActivity = pushActivity(nextActivity, {
 					kind: 'error',
 					text: (err as Error).message ?? String(err),
 				});
 			}
 
+			const freshState = await loadInitialState();
 			instance.rerender(
-				createElement(LandingApp, {
-					state: shellState,
+				createElement(App, {
+					state: freshState,
 					onSubmit: (value: string) => {
 						if (resolved) return;
 						const t = value.trim();
@@ -214,7 +232,7 @@ async function renderOnce(shellState: ShellState, timeline: TimelineState): Prom
 					},
 					onTerminate: () => finish({ action: 'exit' }),
 					running: false,
-					timeline: nextTimeline,
+					activity: nextActivity,
 				})
 			);
 		}
@@ -224,6 +242,10 @@ async function renderOnce(shellState: ShellState, timeline: TimelineState): Prom
 export async function runShell(): Promise<void> {
 	await loadHistory();
 	const initialState = await loadInitialState();
-	const result = await renderOnce(initialState, createTimelineState());
-	if (result.action === 'exit') return;
+	let result = await renderSession(initialState, createActivityState());
+	while (result.action === 'continue') {
+		result = await renderSession(result.shellState, result.activity);
+	}
 }
+
+export const __testing = { normalizeAlias, isInteractiveCommand, isTaskCommand };

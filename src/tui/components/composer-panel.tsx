@@ -7,9 +7,11 @@ import {
 	type ComposerState,
 } from '../composer.ts';
 import { ghostCompletion } from '../completion.ts';
+import type { ShellState } from '../state.ts';
 
 const PLACEHOLDER = 'Ask Bode to plan, build, review, or ship something...';
 const PEACH = '#FAB283';
+const MAX_WIDTH = 75;
 
 type Props = {
 	state: ComposerState;
@@ -20,7 +22,20 @@ type Props = {
 	onLeaderKey: () => void;
 	disabled?: boolean;
 	active?: boolean;
+	statusLine?: string;
+	shellState: ShellState;
 };
+
+function metadataLine(shellState: ShellState): string {
+	const parts: string[] = [];
+	if (shellState.activeRun) {
+		parts.push(shellState.activeRun.key);
+		parts.push(shellState.activeRun.phase);
+	}
+	const tracker = shellState.project?.trackerKind ?? 'local';
+	parts.push(tracker);
+	return parts.join(' \u00B7 ');
+}
 
 export function ComposerPanel({
 	state,
@@ -31,6 +46,8 @@ export function ComposerPanel({
 	onLeaderKey,
 	disabled,
 	active = true,
+	statusLine,
+	shellState,
 }: Props): JSX.Element {
 	useInput(
 		(input, key) => {
@@ -152,46 +169,65 @@ export function ComposerPanel({
 	const offset = linearCursorOffset(state);
 	const ghost = ghostCompletion(text, offset);
 
+	const termCols = process.stdout.columns ?? 80;
+	const panelWidth = Math.min(MAX_WIDTH, termCols - 6);
+	const marginLeft = Math.max(0, Math.floor((termCols - panelWidth) / 2) - 1);
+
+	const meta = metadataLine(shellState);
+
 	return (
-		<Box flexDirection="column" paddingX={1} borderStyle="round" borderColor={PEACH}>
-			<Box flexDirection="column" flexGrow={1}>
-				{isEmpty ? (
-					<Box>
-						<Text color={PEACH}>{'\u2503'}</Text>
-						<Text dimColor>{PLACEHOLDER}</Text>
-					</Box>
-				) : (
-					state.lines.map((line, i) => {
-						const isCurrent = i === state.cursorLine;
-						const col = isCurrent ? state.cursorCol : line.length;
-						const before = line.slice(0, col);
-						const at = line[col] ?? ' ';
-						const after = line.slice(col + 1);
-						const isLastLine = i === state.lines.length - 1;
-						const showGhost = isCurrent && isLastLine && ghost;
-						return (
-							<Box key={i}>
-								<Text color={PEACH}>{'\u2503'}</Text>
-								{isCurrent ? (
-									<>
-										<Text>{before}</Text>
-										<Text inverse>{at}</Text>
-										<Text>{after}</Text>
-										{showGhost && <Text dimColor>{ghost}</Text>}
-									</>
-								) : (
-									<Text>{line}</Text>
-								)}
-							</Box>
-						);
-					})
-				)}
+		<Box flexDirection="column" marginLeft={marginLeft} width={panelWidth}>
+			<Box
+				flexDirection="column"
+				borderStyle="round"
+				borderColor={PEACH}
+				borderLeft={true}
+				borderRight={false}
+				borderTop={false}
+				borderBottom={false}
+				paddingX={1}
+			>
+				<Box flexDirection="column" flexGrow={1}>
+					{isEmpty ? (
+						<Box>
+							<Text color={PEACH}>{'\u2503 '}</Text>
+							<Text dimColor>{PLACEHOLDER}</Text>
+						</Box>
+					) : (
+						state.lines.map((line, i) => {
+							const isCurrent = i === state.cursorLine;
+							const col = isCurrent ? state.cursorCol : line.length;
+							const before = line.slice(0, col);
+							const at = line[col] ?? ' ';
+							const after = line.slice(col + 1);
+							const isLastLine = i === state.lines.length - 1;
+							const showGhost = isCurrent && isLastLine && ghost;
+							return (
+								<Box key={i}>
+									<Text color={PEACH}>{'\u2503 '}</Text>
+									{isCurrent ? (
+										<>
+											<Text>{before}</Text>
+											<Text inverse>{at}</Text>
+											<Text>{after}</Text>
+											{showGhost && <Text dimColor>{ghost}</Text>}
+										</>
+									) : (
+										<Text>{line}</Text>
+									)}
+								</Box>
+							);
+						})
+					)}
+				</Box>
+				<Box>
+					<Text dimColor>{'  ' + meta}</Text>
+				</Box>
 			</Box>
-			<Box marginTop={0}>
-				<Text dimColor>
-					{'  '}
-					{disabled ? 'running...' : 'tab complete  \u2502  ctrl+p commands'}
-				</Text>
+
+			<Box justifyContent="space-between" marginTop={0}>
+				<Text dimColor>{statusLine ? '  ' + statusLine : ''}</Text>
+				<Text dimColor>{disabled ? '' : 'ctrl+p commands'}</Text>
 			</Box>
 		</Box>
 	);

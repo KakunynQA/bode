@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.4.2") {
-    return "2.4.2";
+  if ("2.5.0") {
+    return "2.5.0";
   }
   const base = moduleDir();
   if (base) {
@@ -68870,7 +68870,7 @@ var import_react20 = __toESM(require_react(), 1);
 // node_modules/ink/build/hooks/use-focus-manager.js
 var import_react21 = __toESM(require_react(), 1);
 
-// src/tui/components/landing-app.tsx
+// src/tui/components/app.tsx
 var import_react23 = __toESM(require_react(), 1);
 
 // src/tui/logo.ts
@@ -69122,6 +69122,17 @@ function ghostCompletion(buffer, cursor) {
 var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
 var PLACEHOLDER = "Ask Bode to plan, build, review, or ship something...";
 var PEACH = "#FAB283";
+var MAX_WIDTH = 75;
+function metadataLine(shellState) {
+  const parts = [];
+  if (shellState.activeRun) {
+    parts.push(shellState.activeRun.key);
+    parts.push(shellState.activeRun.phase);
+  }
+  const tracker = shellState.project?.trackerKind ?? "local";
+  parts.push(tracker);
+  return parts.join(" \xB7 ");
+}
 function ComposerPanel({
   state,
   onChange,
@@ -69130,7 +69141,9 @@ function ComposerPanel({
   onOpenPalette,
   onLeaderKey,
   disabled,
-  active = true
+  active = true,
+  statusLine,
+  shellState
 }) {
   use_input_default(
     (input, key) => {
@@ -69242,32 +69255,52 @@ function ComposerPanel({
   const text = composerText(state);
   const offset = linearCursorOffset(state);
   const ghost = ghostCompletion(text, offset);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { flexDirection: "column", paddingX: 1, borderStyle: "round", borderColor: PEACH, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { flexDirection: "column", flexGrow: 1, children: isEmpty ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: PEACH, children: "\u2503" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: PLACEHOLDER })
-    ] }) : state.lines.map((line, i) => {
-      const isCurrent = i === state.cursorLine;
-      const col = isCurrent ? state.cursorCol : line.length;
-      const before = line.slice(0, col);
-      const at = line[col] ?? " ";
-      const after = line.slice(col + 1);
-      const isLastLine = i === state.lines.length - 1;
-      const showGhost = isCurrent && isLastLine && ghost;
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: PEACH, children: "\u2503" }),
-        isCurrent ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: before }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { inverse: true, children: at }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: after }),
-          showGhost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: ghost })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: line })
-      ] }, i);
-    }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { marginTop: 0, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Text, { dimColor: true, children: [
-      "  ",
-      disabled ? "running..." : "tab complete  \u2502  ctrl+p commands"
-    ] }) })
+  const termCols = process.stdout.columns ?? 80;
+  const panelWidth = Math.min(MAX_WIDTH, termCols - 6);
+  const marginLeft = Math.max(0, Math.floor((termCols - panelWidth) / 2) - 1);
+  const meta3 = metadataLine(shellState);
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { flexDirection: "column", marginLeft, width: panelWidth, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+      Box_default,
+      {
+        flexDirection: "column",
+        borderStyle: "round",
+        borderColor: PEACH,
+        borderLeft: true,
+        borderRight: false,
+        borderTop: false,
+        borderBottom: false,
+        paddingX: 1,
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { flexDirection: "column", flexGrow: 1, children: isEmpty ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: PEACH, children: "\u2503 " }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: PLACEHOLDER })
+          ] }) : state.lines.map((line, i) => {
+            const isCurrent = i === state.cursorLine;
+            const col = isCurrent ? state.cursorCol : line.length;
+            const before = line.slice(0, col);
+            const at = line[col] ?? " ";
+            const after = line.slice(col + 1);
+            const isLastLine = i === state.lines.length - 1;
+            const showGhost = isCurrent && isLastLine && ghost;
+            return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: PEACH, children: "\u2503 " }),
+              isCurrent ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: before }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { inverse: true, children: at }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: after }),
+                showGhost && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: ghost })
+              ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { children: line })
+            ] }, i);
+          }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: "  " + meta3 }) })
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { justifyContent: "space-between", marginTop: 0, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: statusLine ? "  " + statusLine : "" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: disabled ? "" : "ctrl+p commands" })
+    ] })
   ] });
 }
 
@@ -69415,7 +69448,7 @@ var PEACH2 = "#FAB283";
 var PURPLE = "#9D7CD8";
 function CommandPalette({ onClose, onSelectInsert, termCols }) {
   const cols = termCols ?? process.stdout.columns ?? 80;
-  const panelWidth = Math.min(60, cols - 4);
+  const panelWidth = Math.min(60, cols - 8);
   const marginLeft = Math.max(0, Math.floor((cols - panelWidth) / 2) - 2);
   const [state, setState] = (0, import_react22.useState)(() => createPaletteState());
   use_input_default((input, key) => {
@@ -69451,14 +69484,15 @@ function CommandPalette({ onClose, onSelectInsert, termCols }) {
   const maxVisible = 8;
   const visibleStart = state.cursor >= maxVisible ? state.cursor - maxVisible + 1 : 0;
   const visibleItems = state.filtered.slice(visibleStart, visibleStart + maxVisible);
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Box_default, { flexDirection: "column", marginLeft, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
     Box_default,
     {
       flexDirection: "column",
+      marginLeft,
+      width: panelWidth,
       borderStyle: "round",
       borderColor: "gray",
       paddingX: 1,
-      width: panelWidth,
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Box_default, { marginBottom: 1, children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { bold: true, color: PURPLE, children: "Commands" }),
@@ -69490,7 +69524,7 @@ function CommandPalette({ onClose, onSelectInsert, termCols }) {
         state.filtered.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Text, { dimColor: true, children: "  No matching commands" })
       ]
     }
-  ) });
+  );
 }
 
 // src/tui/components/status-bar.tsx
@@ -69499,76 +69533,95 @@ function StatusBar({ state }) {
   const cwd2 = state.project?.workdir ?? process.cwd();
   const cwdShort = cwd2.split(/[/\\]/).slice(-2).join("/");
   const trackerLabel = state.project?.trackerKind ?? "local";
-  const runLabel = state.activeRun ? `${state.activeRun.key} \xB7 ${state.activeRun.phase}` : "";
   const centerParts = [];
-  if (trackerLabel) centerParts.push(`${trackerLabel} tracker`);
-  if (runLabel) centerParts.push(runLabel);
+  if (trackerLabel) centerParts.push(trackerLabel);
+  if (state.activeRun) {
+    centerParts.push(state.activeRun.key);
+    centerParts.push(state.activeRun.phase);
+  }
   const centerText = centerParts.join(" \xB7 ");
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Box_default, { flexDirection: "row", justifyContent: "space-between", paddingX: 2, children: [
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { dimColor: true, children: cwdShort }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { dimColor: true, children: centerText }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(Text, { dimColor: true, children: [
-      "/status",
-      "  ",
-      "v",
-      state.version
-    ] })
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Text, { dimColor: true, children: "v" + state.version })
   ] });
 }
 
-// src/tui/timeline.ts
-function createTimelineState() {
+// src/tui/activity.ts
+function createActivityState() {
   return { entries: [] };
 }
-function pushEntry(state, entry) {
+function pushActivity(state, entry) {
   return { entries: [...state.entries, entry] };
 }
-function timelineIsEmpty(state) {
+function activityIsEmpty(state) {
   return state.entries.length === 0;
 }
 
-// src/tui/components/landing-app.tsx
+// src/tui/components/app.tsx
 var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
 var PEACH3 = "#FAB283";
-function TimelineView({ timeline }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", paddingX: 2, children: timeline.entries.map((entry, i) => {
+function ActivityView({ activity }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", paddingX: 2, children: activity.entries.map((entry, i) => {
     switch (entry.kind) {
-      case "user":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { marginBottom: 0, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: PEACH3, children: "> " }),
+      case "user-task":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginBottom: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: PEACH3, children: "  \u25B9 " }),
           /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: entry.text })
-        ] }, i);
-      case "stdout":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: entry.text }) }, i);
-      case "stderr":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "red", children: entry.text }) }, i);
-      case "error":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "red", children: "error: " + entry.text }) }, i);
-      case "info":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: entry.text }) }, i);
-      case "success":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "green", children: [
-          "\u2713 ",
-          entry.text,
-          entry.exitCode !== 0 ? ` (exit ${entry.exitCode})` : ""
         ] }) }, i);
+      case "phase-start":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginLeft: 2, marginBottom: 0, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", bold: true, children: entry.phase }) }, i);
+      case "phase-complete":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", marginLeft: 2, marginBottom: 1, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "green", children: [
+            "\u2713 ",
+            entry.phase,
+            " complete"
+          ] }),
+          entry.taskKey && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
+            "  ",
+            entry.taskKey,
+            " ",
+            "\xB7",
+            " ",
+            entry.phase
+          ] })
+        ] }, i);
+      case "command-output":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: entry.text }) }, i);
+      case "artifact":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
+          entry.label,
+          ": ",
+          entry.path
+        ] }) }, i);
+      case "info":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: entry.text }) }, i);
+      case "warning":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "yellow", children: "! " + entry.text }) }, i);
+      case "error":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { marginLeft: 2, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "red", children: "error: " + entry.text }),
+          entry.exitCode !== void 0 && entry.exitCode !== 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: " (exit " + entry.exitCode + ")" })
+        ] }, i);
+      case "success":
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { marginLeft: 2, marginBottom: 1, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "green", children: [
+            "\u2713 ",
+            entry.text
+          ] }),
+          entry.exitCode !== void 0 && entry.exitCode !== 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: " (exit " + entry.exitCode + ")" })
+        ] }, i);
     }
   }) });
 }
-function LandingApp({
-  state,
-  onSubmit,
-  onTerminate,
-  running,
-  timeline
-}) {
+function App2({ state, onSubmit, onTerminate, running, activity }) {
   const { exit: inkExit } = use_app_default();
-  const [view, setView] = (0, import_react23.useState)("idle");
+  const [dialog, setDialog] = (0, import_react23.useState)(null);
   const [composerState, setComposerState] = (0, import_react23.useState)(createComposerState());
-  const [leaderHint, setLeaderHint] = (0, import_react23.useState)(false);
   const termCols = process.stdout.columns ?? 80;
   const termRows = process.stdout.rows ?? 24;
-  const showSplash = timelineIsEmpty(timeline);
+  const showSplash = activityIsEmpty(activity);
   const handleTerminate = (0, import_react23.useCallback)(() => {
     onTerminate();
     inkExit();
@@ -69578,7 +69631,7 @@ function LandingApp({
       const trimmed = text.trim();
       if (!trimmed) return;
       if (trimmed === "/help" || trimmed === "help") {
-        setView("help");
+        setDialog("help");
         return;
       }
       onSubmit(trimmed);
@@ -69586,13 +69639,11 @@ function LandingApp({
     [onSubmit]
   );
   const handleLeaderKey = (0, import_react23.useCallback)(() => {
-    if (view === "idle") {
-      setLeaderHint(true);
-    }
-  }, [view]);
+    if (!dialog) setDialog("leader");
+  }, [dialog]);
   const handlePaletteInsert = (0, import_react23.useCallback)(
     (insertText) => {
-      setView("idle");
+      setDialog(null);
       if (insertText === "exit") {
         handleTerminate();
         return;
@@ -69608,62 +69659,66 @@ function LandingApp({
   use_input_default(
     (input, key) => {
       if (!key.escape) return;
-      if (view === "palette") {
-        setView("idle");
-        return;
-      }
-      if (view === "help") {
-        setView("idle");
-        return;
-      }
-      if (leaderHint) {
-        setLeaderHint(false);
+      if (dialog) {
+        setDialog(null);
         return;
       }
     },
-    { isActive: view !== "idle" || leaderHint }
+    { isActive: dialog !== null }
   );
   use_input_default(
     (input, _key) => {
-      if (leaderHint && view === "idle") {
-        setLeaderHint(false);
+      if (dialog === "leader") {
+        setDialog(null);
         const ch = input.toLowerCase();
         if (ch === "l") onSubmit("list");
         else if (ch === "s") onSubmit("doctor");
-        else if (ch === "h") setView("help");
+        else if (ch === "h") setDialog("help");
         else if (ch === "q") handleTerminate();
       }
     },
-    { isActive: leaderHint && view === "idle" }
+    { isActive: dialog === "leader" }
   );
+  const composerActive = dialog === null && !running;
+  const statusLine = running ? "\u25D0 running..." : state.activeRun ? `\u2713 ${state.activeRun.key} \xB7 ${state.activeRun.phase}` : "";
   return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", minHeight: termRows, children: [
     /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", flexGrow: 1, children: [
-      showSplash ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: centerArt(selectArt(termCols, termRows).art, termCols) }) }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(TimelineView, { timeline }),
-      view === "help" && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", paddingX: 2, marginTop: 1, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: [
-          "Available commands:",
-          "",
-          "  setup                        Configure tracker, AI CLIs, VCS",
-          "  setup-project                Create or edit a project config",
-          "  start <KEY>                  Start a task (planning phase)",
-          "  continue <KEY>               Advance to next phase",
-          "  done <KEY>                   Mark task done",
-          "  abort <KEY>                  Cancel execution, clean up branch",
-          "  status <KEY>                 Show phase, branch, PR, cost",
-          "  list                         List locally tracked tasks",
-          "  doctor                       Diagnose env, config, CLIs, VCS",
-          "  new <summary>                Create local task",
-          "  log <KEY>                    Show current/last phase log",
-          "  skills                       Show or install skills",
-          "  clear                        Clear screen",
-          "  help                         Show this list",
-          "  exit                         Exit the shell",
-          "",
-          "Anything else is sent to the freeform fast path."
-        ].join("\n") }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: "Press Esc to close" }) })
-      ] }),
-      leaderHint && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { paddingX: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
+      showSplash ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: centerArt(selectArt(termCols, termRows).art, termCols) }) }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ActivityView, { activity }) }),
+      dialog === "help" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+        Box_default,
+        {
+          flexDirection: "column",
+          width: 64,
+          borderStyle: "round",
+          borderColor: "gray",
+          paddingX: 1,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: "Available commands:" }),
+            [
+              "",
+              "  setup                        Configure tracker, AI CLIs, VCS",
+              "  setup-project                Create or edit a project config",
+              "  start <KEY>                  Start a task (planning phase)",
+              "  continue <KEY>               Advance to next phase",
+              "  done <KEY>                   Mark task done",
+              "  abort <KEY>                  Cancel execution, clean up branch",
+              "  status <KEY>                 Show phase, branch, PR, cost",
+              "  list                         List locally tracked tasks",
+              "  doctor                       Diagnose env, config, CLIs, VCS",
+              "  new <summary>                Create local task",
+              "  log <KEY>                    Show current/last phase log",
+              "  skills                       Show or install skills",
+              "  clear                        Clear screen",
+              "  help                         Show this list",
+              "  exit                         Exit the shell",
+              "",
+              "Anything else is sent to the freeform fast path."
+            ].map((line, i) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: line }, i)),
+            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: "Press Esc to close" }) })
+          ]
+        }
+      ) }),
+      dialog === "leader" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { paddingX: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
         "ctrl+x",
         "  ",
         "l list",
@@ -69674,10 +69729,10 @@ function LandingApp({
         "  ",
         "q quit"
       ] }) }),
-      view === "palette" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      dialog === "palette" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
         CommandPalette,
         {
-          onClose: () => setView("idle"),
+          onClose: () => setDialog(null),
           onSelectInsert: handlePaletteInsert,
           termCols
         }
@@ -69690,10 +69745,12 @@ function LandingApp({
         onChange: setComposerState,
         onSubmit: handleComposerSubmit,
         onTerminate: handleTerminate,
-        onOpenPalette: () => setView("palette"),
+        onOpenPalette: () => setDialog("palette"),
         onLeaderKey: handleLeaderKey,
         disabled: running,
-        active: view === "idle" && !leaderHint
+        active: composerActive,
+        statusLine,
+        shellState: state
       }
     ) }),
     /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(StatusBar, { state })
@@ -70250,7 +70307,7 @@ async function runWithOutputCapture(line) {
     process.stderr.write = origStderrWrite;
   }
 }
-async function renderOnce(shellState, timeline) {
+async function renderSession(shellState, activity) {
   return new Promise((resolve) => {
     let resolved = false;
     const finish = (result) => {
@@ -70260,7 +70317,7 @@ async function renderOnce(shellState, timeline) {
       resolve(result);
     };
     const instance = render_default(
-      (0, import_react24.createElement)(LandingApp, {
+      (0, import_react24.createElement)(App2, {
         state: shellState,
         onSubmit: (value) => {
           if (resolved) return;
@@ -70270,17 +70327,18 @@ async function renderOnce(shellState, timeline) {
         },
         onTerminate: () => finish({ action: "exit" }),
         running: false,
-        timeline
+        activity
       }),
       { exitOnCtrlC: false }
     );
     async function handleCommand(line) {
       const normalized = normalizeAlias(line);
       await appendHistory(normalized);
-      let nextTimeline = pushEntry(timeline, { kind: "user", text: normalized });
+      let nextActivity = pushActivity(activity, { kind: "user-task", text: normalized });
       if (normalized === "clear") {
         clearScreen();
-        finish({ action: "continue", timeline: createTimelineState() });
+        const freshState2 = await loadInitialState();
+        finish({ action: "continue", activity: createActivityState(), shellState: freshState2 });
         return;
       }
       if (isInteractiveCommand(normalized)) {
@@ -70296,13 +70354,13 @@ async function renderOnce(shellState, timeline) {
             resolve({ action: "exit" });
             return;
           }
-          nextTimeline = pushEntry(nextTimeline, {
+          nextActivity = pushActivity(nextActivity, {
             kind: result.exitCode === 0 ? "success" : "error",
             text: result.exitCode === 0 ? `${normalized} completed` : `${normalized} failed`,
             exitCode: result.exitCode
           });
           if (result.kind === "error" && result.error) {
-            nextTimeline = pushEntry(nextTimeline, {
+            nextActivity = pushActivity(nextActivity, {
               kind: "error",
               text: result.error.message
             });
@@ -70312,18 +70370,18 @@ async function renderOnce(shellState, timeline) {
             resolve({ action: "exit" });
             return;
           }
-          nextTimeline = pushEntry(nextTimeline, {
+          nextActivity = pushActivity(nextActivity, {
             kind: "error",
             text: err.message ?? String(err)
           });
         }
-        const freshState = await loadInitialState();
-        const subResult = await renderOnce(freshState, nextTimeline);
+        const freshState2 = await loadInitialState();
+        const subResult = await renderSession(freshState2, nextActivity);
         finish(subResult);
         return;
       }
       instance.rerender(
-        (0, import_react24.createElement)(LandingApp, {
+        (0, import_react24.createElement)(App2, {
           state: shellState,
           onSubmit: (value) => {
             if (resolved) return;
@@ -70333,27 +70391,27 @@ async function renderOnce(shellState, timeline) {
           },
           onTerminate: () => finish({ action: "exit" }),
           running: true,
-          timeline: nextTimeline
+          activity: nextActivity
         })
       );
       try {
         const captured = await runWithOutputCapture(normalized);
         const outText = captured.stdout.trim();
         if (outText) {
-          nextTimeline = pushEntry(nextTimeline, { kind: "stdout", text: outText });
+          nextActivity = pushActivity(nextActivity, { kind: "command-output", text: outText });
         }
         const errText = captured.stderr.trim();
         if (errText) {
-          nextTimeline = pushEntry(nextTimeline, { kind: "stderr", text: errText });
+          nextActivity = pushActivity(nextActivity, { kind: "warning", text: errText });
         }
         if (captured.error) {
-          nextTimeline = pushEntry(nextTimeline, {
+          nextActivity = pushActivity(nextActivity, {
             kind: "error",
             text: captured.error.message
           });
         }
         if (normalized !== "help" && normalized !== "?") {
-          nextTimeline = pushEntry(nextTimeline, {
+          nextActivity = pushActivity(nextActivity, {
             kind: captured.exitCode === 0 ? "success" : "error",
             text: captured.exitCode === 0 ? `${normalized} completed` : `${normalized} failed`,
             exitCode: captured.exitCode
@@ -70364,14 +70422,15 @@ async function renderOnce(shellState, timeline) {
           finish({ action: "exit" });
           return;
         }
-        nextTimeline = pushEntry(nextTimeline, {
+        nextActivity = pushActivity(nextActivity, {
           kind: "error",
           text: err.message ?? String(err)
         });
       }
+      const freshState = await loadInitialState();
       instance.rerender(
-        (0, import_react24.createElement)(LandingApp, {
-          state: shellState,
+        (0, import_react24.createElement)(App2, {
+          state: freshState,
           onSubmit: (value) => {
             if (resolved) return;
             const t = value.trim();
@@ -70380,7 +70439,7 @@ async function renderOnce(shellState, timeline) {
           },
           onTerminate: () => finish({ action: "exit" }),
           running: false,
-          timeline: nextTimeline
+          activity: nextActivity
         })
       );
     }
@@ -70389,8 +70448,10 @@ async function renderOnce(shellState, timeline) {
 async function runShell2() {
   await loadHistory();
   const initialState = await loadInitialState();
-  const result = await renderOnce(initialState, createTimelineState());
-  if (result.action === "exit") return;
+  let result = await renderSession(initialState, createActivityState());
+  while (result.action === "continue") {
+    result = await renderSession(result.shellState, result.activity);
+  }
 }
 
 // src/index.ts
