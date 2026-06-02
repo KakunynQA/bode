@@ -9,9 +9,22 @@ import {
 import { ghostCompletion } from '../completion.ts';
 import type { ShellState } from '../state.ts';
 
-const PLACEHOLDER = 'Ask Bode to plan, build, review, or ship something...';
 const PEACH = '#FAB283';
 const MAX_WIDTH = 75;
+
+const PLACEHOLDER_EXAMPLES = [
+	'Ask Bode to plan, build, review, or ship something...',
+	'Ask Bode... "Fix the dashboard bug"',
+	'Ask Bode... "Plan the authentication refactor"',
+	'Ask Bode... "Review the failing test suite"',
+	'Ask Bode... "Add regression tests for the API"',
+	'Ask Bode... "Ship the PR for KD-312"',
+];
+
+function rotatingPlaceholder(): string {
+	const idx = Math.floor(Date.now() / 8000) % PLACEHOLDER_EXAMPLES.length;
+	return PLACEHOLDER_EXAMPLES[idx] ?? PLACEHOLDER_EXAMPLES[0]!;
+}
 
 type Props = {
 	state: ComposerState;
@@ -191,7 +204,7 @@ export function ComposerPanel({
 					{isEmpty ? (
 						<Box>
 							<Text color={PEACH}>{'\u2503 '}</Text>
-							<Text dimColor>{PLACEHOLDER}</Text>
+							<Text dimColor>{rotatingPlaceholder()}</Text>
 						</Box>
 					) : (
 						state.lines.map((line, i) => {

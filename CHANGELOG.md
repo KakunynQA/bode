@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] — 2026-06-02
+
+### Added
+
+- **`RunView` component** (`src/tui/components/run-view.tsx`): dedicated component that renders structured activity entries with visual hierarchy — indentation, phase-colored icons, and artifact links. Extracted from `App` for testability and separation of concerns.
+- **`formatActivityForSnapshot()` pure helper** in `run-view.tsx`: converts activity entries into human-readable text strings for visual snapshot tests without needing `ink-testing-library`.
+- **Rotating placeholder** in the composer panel: cycles through 6 example prompts every 8 seconds using `Date.now()` — no React state churn.
+- **Visual snapshot tests** (`tests/unit/tui/run-view.test.ts`): 7 tests covering empty state, user-task, phase flow, artifacts, multi-line output, mixed entries, and edge cases via `formatActivityForSnapshot()`.
+
+### Changed
+
+- **SPEC.md TUI architecture section updated** for v2.5.1: new component listing (`RunView`, `formatActivityForSnapshot`), shell loop documentation, `doctor` fix in keybinding table.
+- **README.md** fixes: v2.0.0 callout now states explicit subcommands still work outside TUI; Ctrl+X S = `doctor` consistent across all docs.
+
 ## [2.5.0] — 2026-06-02
 
 ### Added

@@ -125,8 +125,8 @@ function moduleDir() {
   }
 }
 function getVersion() {
-  if ("2.5.0") {
-    return "2.5.0";
+  if ("2.5.1") {
+    return "2.5.1";
   }
   const base = moduleDir();
   if (base) {
@@ -28959,11 +28959,11 @@ var require_react_jsx_runtime_development = __commonJS({
             return jsxWithValidation(type, props, key, false);
           }
         }
-        var jsx5 = jsxWithValidationDynamic;
-        var jsxs5 = jsxWithValidationStatic;
+        var jsx6 = jsxWithValidationDynamic;
+        var jsxs6 = jsxWithValidationStatic;
         exports.Fragment = REACT_FRAGMENT_TYPE;
-        exports.jsx = jsx5;
-        exports.jsxs = jsxs5;
+        exports.jsx = jsx6;
+        exports.jsxs = jsxs6;
       })();
     }
   }
@@ -69120,9 +69120,20 @@ function ghostCompletion(buffer, cursor) {
 
 // src/tui/components/composer-panel.tsx
 var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
-var PLACEHOLDER = "Ask Bode to plan, build, review, or ship something...";
 var PEACH = "#FAB283";
 var MAX_WIDTH = 75;
+var PLACEHOLDER_EXAMPLES = [
+  "Ask Bode to plan, build, review, or ship something...",
+  'Ask Bode... "Fix the dashboard bug"',
+  'Ask Bode... "Plan the authentication refactor"',
+  'Ask Bode... "Review the failing test suite"',
+  'Ask Bode... "Add regression tests for the API"',
+  'Ask Bode... "Ship the PR for KD-312"'
+];
+function rotatingPlaceholder() {
+  const idx = Math.floor(Date.now() / 8e3) % PLACEHOLDER_EXAMPLES.length;
+  return PLACEHOLDER_EXAMPLES[idx] ?? PLACEHOLDER_EXAMPLES[0];
+}
 function metadataLine(shellState) {
   const parts = [];
   if (shellState.activeRun) {
@@ -69274,7 +69285,7 @@ function ComposerPanel({
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Box_default, { flexDirection: "column", flexGrow: 1, children: isEmpty ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Box_default, { children: [
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { color: PEACH, children: "\u2503 " }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: PLACEHOLDER })
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Text, { dimColor: true, children: rotatingPlaceholder() })
           ] }) : state.lines.map((line, i) => {
             const isCurrent = i === state.cursorLine;
             const col = isCurrent ? state.cursorCol : line.length;
@@ -69547,6 +69558,65 @@ function StatusBar({ state }) {
   ] });
 }
 
+// src/tui/components/run-view.tsx
+var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
+var PEACH3 = "#FAB283";
+function renderEntry(entry, i) {
+  switch (entry.kind) {
+    case "user-task":
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginBottom: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: PEACH3, children: "  \u25B9 " }),
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: entry.text })
+      ] }) }, i);
+    case "phase-start":
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginLeft: 3, marginBottom: 0, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", bold: true, children: entry.phase }) }, i);
+    case "phase-complete":
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", marginLeft: 3, marginBottom: 1, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "green", children: [
+          "\u2713 ",
+          entry.phase,
+          " complete"
+        ] }),
+        entry.taskKey && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
+          entry.taskKey,
+          " ",
+          "\xB7",
+          " ",
+          entry.phase
+        ] }) })
+      ] }, i);
+    case "command-output":
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 3, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: entry.text }) }, i);
+    case "artifact":
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 3, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
+        "  \u2192 ",
+        entry.label,
+        ": ",
+        entry.path
+      ] }) }, i);
+    case "info":
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 3, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: entry.text }) }, i);
+    case "warning":
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 3, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "yellow", children: "! " + entry.text }) }, i);
+    case "error":
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { marginLeft: 3, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "red", children: "error: " + entry.text }),
+        entry.exitCode !== void 0 && entry.exitCode !== 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: " (exit " + entry.exitCode + ")" })
+      ] }, i);
+    case "success":
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { marginLeft: 3, marginBottom: 1, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "green", children: [
+          "\u2713 ",
+          entry.text
+        ] }),
+        entry.exitCode !== void 0 && entry.exitCode !== 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: " (exit " + entry.exitCode + ")" })
+      ] }, i);
+  }
+}
+function RunView({ activity }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", paddingX: 2, children: activity.entries.map((entry, i) => renderEntry(entry, i)) });
+}
+
 // src/tui/activity.ts
 function createActivityState() {
   return { entries: [] };
@@ -69559,62 +69629,27 @@ function activityIsEmpty(state) {
 }
 
 // src/tui/components/app.tsx
-var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
-var PEACH3 = "#FAB283";
-function ActivityView({ activity }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", paddingX: 2, children: activity.entries.map((entry, i) => {
-    switch (entry.kind) {
-      case "user-task":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginBottom: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: PEACH3, children: "  \u25B9 " }),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: entry.text })
-        ] }) }, i);
-      case "phase-start":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginLeft: 2, marginBottom: 0, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", bold: true, children: entry.phase }) }, i);
-      case "phase-complete":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", marginLeft: 2, marginBottom: 1, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "green", children: [
-            "\u2713 ",
-            entry.phase,
-            " complete"
-          ] }),
-          entry.taskKey && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
-            "  ",
-            entry.taskKey,
-            " ",
-            "\xB7",
-            " ",
-            entry.phase
-          ] })
-        ] }, i);
-      case "command-output":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: entry.text }) }, i);
-      case "artifact":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
-          entry.label,
-          ": ",
-          entry.path
-        ] }) }, i);
-      case "info":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: entry.text }) }, i);
-      case "warning":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginLeft: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "yellow", children: "! " + entry.text }) }, i);
-      case "error":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { marginLeft: 2, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "red", children: "error: " + entry.text }),
-          entry.exitCode !== void 0 && entry.exitCode !== 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: " (exit " + entry.exitCode + ")" })
-        ] }, i);
-      case "success":
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { marginLeft: 2, marginBottom: 1, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { color: "green", children: [
-            "\u2713 ",
-            entry.text
-          ] }),
-          entry.exitCode !== void 0 && entry.exitCode !== 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: " (exit " + entry.exitCode + ")" })
-        ] }, i);
-    }
-  }) });
-}
+var import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
+var HELP_LINES = [
+  "",
+  "  setup                        Configure tracker, AI CLIs, VCS",
+  "  setup-project                Create or edit a project config",
+  "  start <KEY>                  Start a task (planning phase)",
+  "  continue <KEY>               Advance to next phase",
+  "  done <KEY>                   Mark task done",
+  "  abort <KEY>                  Cancel execution, clean up branch",
+  "  status <KEY>                 Show phase, branch, PR, cost",
+  "  list                         List locally tracked tasks",
+  "  doctor                       Diagnose env, config, CLIs, VCS",
+  "  new <summary>                Create local task",
+  "  log <KEY>                    Show current/last phase log",
+  "  skills                       Show or install skills",
+  "  clear                        Clear screen",
+  "  help                         Show this list",
+  "  exit                         Exit the shell",
+  "",
+  "Anything else is sent to the freeform fast path."
+];
 function App2({ state, onSubmit, onTerminate, running, activity }) {
   const { exit: inkExit } = use_app_default();
   const [dialog, setDialog] = (0, import_react23.useState)(null);
@@ -69681,10 +69716,10 @@ function App2({ state, onSubmit, onTerminate, running, activity }) {
   );
   const composerActive = dialog === null && !running;
   const statusLine = running ? "\u25D0 running..." : state.activeRun ? `\u2713 ${state.activeRun.key} \xB7 ${state.activeRun.phase}` : "";
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", minHeight: termRows, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Box_default, { flexDirection: "column", flexGrow: 1, children: [
-      showSplash ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { color: "cyan", children: centerArt(selectArt(termCols, termRows).art, termCols) }) }) : /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(ActivityView, { activity }) }),
-      dialog === "help" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", minHeight: termRows, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Box_default, { flexDirection: "column", flexGrow: 1, children: [
+      showSplash ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 2, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { color: "cyan", children: centerArt(selectArt(termCols, termRows).art, termCols) }) }) : /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(RunView, { activity }) }),
+      dialog === "help" && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
         Box_default,
         {
           flexDirection: "column",
@@ -69693,32 +69728,13 @@ function App2({ state, onSubmit, onTerminate, running, activity }) {
           borderColor: "gray",
           paddingX: 1,
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { bold: true, children: "Available commands:" }),
-            [
-              "",
-              "  setup                        Configure tracker, AI CLIs, VCS",
-              "  setup-project                Create or edit a project config",
-              "  start <KEY>                  Start a task (planning phase)",
-              "  continue <KEY>               Advance to next phase",
-              "  done <KEY>                   Mark task done",
-              "  abort <KEY>                  Cancel execution, clean up branch",
-              "  status <KEY>                 Show phase, branch, PR, cost",
-              "  list                         List locally tracked tasks",
-              "  doctor                       Diagnose env, config, CLIs, VCS",
-              "  new <summary>                Create local task",
-              "  log <KEY>                    Show current/last phase log",
-              "  skills                       Show or install skills",
-              "  clear                        Clear screen",
-              "  help                         Show this list",
-              "  exit                         Exit the shell",
-              "",
-              "Anything else is sent to the freeform fast path."
-            ].map((line, i) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { children: line }, i)),
-            /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Text, { dimColor: true, children: "Press Esc to close" }) })
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { bold: true, children: "Available commands:" }),
+            HELP_LINES.map((line, i) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { children: line }, i)),
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Text, { dimColor: true, children: "Press Esc to close" }) })
           ]
         }
       ) }),
-      dialog === "leader" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { paddingX: 2, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(Text, { dimColor: true, children: [
+      dialog === "leader" && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { paddingX: 2, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(Text, { dimColor: true, children: [
         "ctrl+x",
         "  ",
         "l list",
@@ -69729,7 +69745,7 @@ function App2({ state, onSubmit, onTerminate, running, activity }) {
         "  ",
         "q quit"
       ] }) }),
-      dialog === "palette" && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      dialog === "palette" && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", alignItems: "center", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
         CommandPalette,
         {
           onClose: () => setDialog(null),
@@ -69738,7 +69754,7 @@ function App2({ state, onSubmit, onTerminate, running, activity }) {
         }
       ) })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Box_default, { flexDirection: "column", marginTop: 1, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
       ComposerPanel,
       {
         state: composerState,
@@ -69753,7 +69769,7 @@ function App2({ state, onSubmit, onTerminate, running, activity }) {
         shellState: state
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(StatusBar, { state })
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(StatusBar, { state })
   ] });
 }
 

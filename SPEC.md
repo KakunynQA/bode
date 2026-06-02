@@ -328,25 +328,35 @@ hooks:
 3. Global: `~/.bode/config.yml`
 4. Defaults baked into `src/config/loader.ts`
 
-## Shell Mode (v2.0.0+, landing screen v2.4.0)
+## Shell Mode (v2.0.0+, landing screen v2.4.0, rewritten v2.5.0)
 
 `bode` (no args) launches the Ink-powered interactive TUI shell. The shell now opens with a landing screen built from composable Ink components (`src/tui/components/`).
 
-### Landing screen (v2.4.0)
+### Home screen (v2.4.0+, redesigned v2.5.0)
 
 - **Responsive ASCII goat art** (`src/tui/logo.ts`): three tiers — full art (`__GOAT_ART__` from `src/assets/bode.art`), compact art (from `src/assets/bode-compact.art`), text fallback (`bode`). Auto-centered based on terminal width.
-- **Multiline composer** (`src/tui/composer.ts`, `src/tui/components/composer-panel.tsx`): **Enter** submits, **Shift+Enter** inserts a newline. Up/down history navigation, Tab autocomplete. Cursor-based text input via Ink's `useInput`.
-- **Command palette** (`src/tui/palette.ts`, `src/tui/components/command-palette.tsx`): **Ctrl+P** opens a searchable, filterable list of all subcommands and flags. Fuzzy search, arrow-key selection, Enter to execute.
-- **Leader-key shortcuts** (**Ctrl+X** prefix): **L** = `list`, **S** = `status <last>`, **H** = `help`, **Q** = `quit`. Sequences time out after 2 s back to idle.
-- **Status bar** (`src/tui/components/status-bar.tsx`): bottom-line footer showing `cwd · <tracker-kind> · bode v<version>`. Replaces the v2.0 header + footer pair.
+- **Structured activity model** (`src/tui/activity.ts`): typed entries — `user-task`, `phase-start`, `phase-complete`, `command-output`, `artifact`, `info`, `warning`, `error`, `success`. Replaces the raw stdout/stderr transcript model.
+- **Run view** (`src/tui/components/run-view.tsx`): renders structured activity entries with visual hierarchy — indented phase blocks, color-coded status, artifact paths.
+- **Composer** (`src/tui/composer.ts`, `src/tui/components/composer-panel.tsx`): left accent border, metadata row (`taskKey · phase · tracker`), 75-column max width, rotating placeholder examples. **Enter** submits, **Shift+Enter** inserts a newline. Tab autocomplete. Cursor-based text input via Ink's `useInput`.
+- **Command palette** (`src/tui/palette.ts`, `src/tui/components/command-palette.tsx`): **Ctrl+P** opens a bordered dialog with searchable, filterable list of all subcommands. Fuzzy search, arrow-key selection, Enter inserts into composer.
+- **Leader-key shortcuts** (**Ctrl+X** prefix): **L** = `list`, **S** = `doctor`, **H** = `help`, **Q** = `quit`.
+- **Status bar** (`src/tui/components/status-bar.tsx`): three-part footer: `cwd | tracker · run · phase | version`.
+- **App component** (`src/tui/components/app.tsx`): manages view state with single `dialog` state variable (`null | 'palette' | 'help' | 'leader'`). Splash screen shows when activity is empty; run view renders after first command.
 
 ### Shell routing (src/index.ts)
 
 Three-way routing at entry:
 
 1. `--version` / `--help` → headless (no TTY required, exits immediately)
-2. Explicit subcommand args (e.g. `bode setup`, `bode start KD-1`) → one-shot headless invocation
-3. No args (or bare `bode`) → Ink TUI shell via `src/tui/shell.ts` → `LandingApp` (`src/tui/components/landing-app.tsx`)
+2. Explicit subcommand args (e.g. `bode setup`, `bode start KD-1`) → one-shot invocation
+3. No args (or bare `bode`) → Ink TUI shell via `src/tui/shell.ts` → `App` (`src/tui/components/app.tsx`)
+
+### Shell loop (src/tui/shell.ts, v2.5.0)
+
+- `runShell()` loops on `action: 'continue'` results, re-entering `renderSession()` with refreshed state.
+- `clear` clears activity and returns to home without exiting.
+- Non-interactive commands refresh `loadInitialState()` after execution and rerender with fresh footer/run state.
+- Interactive commands (`setup`, `setup-project`, `setup-transitions`) unmount Ink, run raw-mode wizards, then create a fresh `renderSession()` with preserved activity.
 
 ### Prior shell elements (v2.0.0)
 
@@ -366,7 +376,7 @@ Three-way routing at entry:
 | `Esc`                                               | Clear the in-progress command (buffer, cursor, history pointer, stashed draft). No-op when the prompt is already empty.                                                                             | Wizard: step back one question; at the first step, cancel the entire wizard and return to the idle prompt. Non-wizard actions: not yet honoured (the spawned AI CLI owns stdin). |
 | `Ctrl+C`                                            | Exit the bode process cleanly.                                                                                                                                                                      | Exit the bode process cleanly — including mid-wizard and mid-AI-CLI.                                                                                                             |
 | **`Ctrl+P`** (v2.4.0)                               | Open the command palette (searchable list of all subcommands and flags).                                                                                                                            | n/a.                                                                                                                                                                             |
-| **`Ctrl+X`** prefix (v2.4.0)                        | Leader-key mode: **L** = `list`, **S** = `status <last>`, **H** = `help`, **Q** = `quit`. 2 s timeout returns to idle.                                                                              | n/a.                                                                                                                                                                             |
+| **`Ctrl+X`** prefix (v2.4.0)                        | Leader-key mode: **L** = `list`, **S** = `doctor`, **H** = `help`, **Q** = `quit`.                                                                                                                  | n/a.                                                                                                                                                                             |
 
 ### Persistent command history
 

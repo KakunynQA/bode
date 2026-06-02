@@ -4,11 +4,10 @@ import { selectArt, centerArt } from '../logo.ts';
 import { ComposerPanel } from './composer-panel.tsx';
 import { CommandPalette } from './command-palette.tsx';
 import { StatusBar } from './status-bar.tsx';
+import { RunView } from './run-view.tsx';
 import { createComposerState, reduceComposer, type ComposerState } from '../composer.ts';
 import { type ActivityState, activityIsEmpty } from '../activity.ts';
 import type { ShellState } from '../state.ts';
-
-const PEACH = '#FAB283';
 
 type DialogKind = 'palette' | 'help' | 'leader';
 
@@ -20,95 +19,26 @@ type Props = {
 	activity: ActivityState;
 };
 
-function ActivityView({ activity }: { activity: ActivityState }): JSX.Element {
-	return (
-		<Box flexDirection="column" paddingX={2}>
-			{activity.entries.map((entry, i) => {
-				switch (entry.kind) {
-					case 'user-task':
-						return (
-							<Box key={i} flexDirection="column" marginBottom={1}>
-								<Box>
-									<Text color={PEACH}>{'  \u25B9 '}</Text>
-									<Text bold>{entry.text}</Text>
-								</Box>
-							</Box>
-						);
-					case 'phase-start':
-						return (
-							<Box key={i} flexDirection="column" marginLeft={2} marginBottom={0}>
-								<Text color="cyan" bold>
-									{entry.phase}
-								</Text>
-							</Box>
-						);
-					case 'phase-complete':
-						return (
-							<Box key={i} flexDirection="column" marginLeft={2} marginBottom={1}>
-								<Text color="green">
-									{'\u2713 '}
-									{entry.phase} complete
-								</Text>
-								{entry.taskKey && (
-									<Text dimColor>
-										{'  '}
-										{entry.taskKey} {'\u00B7'} {entry.phase}
-									</Text>
-								)}
-							</Box>
-						);
-					case 'command-output':
-						return (
-							<Box key={i} marginLeft={2}>
-								<Text dimColor>{entry.text}</Text>
-							</Box>
-						);
-					case 'artifact':
-						return (
-							<Box key={i} marginLeft={2}>
-								<Text dimColor>
-									{entry.label}: {entry.path}
-								</Text>
-							</Box>
-						);
-					case 'info':
-						return (
-							<Box key={i} marginLeft={2}>
-								<Text dimColor>{entry.text}</Text>
-							</Box>
-						);
-					case 'warning':
-						return (
-							<Box key={i} marginLeft={2}>
-								<Text color="yellow">{'! ' + entry.text}</Text>
-							</Box>
-						);
-					case 'error':
-						return (
-							<Box key={i} marginLeft={2}>
-								<Text color="red">{'error: ' + entry.text}</Text>
-								{entry.exitCode !== undefined && entry.exitCode !== 0 && (
-									<Text dimColor>{' (exit ' + entry.exitCode + ')'}</Text>
-								)}
-							</Box>
-						);
-					case 'success':
-						return (
-							<Box key={i} marginLeft={2} marginBottom={1}>
-								<Text color="green">
-									{'\u2713 '}
-									{entry.text}
-								</Text>
-								{entry.exitCode !== undefined && entry.exitCode !== 0 && (
-									<Text dimColor>{' (exit ' + entry.exitCode + ')'}</Text>
-								)}
-							</Box>
-						);
-				}
-			})}
-		</Box>
-	);
-}
+const HELP_LINES = [
+	'',
+	'  setup                        Configure tracker, AI CLIs, VCS',
+	'  setup-project                Create or edit a project config',
+	'  start <KEY>                  Start a task (planning phase)',
+	'  continue <KEY>               Advance to next phase',
+	'  done <KEY>                   Mark task done',
+	'  abort <KEY>                  Cancel execution, clean up branch',
+	'  status <KEY>                 Show phase, branch, PR, cost',
+	'  list                         List locally tracked tasks',
+	'  doctor                       Diagnose env, config, CLIs, VCS',
+	'  new <summary>                Create local task',
+	'  log <KEY>                    Show current/last phase log',
+	'  skills                       Show or install skills',
+	'  clear                        Clear screen',
+	'  help                         Show this list',
+	'  exit                         Exit the shell',
+	'',
+	'Anything else is sent to the freeform fast path.',
+];
 
 export function App({ state, onSubmit, onTerminate, running, activity }: Props): JSX.Element {
 	const { exit: inkExit } = useApp();
@@ -199,7 +129,7 @@ export function App({ state, onSubmit, onTerminate, running, activity }: Props):
 					</Box>
 				) : (
 					<Box flexDirection="column" marginTop={1}>
-						<ActivityView activity={activity} />
+						<RunView activity={activity} />
 					</Box>
 				)}
 
@@ -213,26 +143,7 @@ export function App({ state, onSubmit, onTerminate, running, activity }: Props):
 							paddingX={1}
 						>
 							<Text bold>{'Available commands:'}</Text>
-							{[
-								'',
-								'  setup                        Configure tracker, AI CLIs, VCS',
-								'  setup-project                Create or edit a project config',
-								'  start <KEY>                  Start a task (planning phase)',
-								'  continue <KEY>               Advance to next phase',
-								'  done <KEY>                   Mark task done',
-								'  abort <KEY>                  Cancel execution, clean up branch',
-								'  status <KEY>                 Show phase, branch, PR, cost',
-								'  list                         List locally tracked tasks',
-								'  doctor                       Diagnose env, config, CLIs, VCS',
-								'  new <summary>                Create local task',
-								'  log <KEY>                    Show current/last phase log',
-								'  skills                       Show or install skills',
-								'  clear                        Clear screen',
-								'  help                         Show this list',
-								'  exit                         Exit the shell',
-								'',
-								'Anything else is sent to the freeform fast path.',
-							].map((line, i) => (
+							{HELP_LINES.map((line, i) => (
 								<Text key={i}>{line}</Text>
 							))}
 							<Box marginTop={1}>
